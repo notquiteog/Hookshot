@@ -83,6 +83,7 @@ std::deque<DeadMirror> dead_mirrors;
 /* DEAD IMPORT */
 std::deque<DeadImport> dead_imports;
 uint64_t st_retired_imports_freed = 0, st_retired_import_bytes_freed = 0;
+uint64_t dead_import_bytes = 0;   // (queued in dead_imports, taken off as reap_mirrors frees each: #1906)
 std::deque<std::map<uint64_t, Pool>::node_type> evicted_pools;
 void logf(const char*, ...) {}
 const char* getenv(const char*) { return nullptr; }   // (unrelated diagnostic toggle in reap_mirrors)

@@ -12,6 +12,8 @@ import tempfile
 RUN_ALL_ARGS = ["--cc", "gcc"]
 
 ROOT = Path(__file__).resolve().parents[1]
+# (env_on, the switches' rule, before the code cut out of the source: reverb_frame reads HOS_AUDIO_NO_REVERB with it)
+ENV_ON_H = str(ROOT / 'gpu' / 'vk' / 'compat' / 'hookshot_env.h')
 
 
 def function(source, marker):
@@ -50,7 +52,7 @@ def main():
         folder = Path(tmp)
         (folder / 'audio_biquad.inc').write_text('\n'.join(chunks), encoding='utf-8')
         exe = folder / 'fixture.exe'
-        subprocess.run([compiler, '-std=c11', '-O1', '-g', '-Wall', '-Wextra', '-Werror',
+        subprocess.run([compiler, '-std=c11', '-include', ENV_ON_H, '-O1', '-g', '-Wall', '-Wextra', '-Werror',
                         '-Wno-unused-function', '-Wno-unused-variable', '-Wno-unused-parameter',
                         '-I' + str(folder), str(ROOT / 'tests/audio_biquad_test.c'), '-lm', '-o', str(exe)], check=True)
         subprocess.run([str(exe)], check=True)

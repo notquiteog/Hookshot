@@ -26,7 +26,8 @@ def installs(text):
 
 
 def ppas(text):
-    return set(re.findall(r"add-apt-repository\s+(?:-y\s+)?(\S+)", text))
+    """Every repository an add-apt-repository names, past its options (-y, and the workflow's --no-update, #2266)."""
+    return set(re.findall(r"add-apt-repository\s+(?:-\S+\s+)*(\S+)", text))
 
 
 class LinuxDockerPackages(unittest.TestCase):

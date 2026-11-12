@@ -48,7 +48,9 @@ def main():
     loop = function(display, "void hos_display_loop(void)")
     loop = loop[:loop.index("    vk_window.window = window;")] + "    ++visible_window_started;\n}\n"
     app_main = function(host, "int main(int argc, char **argv)").replace("int main(", "int app_main(", 1)
-    actual = "\n\n".join([function(display, "int hos_display_init(void)"),
+    # (window_title: the HOS_WINDOW_TITLE override the init and the loop name the window with, #2116)
+    actual = "\n\n".join([function(display, "static const char *window_title(const char *fallback)"),
+                             function(display, "int hos_display_init(void)"),
                              function(display, "void hos_display_start(void)"), loop, app_main])
     flags = subprocess.CREATE_NO_WINDOW | subprocess.BELOW_NORMAL_PRIORITY_CLASS if os.name == "nt" else 0
     env = dict(os.environ)
