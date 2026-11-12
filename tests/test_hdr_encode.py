@@ -228,7 +228,8 @@ def check_dlss():
             "s.feature_hdr == hdr" not in prepare or \
             "NVSDK_NGX_DLSS_Feature_Flags_IsHDR | NVSDK_NGX_DLSS_Feature_Flags_AutoExposure" not in prepare:
         sys.exit("FAIL: DLSS's feature is not made for HDR colour while the game presents PQ (and again when that changes)")
-    if "start, prepare, evaluate, release, memory, hdr}" not in dlss:
+    # (after hdr: fsr_depth false, and retry true, an evaluation that fails is that frame's alone)
+    if "start, prepare, evaluate, release, memory, hdr, false, true}" not in dlss:
         sys.exit("FAIL: vk_dlss.cpp's engine does not tell the chain it takes HDR colour")
 
 

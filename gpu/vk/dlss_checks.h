@@ -13,7 +13,9 @@ namespace mkwvk::dlss_checks {
 /// (DLAA at 1, Ultra Performance at 3: 512x288 for 1536x864, 683x384 for 2048x1152). False while the output is not known
 /// (0). The scene's camera and the actor motion take only these, and the upscale draws only these.
 inline bool scene_size_fits(uint32_t w, uint32_t h, uint32_t ow, uint32_t oh) {
-    return w && h && ow && oh && w <= ow && h <= oh && (uint64_t)(w + 2) * 3 >= ow && (uint64_t)(h + 2) * 3 >= oh;
+    // (a third rounded down counts: 853x480 is NGX's own Ultra Performance size for 2560x1440, and 853 * 3 is 2559. No
+    // further: a size a pixel or two under the third would be widened into Ultra Performance's range by mode_for)
+    return w && h && ow && oh && w <= ow && h <= oh && (uint64_t)w * 3 + 2 >= ow && (uint64_t)h * 3 + 2 >= oh;
 }
 
 /// A DLSS quality mode's range of render sizes for an output (NGX_DLSS_GET_OPTIMAL_SETTINGS' smallest and largest)

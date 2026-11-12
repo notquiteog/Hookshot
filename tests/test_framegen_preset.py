@@ -71,6 +71,7 @@ struct { void note(const int*) {} } restart_state;
 bool can_mic() { return false; }
 void mic_chosen() {}
 void samplers_changed() {}
+void temporal_reset_failure() {}   // (vk_temporal.cpp: a DLSS row brings a failed engine back)
 void prompts_at_once(const Row&) {}
 int step_output_choice(int id, int dir) { return id + dir; }
 const char* tx_framegen(int) { return ""; }

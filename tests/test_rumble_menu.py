@@ -92,6 +92,7 @@ bool can_mic() { return false; }
 unsigned upscalers_available() { return 1; }
 void mic_chosen() {}
 void samplers_changed() {}
+void temporal_reset_failure() {}   // (vk_temporal.cpp: a DLSS row brings a failed engine back)
 void prompts_at_once(const Row&) {}
 // (set_row steps the Output row through vk_menu.cpp's step_output_choice (#1144): not what this checks)
 int step_output_choice(int id, int dir) { return id + dir; }

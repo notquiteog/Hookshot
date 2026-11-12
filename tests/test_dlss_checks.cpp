@@ -37,6 +37,11 @@ int main() {
     CHECK("output not known yet", !dc::scene_size_fits(512, 288, 0, 0));
     CHECK("output not known yet (1080p scene)", !dc::scene_size_fits(1536, 864, 0, 0));
     CHECK("no size", !dc::scene_size_fits(0, 0, 1536, 864));
+    // (a third rounded down is still a third: NGX's own Ultra Performance size for 2560x1440 is 853x480, and 853 * 3 is
+    // 2559. The rounding and no more: a pixel under it is under a third)
+    CHECK("1440p Ultra Performance, a third rounded down", dc::scene_size_fits(853, 480, 2560, 1440));
+    CHECK("a third rounded down, less one", !dc::scene_size_fits(852, 480, 2560, 1440));
+    CHECK("a third of 1081 rows rounded down", dc::scene_size_fits(640, 360, 1920, 1081));
     CHECK("under a third wide", !dc::scene_size_fits(511, 288, 1536, 864));
     CHECK("under a third high", !dc::scene_size_fits(512, 287, 1536, 864));
     CHECK("a square shadow-map-like target", !dc::scene_size_fits(384, 384, 1536, 864));
