@@ -21,6 +21,10 @@ DlssWhy dlss_why();
 /// Asks NGX once whether DLSS runs on this device, so dlss_why knows before the first upscale (the menu, when it opens).
 /// Nothing off an NVIDIA device with NGX's extensions, or in a build without DLSS
 void dlss_probe();
+/// A feature that was not made is asked for again at the next upscale (vk_dlss.cpp prepare's `refused`): the player
+/// changed a row the feature is made from (vk_temporal.cpp temporal_reset_failure, with the chain's lock held, as prepare
+/// has it)
+void dlss_retry();
 /// (hookshot) NGX started on this device, by this file, for NGX's other features to use the same session: DLSS 5 neural
 /// rendering through NGX (vk_ngx.cpp, vk_dlssnr_ngx.cpp). NGX is initialized once per device and shut down once; a second
 /// NVSDK_NGX_VULKAN_Init_with_ProjectID beside this one is what it avoids. True even where super resolution itself is not
