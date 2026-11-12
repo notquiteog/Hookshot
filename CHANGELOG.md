@@ -1,5 +1,107 @@
 # Changelog
 
+## [2.2.0-rc.3](https://github.com/notquiteog/Hookshot/compare/v2.2.0-rc.2...v2.2.0-rc.3) (2026-11-12)
+
+
+### Features
+
+* **agents:** test requests need a collaborator's PR or the "testing wanted" label ([#2746](https://github.com/notquiteog/Hookshot/issues/2746)) ([51da046](https://github.com/notquiteog/Hookshot/commit/51da0464b4cf0c7f56b81ebd6bb309325835e175))
+* **agents:** test requests: ask the team to test a PR on other hardware, claim it, report the results ([#2734](https://github.com/notquiteog/Hookshot/issues/2734)) ([6dcc15c](https://github.com/notquiteog/Hookshot/commit/6dcc15c72e745cf464e8ee0851cec16861f46e3c))
+* **build:** build_times.json and the build's last lines say where the time went ([#2693](https://github.com/notquiteog/Hookshot/issues/2693)) ([a9d5a0b](https://github.com/notquiteog/Hookshot/commit/a9d5a0b14b788a2e18d2a12d8fcac27edd28934c))
+* **control:** the Debug tab's Switch age over the bridge, so scripts reach the adult's maps ([#2694](https://github.com/notquiteog/Hookshot/issues/2694)) ([b157c3e](https://github.com/notquiteog/Hookshot/commit/b157c3e817666cf8848a85fa993311495a64f885))
+* **input:** log SDL controller GUID and active mapping ([#2678](https://github.com/notquiteog/Hookshot/issues/2678)) ([3abfa0a](https://github.com/notquiteog/Hookshot/commit/3abfa0a0ee07d9c48361b61bc8424f6c5fb7bc1f))
+* **menu:** let Gameplay skip the new-game opening ([#2827](https://github.com/notquiteog/Hookshot/issues/2827)) ([435d83d](https://github.com/notquiteog/Hookshot/commit/435d83d3356a5852f0d304b010d378e2097d6886))
+* **menu:** the Aspect ratio and Output resolution from the screen's display modes ([#2566](https://github.com/notquiteog/Hookshot/issues/2566)) ([511198c](https://github.com/notquiteog/Hookshot/commit/511198c57056c24181c513bfd565fe9e264a0020))
+* the Insert menu in 13 languages, with Game language and Menu la… ([#1864](https://github.com/notquiteog/Hookshot/issues/1864)) ([c356bef](https://github.com/notquiteog/Hookshot/commit/c356bef4dc981fb30a27c5a420c7f238412178ef))
+* **vk:** actor motion for single-influence, two-influence and rigid one-bone models ([#2787](https://github.com/notquiteog/Hookshot/issues/2787)) ([dfc8fa5](https://github.com/notquiteog/Hookshot/commit/dfc8fa5e75aace8f9d09d1da4c217ad9d00dac43))
+* **vk:** AMD Anti-Lag 2 with frame generation ([#2262](https://github.com/notquiteog/Hookshot/issues/2262)) ([e2057b2](https://github.com/notquiteog/Hookshot/commit/e2057b2b4d00c948529d40dfc2c2215bea6053f4))
+* **vk:** load shader programs when the game creates them ([#2760](https://github.com/notquiteog/Hookshot/issues/2760)) ([86a9cda](https://github.com/notquiteog/Hookshot/commit/86a9cda235046f32458776178d64b445861e22f6))
+* **vk:** the frame trace names the waits it could not show ([#2683](https://github.com/notquiteog/Hookshot/issues/2683)) ([37382ca](https://github.com/notquiteog/Hookshot/commit/37382cae6b4159fac5f7deb1e46a7fba7d6ad8c2))
+
+
+### Bug Fixes
+
+* **agents:** team_chat.py read no longer stops at the first post on Windows ([#2640](https://github.com/notquiteog/Hookshot/issues/2640)) ([de86601](https://github.com/notquiteog/Hookshot/commit/de866017e1584372fc75a1caab3784b3ba1d9f98))
+* **build:** a compile error in a source file no longer translates the game again ([#2675](https://github.com/notquiteog/Hookshot/issues/2675)) ([be65433](https://github.com/notquiteog/Hookshot/commit/be6543385806eea85117c60e6af38e605874a19f))
+* **build:** a new work folder's second build no longer translates the game again ([#2674](https://github.com/notquiteog/Hookshot/issues/2674)) ([c544828](https://github.com/notquiteog/Hookshot/commit/c544828ff2d545829505cd894bb7968c7c2c5fcb))
+* **build:** check Linux prerequisites before reading the dump ([#2793](https://github.com/notquiteog/Hookshot/issues/2793)) ([dae1930](https://github.com/notquiteog/Hookshot/commit/dae19300f2c373d4b9e9dd191b76b432618faf11))
+* **builder:** any write error in the game folder check gives the clear message ([#2802](https://github.com/notquiteog/Hookshot/issues/2802)) ([620f79e](https://github.com/notquiteog/Hookshot/commit/620f79e1811ee329c8fd8da0947d4656514cba7b)), closes [#2792](https://github.com/notquiteog/Hookshot/issues/2792)
+* **build:** explain missing prompt stamps and reclaim abandoned staging ([#2710](https://github.com/notquiteog/Hookshot/issues/2710)) ([141339e](https://github.com/notquiteog/Hookshot/commit/141339eb6de0bbe9ca2ca6c148d79d3b7c751a2d))
+* **build:** the iGPU texture budget's caps build on Linux ([#2634](https://github.com/notquiteog/Hookshot/issues/2634)) ([85a6dde](https://github.com/notquiteog/Hookshot/commit/85a6dde34a14f76a401240971f41c5c3f5f9970f))
+* **build:** the lift key is taken again only if the lift's other inputs did not change ([#2686](https://github.com/notquiteog/Hookshot/issues/2686)) ([331efae](https://github.com/notquiteog/Hookshot/commit/331efae3c3c2c626614678487afd44681f0e758a))
+* **cheats:** keep the teleport minimap repair in saved games ([#2646](https://github.com/notquiteog/Hookshot/issues/2646)) ([59316c4](https://github.com/notquiteog/Hookshot/commit/59316c4619e909b19408573cb087c28e4b8a5ea5))
+* **host:** a movie's end no longer waits ~250 ms for a picture that is not coming ([#2682](https://github.com/notquiteog/Hookshot/issues/2682)) ([cc04531](https://github.com/notquiteog/Hookshot/commit/cc04531b87c1dae3fc30d9eb69505d97bf52f676))
+* **input:** preserve stick direction outside the dead zone ([#1600](https://github.com/notquiteog/Hookshot/issues/1600)) ([284c912](https://github.com/notquiteog/Hookshot/commit/284c912123cc06fae39ba2061ce3beadf2e9c212))
+* **input:** reseed mouse look after camera handover ([#2653](https://github.com/notquiteog/Hookshot/issues/2653)) ([0ec31ff](https://github.com/notquiteog/Hookshot/commit/0ec31ff6d98841f112db29397aa868ba8f941870))
+* **input:** the Disable camera centering row's function is back, and the game links again ([948927b](https://github.com/notquiteog/Hookshot/commit/948927bb9436e096be617c63b302af7c3ab08f66))
+* **input:** the movement and camera keys hide the game menus' cursor again ([#2664](https://github.com/notquiteog/Hookshot/issues/2664)) ([9713f25](https://github.com/notquiteog/Hookshot/commit/9713f25f840a9390e6d89076d6f07feac304f2e5))
+* **lift:** write a split chunk's parts before the chunk itself ([#2751](https://github.com/notquiteog/Hookshot/issues/2751)) ([5a0c21c](https://github.com/notquiteog/Hookshot/commit/5a0c21cbfa23abc041468113360a04d2e066a78e))
+* **linux:** acknowledge Play's scope hand-off before closing ([#2643](https://github.com/notquiteog/Hookshot/issues/2643)) ([bc0ecd8](https://github.com/notquiteog/Hookshot/commit/bc0ecd8409a5bca0b831c060dd9c3616f512ff83))
+* **linux:** the replay's reserved core is a performance core on Intel's hybrid CPUs ([#2805](https://github.com/notquiteog/Hookshot/issues/2805)) ([262f561](https://github.com/notquiteog/Hookshot/commit/262f561402da0a3338ca52776706df1fb0a3f23e))
+* main links again: hos_disable_camera_centering is back in host/mouse_native.c ([#2632](https://github.com/notquiteog/Hookshot/issues/2632)) ([a016b7a](https://github.com/notquiteog/Hookshot/commit/a016b7a618789abcfa1029e0a8ad2e96ca89bd32))
+* **menu:** translate the current controls and automatic hints ([#2654](https://github.com/notquiteog/Hookshot/issues/2654)) ([6946562](https://github.com/notquiteog/Hookshot/commit/6946562150d5ac923d2ee80808418b24ad9540e5))
+* **mods:** merge prompts with the game's resource size table ([#2592](https://github.com/notquiteog/Hookshot/issues/2592)) ([bd9b07e](https://github.com/notquiteog/Hookshot/commit/bd9b07e6bdd4155c50aeb360c96bc65be19a63be))
+* **release:** a SHA256SUMS replaced between its listing and its read is read again (flaky nightly test) ([#2822](https://github.com/notquiteog/Hookshot/issues/2822)) ([7610111](https://github.com/notquiteog/Hookshot/commit/7610111146a72bfd9e30b75e0bbcccdc91297f70))
+* **saves:** a link to an entry that moved first follows it to the new place ([#2832](https://github.com/notquiteog/Hookshot/issues/2832)) ([9e77642](https://github.com/notquiteog/Hookshot/commit/9e7764271a87c8c4cfd4be16250b59dfbe10d62d))
+* **scripts:** team_chat login keeps the token when the browser closes the tab first ([#2671](https://github.com/notquiteog/Hookshot/issues/2671)) ([87991bc](https://github.com/notquiteog/Hookshot/commit/87991bc8b21c271f2dee3daf7f06fd006faa865c))
+* **shaders:** noperspective varyings interpolated right on AMD (Royal Family Tomb water); sirit names an undefined operand ([#1830](https://github.com/notquiteog/Hookshot/issues/1830)) ([6749ba2](https://github.com/notquiteog/Hookshot/commit/6749ba2174d749c630189a1defc916bdac3ffe4f))
+* **tests:** run_all.py prints a failed check's quotes into a Windows pipe instead of stopping ([#2666](https://github.com/notquiteog/Hookshot/issues/2666)) ([8a10b34](https://github.com/notquiteog/Hookshot/commit/8a10b34e4224c56309f4ea335abdb185c0e20f4e))
+* **tests:** the input-background fixture reads oc_consumed_pads, so clang 23 builds it ([#2777](https://github.com/notquiteog/Hookshot/issues/2777)) ([b8dce44](https://github.com/notquiteog/Hookshot/commit/b8dce44e0269db09824f004fb0681136997f9e11))
+* **tests:** the write-back shadow fixture builds with Microsoft's headers (getenv under -Werror) ([a52077b](https://github.com/notquiteog/Hookshot/commit/a52077b47fdbc027da7702bcb39d9883489352b6))
+* the eleven source checks red on upstream's main, and the two bugs behind them ([e3f076a](https://github.com/notquiteog/Hookshot/commit/e3f076af5d797e09f236e1de30741f3d3f13eb46))
+* **vi:** the time of day passes again above a 60 fps cap ([#2093](https://github.com/notquiteog/Hookshot/issues/2093)) ([f0c40fc](https://github.com/notquiteog/Hookshot/commit/f0c40fc96cdfc48ac1ca974620f6594af2c9546a))
+* **vk:** bound the wait for shaders still translating, then leave the… ([#2586](https://github.com/notquiteog/Hookshot/issues/2586)) ([65a4d87](https://github.com/notquiteog/Hookshot/commit/65a4d874fd83a2c8fe2e230befb144f1668b900c))
+* **vk:** capture switches follow the on/off rule ([#2651](https://github.com/notquiteog/Hookshot/issues/2651)) ([1101a8e](https://github.com/notquiteog/Hookshot/commit/1101a8e266e3047722af69a25e67c88768390e46))
+* **vk:** count BC textures by blocks in the texture budget ([#2624](https://github.com/notquiteog/Hookshot/issues/2624)) ([5d81051](https://github.com/notquiteog/Hookshot/commit/5d81051c9fb14f4e9f1b53237f06cccd1c818bea))
+* **vk:** DLSS comes back after a feature that was not made, and frame generation takes the multiplier its sets were made for ([#2658](https://github.com/notquiteog/Hookshot/issues/2658)) ([1bf4284](https://github.com/notquiteog/Hookshot/commit/1bf4284a8b385a21fb370f473f1d12bb51f50651))
+* **vk:** frame generation and DLSS: a multiplier race, DLSS held off after one refusal, AMD's history ([1ce3acb](https://github.com/notquiteog/Hookshot/commit/1ce3acbce8086411d94681787c6cdda10f2028cc))
+* **vk:** give back the import of a retired pool whose mirror was refused ([#2795](https://github.com/notquiteog/Hookshot/issues/2795)) ([c2e9ed5](https://github.com/notquiteog/Hookshot/commit/c2e9ed58205a0b18d823c9b47ec2115c838a7b61))
+* **vk:** make the blocks at the start in the pool the textures are made in ([#2690](https://github.com/notquiteog/Hookshot/issues/2690)) ([#2711](https://github.com/notquiteog/Hookshot/issues/2711)) ([1c0cd98](https://github.com/notquiteog/Hookshot/commit/1c0cd9803d5951889535edbfadfb2be89d56e432))
+* **vk:** neural rendering: history after a gap, a refused size, the model check ([73e74c4](https://github.com/notquiteog/Hookshot/commit/73e74c489a684f47007b14d14b0fa745550c797d))
+* **vk:** remake write-back shadows given back under VRAM pressure ([#2767](https://github.com/notquiteog/Hookshot/issues/2767)) ([f1d0a67](https://github.com/notquiteog/Hookshot/commit/f1d0a679320472dab62dc11aaca2b75fb8baa538))
+* **vk:** the Intel texture budget's caps build on Linux ([b5d6d5c](https://github.com/notquiteog/Hookshot/commit/b5d6d5ce6feab342867d613e5267f87915d55384))
+* **vk:** V-Sync Auto keeps its mode when DLSS Frame Gen's runtime makes fewer frames than the multiplier asks ([#2701](https://github.com/notquiteog/Hookshot/issues/2701)) ([ee29dd5](https://github.com/notquiteog/Hookshot/commit/ee29dd55b593577ae0a7a6e2f871848ee5e176b4))
+* **vk:** wait for the native scene when switching to DLAA ([#2145](https://github.com/notquiteog/Hookshot/issues/2145)) ([f3dd448](https://github.com/notquiteog/Hookshot/commit/f3dd44863edb9443b20add398f3030a0a07adac5))
+
+
+### Performance Improvements
+
+* **build:** a source whose size, time and id are unchanged is not read again to name its object ([#2702](https://github.com/notquiteog/Hookshot/issues/2702)) ([ba005ca](https://github.com/notquiteog/Hookshot/commit/ba005ca4fa179ccd2140f06f9308d0ff63894ff6))
+* **build:** keep unchanged button-prompt assets in source builds ([#2698](https://github.com/notquiteog/Hookshot/issues/2698)) ([4678050](https://github.com/notquiteog/Hookshot/commit/467805032c70d21cb1e5e633faf7eb556b02935f))
+* **fsr4:** AMD FSR 4's passes 8.97 -&gt; 4.04 ms on RDNA 2, output bit for bit the same ([#2798](https://github.com/notquiteog/Hookshot/issues/2798)) ([ea22513](https://github.com/notquiteog/Hookshot/commit/ea22513df1f79477d042ff58637399c133695b37))
+* **host:** fewer idle game threads poll through short sleeps and spins on 7+ thread CPUs ([#2709](https://github.com/notquiteog/Hookshot/issues/2709)) ([376d068](https://github.com/notquiteog/Hookshot/commit/376d06815008b5f7b5d9e8d80f365963745ffb30))
+* **host:** on Linux the game's own short sleeps wait on the timer instead of yielding ([#2637](https://github.com/notquiteog/Hookshot/issues/2637)) ([a1eb460](https://github.com/notquiteog/Hookshot/commit/a1eb46046d48066e153be26d6ea5b503b067420f))
+* **host:** the game's zstd stream decode on the host's libzstd (HOS_NATIVE_ZSTD, opt-in) ([#2738](https://github.com/notquiteog/Hookshot/issues/2738)) ([a2766f9](https://github.com/notquiteog/Hookshot/commit/a2766f9c194f06e0836e3b1c4c563e4675702386))
+* **lift:** emit the lifted C in several processes on Windows too ([#2748](https://github.com/notquiteog/Hookshot/issues/2748)) ([8c2a3c3](https://github.com/notquiteog/Hookshot/commit/8c2a3c3a37ebd4b3b104a26d57cb8aeb7c60cda2))
+* **vk:** a command buffer too short to split skips the dry pass ([#2781](https://github.com/notquiteog/Hookshot/issues/2781)) ([685133b](https://github.com/notquiteog/Hookshot/commit/685133b3c03424f527ef1ce07bbeb2cde1fdcb98))
+* **vk:** add floats to storage buffers with the GPU's own atomic, not a compare-and-swap loop ([#2306](https://github.com/notquiteog/Hookshot/issues/2306)) ([de81923](https://github.com/notquiteog/Hookshot/commit/de8192345086c7c79c115fff260163508bb19c43))
+* **vk:** an import mostly outside every game pool is trimmed back to its live parts ([#2825](https://github.com/notquiteog/Hookshot/issues/2825)) ([ab2d4cc](https://github.com/notquiteog/Hookshot/commit/ab2d4cc104066b155498731a7b8a10eef2f72f5e))
+* **vk:** cap the system-heap budget for idle live imports on Linux ([#2839](https://github.com/notquiteog/Hookshot/issues/2839)) ([11c0ab4](https://github.com/notquiteog/Hookshot/commit/11c0ab449f527ac16988b32f27bb918fee658644))
+* **vk:** compress the program cache with zstd (RX_VK_PROGRAM_CACHE_ZSTD) ([#1630](https://github.com/notquiteog/Hookshot/issues/1630)) ([136452c](https://github.com/notquiteog/Hookshot/commit/136452cd61071177c60b3e9214e54655dfa2da64))
+* **vk:** drop the pipeline cache's files when another translator made them ([#2684](https://github.com/notquiteog/Hookshot/issues/2684)) ([f5c9acc](https://github.com/notquiteog/Hookshot/commit/f5c9acc15bbadc88e32bdfb7c4e1eed782c1c0e4))
+* **vk:** import game memory in 4 MB chunks, not 16, so VRAM mirrors fit the game's pools ([#2685](https://github.com/notquiteog/Hookshot/issues/2685)) ([ec638a4](https://github.com/notquiteog/Hookshot/commit/ec638a48e8e7a2c26220436ce40cfd09fb0940ef))
+* **vk:** RX_VK_WB_MAX_KB writes large GPU-written bindings back only where the CPU reads or writes them (opt-in) ([#2731](https://github.com/notquiteog/Hookshot/issues/2731)) ([8e6c15a](https://github.com/notquiteog/Hookshot/commit/8e6c15af42e6e1af14aed7a6d75f4c34fa9f74d9))
+* **vk:** the 90% rule and the driver's limit evict their excess, not an eighth of the texture cache ([#2826](https://github.com/notquiteog/Hookshot/issues/2826)) ([ba3d3f7](https://github.com/notquiteog/Hookshot/commit/ba3d3f73ec58c6450e52946143c9e53b6d7aa5ec))
+
+
+### Documentation
+
+* a pull request is tested in the game and carries its measurements ([#2712](https://github.com/notquiteog/Hookshot/issues/2712)) ([8c16c2e](https://github.com/notquiteog/Hookshot/commit/8c16c2efb58dc42a9ff1eee78031fcaafc1dd03e))
+* **agents:** team updates open with a one-line summary, then a labelled list ([#2627](https://github.com/notquiteog/Hookshot/issues/2627)) ([7297d93](https://github.com/notquiteog/Hookshot/commit/7297d93d24713cb73484ad1a1c3bbe475a99300c))
+* **readme:** bring Project status up to date ([#2762](https://github.com/notquiteog/Hookshot/issues/2762)) ([c2027ac](https://github.com/notquiteog/Hookshot/commit/c2027acb8665491552a04e61bf3ef44ba14d4320))
+* **readme:** the option table lists every row of the menu ([#2105](https://github.com/notquiteog/Hookshot/issues/2105)) ([cf2e156](https://github.com/notquiteog/Hookshot/commit/cf2e15640b5d66b565c0bf1e80e18d1003a58cf2))
+* **readme:** what Hookshot connects to ([#2650](https://github.com/notquiteog/Hookshot/issues/2650)) ([edaef2a](https://github.com/notquiteog/Hookshot/commit/edaef2a99c78c77957b3ac54b54b5e7d02ddfd56))
+* **tested:** RTX 3080 on Windows, main against the last nightly before [#2602](https://github.com/notquiteog/Hookshot/issues/2602) ([#2700](https://github.com/notquiteog/Hookshot/issues/2700)) ([5b96a55](https://github.com/notquiteog/Hookshot/commit/5b96a55a305032d654313d1bd31eeb12b076fa68))
+* **worklist:** the igvk64.dll crash reproduced on a UHD 770, re-scored 0.11 -&gt; 0.28 ([#2790](https://github.com/notquiteog/Hookshot/issues/2790)) ([1574a54](https://github.com/notquiteog/Hookshot/commit/1574a546a5657535c5635793882bff56f0403f34))
+* **worklist:** triage #bug-reporting forum (Nov 7–11) ([#2657](https://github.com/notquiteog/Hookshot/issues/2657)) ([6126a2f](https://github.com/notquiteog/Hookshot/commit/6126a2f5156b3c2382abbe53b5973565568acf97))
+
+
+### Tests
+
+* **linux:** distinguish PPA operands from command options ([#2652](https://github.com/notquiteog/Hookshot/issues/2652)) ([f82caa6](https://github.com/notquiteog/Hookshot/commit/f82caa6bf2cece6e466256e757df54d2b639e5be))
+* repair source fixtures after recent main merges ([#2648](https://github.com/notquiteog/Hookshot/issues/2648)) ([9776c36](https://github.com/notquiteog/Hookshot/commit/9776c36d4d35abdfba82f1edc324e92560054676))
+* the HDR check takes DLSS's engine with fields after hdr ([#2661](https://github.com/notquiteog/Hookshot/issues/2661)) ([1c6d1d9](https://github.com/notquiteog/Hookshot/commit/1c6d1d95ebee44a4e831eba93248094481dd802a))
+
 ## [2.2.0-rc.2](https://github.com/notquiteog/Hookshot/compare/v2.2.0-rc.1...v2.2.0-rc.2) (2026-11-12)
 
 
