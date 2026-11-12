@@ -1,5 +1,49 @@
 # Changelog
 
+## [2.2.0-rc.2](https://github.com/notquiteog/Hookshot/compare/v2.2.0-rc.1...v2.2.0-rc.2) (2026-11-12)
+
+
+### Features
+
+* **camera:** add adjustable gameplay field of view ([#2357](https://github.com/notquiteog/Hookshot/issues/2357)) ([ba472ea](https://github.com/notquiteog/Hookshot/commit/ba472ea3b3162fb970bc234146b9038956ed5b47))
+* **menu:** a Bug report row that saves what an issue needs in one press ([#2347](https://github.com/notquiteog/Hookshot/issues/2347)) ([6f7ab2a](https://github.com/notquiteog/Hookshot/commit/6f7ab2a7a4c2d5b164231b4d16407e5d15e2c221))
+* **menu:** sections on the Graphics tab ([#2177](https://github.com/notquiteog/Hookshot/issues/2177)) ([eaef146](https://github.com/notquiteog/Hookshot/commit/eaef1460057c7b0e72f287eae6fec8b015aa41d3))
+* **vk:** NVIDIA Reflex: each queue submit tagged with the game frame its GPU work belongs to ([#2499](https://github.com/notquiteog/Hookshot/issues/2499)) ([8caa674](https://github.com/notquiteog/Hookshot/commit/8caa6749a2b66a78797e6b219b2bbb8d85b1a1a0))
+
+
+### Bug Fixes
+
+* **builder:** Windows keeps NVIDIA's license accepted in its settings, so an update keeps DLSS without the SDK's files ([#2528](https://github.com/notquiteog/Hookshot/issues/2528)) ([b56bf07](https://github.com/notquiteog/Hookshot/commit/b56bf07cca0b470b0cb23e4b24f52eee6d1c5db6))
+* **dlss:** DLSS Frame Generation's own runtime in the game folder, and NGX left alone after refused sets ([#2598](https://github.com/notquiteog/Hookshot/issues/2598)) ([55b976c](https://github.com/notquiteog/Hookshot/commit/55b976c0e15f38fc10dcac757e332800d09b7c24))
+* **fps:** keep sound and moving platforms working above a 60 fps cap ([#2470](https://github.com/notquiteog/Hookshot/issues/2470)) ([8fcc8c2](https://github.com/notquiteog/Hookshot/commit/8fcc8c22b9003145d18fbcf603c3f9ee561d0954))
+* **fps:** the sound clock keeps its remainder around 60 fps, and cap 60 runs every phase ([#2552](https://github.com/notquiteog/Hookshot/issues/2552)) ([9df055f](https://github.com/notquiteog/Hookshot/commit/9df055f23cd4604a6f520631a6dd4154a55a22b4))
+* **input:** read a steam controller's gyro when steam starts the game ([#2495](https://github.com/notquiteog/Hookshot/issues/2495)) ([e4d4515](https://github.com/notquiteog/Hookshot/commit/e4d4515798d09eb237e12b07b3ec0149dc745dae))
+* **menu:** a chosen microphone is found again after a restart ([#2572](https://github.com/notquiteog/Hookshot/issues/2572)) ([ef81aee](https://github.com/notquiteog/Hookshot/commit/ef81aee767f848255ca08171bba33b8c40c79347))
+* **menu:** a headless picture of the menu shows the list at its selection ([488f90b](https://github.com/notquiteog/Hookshot/commit/488f90b5fe9d48794c888d43e1202af9899146cf))
+* **release:** a draft keeps its tag when its notes are written, and a release just made is waited for ([b35e1e3](https://github.com/notquiteog/Hookshot/commit/b35e1e311575c25f88f56abbe8f02d4fca068db7))
+* **vk:** a readback's wait for its write-back ends after 250 ms ([#2222](https://github.com/notquiteog/Hookshot/issues/2222)) ([fa2b25b](https://github.com/notquiteog/Hookshot/commit/fa2b25b2f72f25f2cb86f566ea8503ca44c5a387))
+* **vk:** AMD/Intel shader translation fixes (out-of-bounds fetches, gathers, NaN tests) ([#2457](https://github.com/notquiteog/Hookshot/issues/2457)) ([fce5345](https://github.com/notquiteog/Hookshot/commit/fce53453a2fdd701bb466c4e2c0de839bd6f2042))
+* **vk:** build task and mesh programs with the optimizer on RADV ([#1965](https://github.com/notquiteog/Hookshot/issues/1965)) ([eed4d91](https://github.com/notquiteog/Hookshot/commit/eed4d912a7a3b39fc8a102ac12f8e3b24f6fe9ce))
+* **vk:** end the game with the GPU report when submitted work stops finishing ([#2407](https://github.com/notquiteog/Hookshot/issues/2407)) ([ba6eef7](https://github.com/notquiteog/Hookshot/commit/ba6eef7035d37513b62eb0ea331d30065e3feda3))
+* **vk:** RADV on GCN 1-4 skips the two mesh fallback programs its compiler never finishes ([#2525](https://github.com/notquiteog/Hookshot/issues/2525)) ([45050d6](https://github.com/notquiteog/Hookshot/commit/45050d63dae31a25d4278297dff5ca1570a0bc38))
+* **vk:** the presenter thread is off by default again ([#2544](https://github.com/notquiteog/Hookshot/issues/2544)) ([b520d51](https://github.com/notquiteog/Hookshot/commit/b520d51409c87a9ba4a0057c13c23eaa57593adb))
+
+
+### Performance Improvements
+
+* **vk:** a readback waits for the part that writes its range back, and no game thread waits behind a present for nothing ([#2602](https://github.com/notquiteog/Hookshot/issues/2602)) ([76bbe4a](https://github.com/notquiteog/Hookshot/commit/76bbe4aa58e3097a0350840badef1c4035ea8ea6))
+* **vk:** reduce ASTC memory pressure on small VRAM budgets ([#1009](https://github.com/notquiteog/Hookshot/issues/1009)) ([e460da1](https://github.com/notquiteog/Hookshot/commit/e460da1dd52e514b0dbafbab048017ccbb400f30))
+
+
+### Continuous Integration
+
+* **release:** the nightly moves forward during merge bursts instead of waiting for main to be quiet ([#2556](https://github.com/notquiteog/Hookshot/issues/2556)) ([09aac43](https://github.com/notquiteog/Hookshot/commit/09aac43907a90ae62c8ccd98c77b471d2b94eac2))
+
+
+### Tests
+
+* the pipeline cache header and PsychoV35 fixtures build on Windows ([#2562](https://github.com/notquiteog/Hookshot/issues/2562)) ([6ff87f5](https://github.com/notquiteog/Hookshot/commit/6ff87f59478994ba51ef9f8dd7fde8f066034fa6))
+
 ## [2.2.0-rc.1](https://github.com/notquiteog/Hookshot/compare/v2.1.0...v2.2.0-rc.1) (2026-11-11)
 
 
