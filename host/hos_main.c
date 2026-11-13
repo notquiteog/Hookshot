@@ -10,6 +10,9 @@
                 HOS_NVN_CONTINUE=1 (go on past nvnBootstrapLoader). */
 #include "hos.h"
 #include "game_profile.h"   /* (dragoon: the game this runtime is compiled for) */
+#ifndef GAME_SAVES_DIR   /* (dkb) a header from before the saves had a folder per game: two games would share one */
+#error "game_profile.h has no GAME_SAVES_DIR: emit it again (python -I nx2/game_profile.py --emit-header), or lift again"
+#endif
 #include "game_profile_check.h"
 #ifndef HOOKSHOT_ENV_H   /* (env_on: the switches' one rule) */
 #include "../gpu/vk/compat/hookshot_env.h"
