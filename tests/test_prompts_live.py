@@ -3,7 +3,7 @@ file in a guest window: the game's own bytes come back where the runs before wer
 (a later one over an earlier), a run past the range found is left alone and counted, and every write is marked
 (HOS_WRITTEN: the renderer uploads it again). Guarded (the layouts, whose offsets the game makes pointers where they lie):
 a run over bytes the game changed is left alone, the rest written, and only those written are put back at the next change.
-The textures' pool finalized (nvn_native.c's nvnMemoryPoolFinalize: hos_prompts_pool_gone): not written any more (put_runs
+The textures' pool finalized (nvn_native.c's pool_finalize: hos_prompts_pool_gone): not written any more (put_runs
 over a range let go writes nothing), it is let go under the lock a change is written under, and another pool's finalize
 leaves it be.
 
@@ -136,8 +136,9 @@ int main(void) {
 
 def pool_gone(cc, src, tmp):
     nvn = (ROOT / "host" / "nvn_native.c").read_text(encoding="utf-8")
-    check("hos_prompts_pool_gone(o->mem);" in block(nvn, "NV(nvnMemoryPoolFinalize)"),
-          "nvnMemoryPoolFinalize does not tell the prompts a pool is gone")
+    check("hos_prompts_pool_gone(o->mem);" in block(nvn, "static void pool_finalize(")
+          and "pool_finalize(" in block(nvn, "NV(nvnMemoryPoolFinalize)"),
+          "nvnMemoryPoolFinalize (pool_finalize) does not tell the prompts a pool is gone")
     c, exe = Path(tmp) / "gone.c", Path(tmp) / "gone"
     c.write_text(GONE % {"gone": block(src, "void hos_prompts_pool_gone(")}, encoding="utf-8")
     subprocess.run([cc, "-std=gnu11", "-Wall", "-Wextra", "-Werror", str(c), "-o", str(exe)], check=True)

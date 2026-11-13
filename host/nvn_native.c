@@ -274,9 +274,51 @@ NV(nvnMemoryPoolBuilderSetDefaults) { memset(P(0), 0, sizeof(nvn_pool_builder));
 NV(nvnMemoryPoolBuilderSetDevice) { ((nvn_pool_builder *)P(0))->dev = P(1); }
 NV(nvnMemoryPoolBuilderSetStorage) { ((nvn_pool_builder *)P(0))->mem = U64(1); ((nvn_pool_builder *)P(0))->size = U64(2); }
 NV(nvnMemoryPoolBuilderSetFlags) { ((nvn_pool_builder *)P(0))->flags = U32(1); }
+/* What finalizing a memory pool undoes: a virtual pool's page table leaves the list, a physical pool's storage is no longer
+   tracked (nor imported by the renderer: hos_gpu_pools) and the button prompts no longer write there */
+static void pool_finalize(nvn_pool *o) {
+    struct nvn_vmap *vm = pool_vmap(o);
+    if (vm) {   /* (its GPU range is not reused) */
+        int mapped = 0;   /* (pages still mapped: what the GPU drew there goes into their memory first) */
+        for (uint64_t k = 0; k < vm->size / VPAGE && !mapped; k++) mapped = vm->page[k] != 0;
+        if (mapped) rx_nvn_vmap_changing(vm->gpu, vm->size);
+        AcquireSRWLockExclusive(&vmap_lock);
+        int found = 0;
+        for (struct nvn_vmap **p = &vmaps; *p; p = &(*p)->next)
+            if (*p == vm) {
+                *p = vm->next;
+                found = 1;
+                break;
+            }
+        if (found) {   /* (kept: a lookup may still hold it) */
+            vm->next = dead_vmaps;
+            dead_vmaps = vm;
+        }
+        InterlockedIncrement(&vmap_gen);
+        ReleaseSRWLockExclusive(&vmap_lock);
+    } else if (o->mem) {
+        hos_gpu_track(o->gpu, o->size, 0);
+        void hos_prompts_pool_gone(uint64_t mem);   /* (hookshot, prompts.c: the prompts' textures no longer written there) */
+        hos_prompts_pool_gone(o->mem);
+    }
+    o->magic = 0;
+}
+/* (hookshot) A pool the game initializes again without finalizing it first: what Finalize undoes was left behind, with
+   nothing naming it any more (its storage tracked and imported by the renderer, or a virtual pool's page table on the list,
+   for good). Finalize's work is done first, as nvnTextureInitialize does for a texture. Logged the first four times, then at
+   each doubling. After NX2navi (chrg6) commit 6e3dcf6, used with its author's permission */
+static volatile LONG pool_reinits;
 NV(nvnMemoryPoolInitialize) {
     const nvn_pool_builder *b = (const nvn_pool_builder *)P(1);
     nvn_pool *o = (nvn_pool *)P(0);
+    if (o->magic == NVN_MAGIC('P', 'O', 'O', 'L')) {   /* initialised again without Finalize */
+        const LONG n = InterlockedIncrement(&pool_reinits);
+        if (n <= 4 || !(n & (n - 1)))
+            hos_log("nvn: memory pool %#llx (%#llx bytes, flags %#x) initialized again without being finalized: finalized "
+                    "first (%ld so far, lr %#llx)", (unsigned long long)o->gpu, (unsigned long long)o->size, o->flags, (long)n,
+                    (unsigned long long)c->x[30]);
+        pool_finalize(o);
+    }
     memset(o, 0, sizeof *o);
     o->magic = NVN_MAGIC('P', 'O', 'O', 'L');
     o->flags = b->flags;
@@ -327,32 +369,7 @@ static int no_pool(Ctx *c, const char *what) {
 }
 NV(nvnMemoryPoolFinalize) {
     if (no_pool(c, "finalize")) return;
-    nvn_pool *o = (nvn_pool *)P(0);
-    struct nvn_vmap *vm = pool_vmap(o);
-    if (vm) {   /* (its GPU range is not reused) */
-        int mapped = 0;   /* (pages still mapped: what the GPU drew there goes into their memory first) */
-        for (uint64_t k = 0; k < vm->size / VPAGE && !mapped; k++) mapped = vm->page[k] != 0;
-        if (mapped) rx_nvn_vmap_changing(vm->gpu, vm->size);
-        AcquireSRWLockExclusive(&vmap_lock);
-        int found = 0;
-        for (struct nvn_vmap **p = &vmaps; *p; p = &(*p)->next)
-            if (*p == vm) {
-                *p = vm->next;
-                found = 1;
-                break;
-            }
-        if (found) {   /* (kept: a lookup may still hold it) */
-            vm->next = dead_vmaps;
-            dead_vmaps = vm;
-        }
-        InterlockedIncrement(&vmap_gen);
-        ReleaseSRWLockExclusive(&vmap_lock);
-    } else if (o->mem) {
-        hos_gpu_track(o->gpu, o->size, 0);
-        void hos_prompts_pool_gone(uint64_t mem);   /* (hookshot, prompts.c: the prompts' textures no longer written there) */
-        hos_prompts_pool_gone(o->mem);
-    }
-    o->magic = 0;
+    pool_finalize((nvn_pool *)P(0));
 }
 NV(nvnMemoryPoolGetFlags) {
     if (no_pool(c, "flags")) { RET(0); return; }
