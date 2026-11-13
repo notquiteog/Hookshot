@@ -17,7 +17,7 @@ import re
 import subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SOURCES = ("host", "gpu", "nx2")
+SOURCES = ("host", "gpu", "nx2", "game")
 SOURCE_EXT = (".c", ".cc", ".cpp", ".h", ".hpp", ".inc", ".py", ".glsl", ".comp", ".vert", ".frag", ".spv")
 
 

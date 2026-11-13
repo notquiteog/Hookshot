@@ -9,6 +9,8 @@
    Environment: HOS_TRACE=1 (log HLE calls), HOS_MEMORY_MB (memory the game is told it has),
                 HOS_NVN_CONTINUE=1 (go on past nvnBootstrapLoader). */
 #include "hos.h"
+#include "game_profile.h"   /* (dragoon: the game this runtime is compiled for) */
+#include "game_profile_check.h"
 #ifndef HOOKSHOT_ENV_H   /* (env_on: the switches' one rule) */
 #include "../gpu/vk/compat/hookshot_env.h"
 #endif
@@ -75,6 +77,50 @@ static void no_power_throttling(void) {
 #endif
 
 int hos_game_is_mkw(void) { return !strcmp(hos_main_build_id, "d00e4f399e411d0613aa8d26b1c02fef"); }
+
+/* (dragoon) Whether the image this runs is the build the game profile was compiled for (game_profile.h, from
+   nx2/game_profile.py; a lift writes the dump's own). Every return address and offset the profile names is that
+   build's, so none of them is recognised in any other: a runtime built for one game and started on another, or built
+   from the committed header without a lift, recognises nothing rather than something that only looks the same. The
+   build ids are compared as far as the image's goes (gen/hos_image.c's is main's NSO build id, which may be shorter
+   than the 40 digits nx2/dump.py prints), and at least 16 digits of it. */
+int hos_game_profile_live(void) {
+    static int live = -1;
+    if (live < 0) {
+        size_t n = strlen(hos_main_build_id);
+        if (n > sizeof GAME_BUILD_ID - 1) n = sizeof GAME_BUILD_ID - 1;
+        live = GAME_HAVE_BUILD_ID && n >= 16 && !strncmp(hos_main_build_id, GAME_BUILD_ID, n);
+        hos_log(live ? "game profile: %s (%s), main %s" : "game profile: %s (%s) is not for main %s: none of its "
+                       "addresses, offsets or program keys are used",
+                GAME_PROFILE_KEY, GAME_NAME, hos_main_build_id);
+    }
+    return live;
+}
+
+/* (dragoon) The renderer is built once for every game (the AppImage's and a build's alike) with the committed
+   profile's program keys as its defaults; the runtime is compiled for its game. So the runtime hands the renderer its
+   profile's keys before the renderer reads any: HOOKSHOT_PROFILE_* are not switches a player sets (hookshot_env.txt's
+   RX_VK_TAAU_KEYS and RX_VK_NETWORK_KEEP still stand over them), only this channel. An image the profile is not for
+   gets no keys at all. */
+static void game_profile_env(void) {
+    const int live = hos_game_profile_live();
+    char gameplay[18 * (GAME_GAMEPLAY_NETWORK_KEY_COUNT + 1)] = "";
+    static const unsigned long long keys[] = GAME_GAMEPLAY_NETWORK_KEYS;
+    for (int i = 0, at = 0; live && i < GAME_GAMEPLAY_NETWORK_KEY_COUNT; i++)
+        at += snprintf(gameplay + at, sizeof gameplay - at, "%s%016llx", i ? "," : "", keys[i]);
+    const char *const vars[][2] = {{"HOOKSHOT_PROFILE_TAAU_KEYS", live ? GAME_UPSCALE_TAAU_KEYS : ""},
+                                   {"HOOKSHOT_PROFILE_NETWORK_KEEP", live ? GAME_NETWORK_KEEP_KEYS : ""},
+                                   {"HOOKSHOT_PROFILE_GAMEPLAY_KEYS", gameplay}};
+    for (size_t i = 0; i < sizeof vars / sizeof *vars; i++) {
+#ifdef _WIN32
+        char line[512];
+        snprintf(line, sizeof line, "%s=%s", vars[i][0], vars[i][1]);
+        _putenv(line);   /* (an empty value removes it there: the renderer reads an unset one as "none" too) */
+#else
+        setenv(vars[i][0], vars[i][1], 1);
+#endif
+    }
+}
 
 /* gen/hos_image.c (build.py lift) */
 extern const uint64_t hos_main_stack_size;
@@ -1794,6 +1840,7 @@ static int game_main(int argc, char **argv) {
         hos_relaunch_keep_env();
     }
     load_hookshot_env();
+    game_profile_env();
 #endif
     occlusion_switch();
     {
@@ -2098,6 +2145,7 @@ int main(int argc, char **argv) {
     int hos_display_init(void);
     void hos_display_loop(void);
     load_hookshot_env();
+    game_profile_env();
     driver_cache_room();
     driver_cache_folder();
     game_argc = argc, game_argv = argv;
