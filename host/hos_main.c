@@ -93,18 +93,25 @@ int hos_game_profile_live(void) {
         size_t n = strlen(hos_main_build_id);
         if (n > sizeof GAME_BUILD_ID - 1) n = sizeof GAME_BUILD_ID - 1;
         live = GAME_HAVE_BUILD_ID && n >= 16 && !strncmp(hos_main_build_id, GAME_BUILD_ID, n);
-        hos_log(live ? "game profile: %s (%s), main %s" : "game profile: %s (%s) is not for main %s: none of its "
-                       "addresses, offsets or program keys are used",
-                GAME_PROFILE_KEY, GAME_NAME, hos_main_build_id);
     }
     return live;
+}
+
+/* (its own line, after the log's first: hos_game_profile_live is first asked in game_profile_env, before stderr is
+   hookshot_log.txt, and a line written then never reached a player's log) */
+static void game_profile_log(void) {
+    hos_log(hos_game_profile_live() ? "game profile: %s (%s), main %s"
+                                    : "game profile: %s (%s) is not for main %s: none of its addresses, offsets or "
+                                      "program keys are used",
+            GAME_PROFILE_KEY, GAME_NAME, hos_main_build_id);
 }
 
 /* The renderer is built once for every game (the AppImage's and a build's alike) with the committed
    profile's program keys as its defaults; the runtime is compiled for its game. So the runtime hands the renderer its
    profile's keys before the renderer reads any: HOOKSHOT_PROFILE_* are not switches a player sets (hookshot_env.txt's
    RX_VK_TAAU_KEYS and RX_VK_NETWORK_KEEP still stand over them), only this channel. An image the profile is not for
-   gets no keys at all. */
+   gets no keys at all. "None" is written "-", which every reader of these lists takes as none: an empty value would
+   do on Linux, but on Windows _putenv("X=") removes X, and the renderer then took its built-in (Ocarina's) keys. */
 static void game_profile_env(void) {
     const int live = hos_game_profile_live();
     char gameplay[18 * (GAME_GAMEPLAY_NETWORK_KEY_COUNT + 1)] = "";
@@ -115,12 +122,13 @@ static void game_profile_env(void) {
                                    {"HOOKSHOT_PROFILE_NETWORK_KEEP", live ? GAME_NETWORK_KEEP_KEYS : ""},
                                    {"HOOKSHOT_PROFILE_GAMEPLAY_KEYS", gameplay}};
     for (size_t i = 0; i < sizeof vars / sizeof *vars; i++) {
+        const char *value = *vars[i][1] ? vars[i][1] : "-";
 #ifdef _WIN32
         char line[512];
-        snprintf(line, sizeof line, "%s=%s", vars[i][0], vars[i][1]);
-        _putenv(line);   /* (an empty value removes it there: the renderer reads an unset one as "none" too) */
+        snprintf(line, sizeof line, "%s=%s", vars[i][0], value);
+        _putenv(line);
 #else
-        setenv(vars[i][0], vars[i][1], 1);
+        setenv(vars[i][0], value, 1);
 #endif
     }
 }
@@ -1916,6 +1924,7 @@ static int game_main(int argc, char **argv) {
         }
     }
     hos_log("hookshot %s", HOOKSHOT_VERSION);   /* (the log's first line: which build a report comes from) */
+    game_profile_log();
     removed_switch_notes();
     void hos_control_start(const char *version);
     hos_control_start(HOOKSHOT_VERSION);   /* (HOS_CONTROL=<socket>: the control bridge, host/control.c) */
