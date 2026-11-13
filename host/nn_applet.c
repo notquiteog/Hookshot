@@ -192,6 +192,20 @@ uint64_t hos_rt_pool_size(uint64_t game) {
     return v;
 }
 HLE(_ZN2nn2oe16GetOperationModeEv) { RET(handheld() ? 0 : 1); }     /* OperationMode_Handheld / _Console (docked) */
+/* GetDefaultDisplayResolution(int* width, int* height): the output this console presents, the one hos_output_size gives
+   the rest of the runtime (the menu's Output resolution, HOS_OUTPUT_RES). Ocarina never asks. Kirby Air Riders does at
+   start (found in Dragoon, its fork); left to the generic import stub, both stayed whatever the stack held and the game
+   went on to size its buffers from them. */
+HLE(_ZN2nn2oe27GetDefaultDisplayResolutionEPiS1_) {
+    if (ARG(0)) G32(ARG(0)) = hos_output_size(0);
+    if (ARG(1)) G32(ARG(1)) = hos_output_size(1);
+}
+/* GetDefaultDisplayResolutionChangeEvent(SystemEvent*): an event that is never signalled, because the output never
+   changes while the game runs. Left to the stub, the game's event was never made at all. */
+void hos_system_event_init(uint64_t key, int autoclear);   /* nn_os_sync.c */
+HLE(_ZN2nn2oe38GetDefaultDisplayResolutionChangeEventEPNS_2os11SystemEventE) {
+    if (ARG(0)) hos_system_event_init(ARG(0), 0);
+}
 HLE(_ZN2nn2oe18GetPerformanceModeEv) { RET(handheld() ? 0 : 1); }   /* PerformanceMode_Normal / _Boost (docked) */
 HLE(_ZN2nn2oe20GetCurrentFocusStateEv) { RET(1); }    /* FocusState_InFocus */
 HLE(_ZN2nn2oe25GetProgramTotalActiveTimeEv) { RET(hos_now_ns() - boot_ns); }
