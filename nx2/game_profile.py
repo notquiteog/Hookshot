@@ -34,7 +34,7 @@ patches nothing and hooks nothing: lifting an unknown game must not apply Ocarin
     python -I nx2/game_profile.py                       # what the profiles hold
     python -I nx2/game_profile.py --emit-header         # rewrite game/game_profile.h (DEFAULT's) from this file
     python -I nx2/game_profile.py --check-header        # the committed header still matches (tests/test_game_profile.py)
-    python -I nx2/game_profile.py --emit-header --game kar --out <dir>   # one game's header, as a lift writes it
+    python -I nx2/game_profile.py --emit-header --game dkb --out <dir>   # one game's header, as a lift writes it
 """
 import argparse
 import collections
@@ -133,39 +133,31 @@ OOT = Profile(
     notes="The game this engine was retargeted to; every value here was measured on its dump.",
 )
 
-KAR = Profile(
-    key="kar",
-    game="Kirby Air Riders",
-    # Measured on the dump (Kirby Air Riders [040077201BE50000][v1.3.3].nup, its newest title) on 2026-11-13:
-    # nx2/dump.py reported the program id and main's build id, nx2/nup.py the title's version, and nx2/lift.py's
-    # image line put main at 0x80020000 (rtld is 0x20000 bytes here too). SDK and NVN 20.5.26.
-    program_id="040077201BE50000",
+DKB = Profile(
+    key="dkb",
+    game="Donkey Kong Bananza",
+    # Measured on the dump (Donkey Kong Bananza.nup: base v0, update v458752, add-on content 040074a01bf13001) on
+    # 2026-11-13: nx2/dump.py reported the program id and main's build id (sdk 18265dae..., SDK and NVN 20.5.19, no
+    # subsdk modules), nx2/nup.py the update's version, and nx2/lift.py's image line put main at 0x80020000.
+    program_id="040074A01BF12000",
     version=458752,
-    build_id="9ede03836568bcd34434dfc29bc61e0451dbbe3e",
+    build_id="e25c90c1c136638885659fd55bf8a03b3403489d",
     main_base=0x80020000,
-    # Everything below is empty on purpose: none of it has been found in this game yet, and a number that looks
-    # right is worse than none. Each comment says how it would be found.
-    #   patch_modules / code_patch_module: none. Ocarina's are tables of Ocarina's addresses; Kirby's widescreen or
-    #       camera patches would be new modules, found on the lifted code the way Ocarina's were.
+    # Everything below is empty on purpose, as in Dragoon's Kirby profile: nothing game-specific has been found in this
+    # build by this engine yet, and a number that looks right is worse than none. Each comment says how it would be
+    # found. dkb-pc-recomp (docs/dkb-pc-recomp-survey in the shared notes) has addresses for this build in its own
+    # layout; any taken from it must be checked against this lift's instruction words before it goes here.
+    #   patch_modules / code_patch_module: none yet.
     patch_modules=(),
     code_patch_module=None,
-    #   gfx: the graphics module's frame limiter, nominal rate and refresh gate. Found as Ocarina's were: the function
-    #       that sleeps to the limiter and the one that writes it (HOS_FPS_LOG, HOS_RES_LOG once a module is known).
+    #   gfx: the graphics module's frame limiter and refresh gate (HOS_FPS_LOG once a module is known).
     gfx=EMPTY_GFX,
-    #   upscale: program keys, from a run (RX_VK_SHADER_CENSUS / nx2/shader_census.py, RX_VK_FRAMELOG for the program
-    #       at a frame's end). The dump carries NVIDIA's DLSS library for NVN (subsdk1) and SMAA_For_NDSR, so the
-    #       game's own upscale may not be a SASS network at all.
+    #   upscale: program keys, from a run (RX_VK_SHADER_CENSUS). The game carries SMAA_For_NDSR.
     upscale=EMPTY_UPSCALE,
-    #   hooks.gfx_clock: HOS_TICK_LOG=1 lists GetSystemTick's callers by return address; the one that fires once a
-    #       frame from the graphics module's frame end is it. Without it no module is captured, which is the safe state.
+    #   hooks.gfx_clock: HOS_TICK_LOG=1 lists GetSystemTick's callers by return address.
     hooks=EMPTY_HOOKS,
-    # A four-player game: one player per attached controller (docs/kirby-air-riders.md section 3). HOS_NPAD_PLAYERS
-    # still overrides it. Not measured: what the game asks for is logged by SetSupportedNpadIdType at its first boot.
-    npad_players="auto",
-    # A user for each of the four players: main imports ShowUserSelector, OpenUser, PushOpenUsers and PopOpenUsers
-    # (and not ListAllUsers), which is how a game has each player pick an account. Four is the engine's choice of how
-    # many accounts the console has, not a value read from the game; HOS_ACCOUNT_USERS overrides it.
-    account_users=4,
+    npad_players=1,
+    account_users=1,
     notes="Identity measured on the dump; nothing game-specific found yet, so nothing is patched or hooked.",
 )
 
@@ -173,7 +165,7 @@ KAR = Profile(
 NONE = Profile(key="none", game="an unknown game",
                notes="No profile knows this build: lifted without patches, and the runtime recognises nothing in it.")
 
-GAMES = collections.OrderedDict((p.key, p) for p in (OOT, KAR, NONE))
+GAMES = collections.OrderedDict((p.key, p) for p in (OOT, DKB, NONE))
 
 # Ocarina stays the default where there is no dump to go by (the committed header, the game-free checks), because it
 # is the only game whose values have been measured and checked by running it.

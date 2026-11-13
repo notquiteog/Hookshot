@@ -4,8 +4,8 @@ view of the profile is the one the profile emits.
 
 What this guards, and why each check is here rather than left to review:
 
-1. **The profile is chosen by main's build id.** Ocarina's build gets Ocarina's profile, Kirby Air Riders' build gets
-   Kirby's, and a build no profile knows gets NONE -- never Ocarina's by default, because Ocarina's patches and return
+1. **The profile is chosen by main's build id.** Ocarina's build gets Ocarina's profile, Donkey Kong Bananza's build gets
+   its own, and a build no profile knows gets NONE -- never Ocarina's by default, because Ocarina's patches and return
    addresses on another game are C after the wrong instruction and a module captured from a random call.
 2. **A profile with no patches installs none, and Ocarina's patch modules leave out every site whose word differs.**
    The modules run for real against a fake image, so the skip path itself is exercised.
@@ -67,17 +67,17 @@ class FakeImage(object):
 
 
 def check_choice():
-    oot, kar, none = (game_profile.GAMES[k] for k in ("oot", "kar", "none"))
+    oot, dkb, none = (game_profile.GAMES[k] for k in ("oot", "dkb", "none"))
     check(game_profile.for_build(oot.build_id) is oot, "Ocarina's build id does not choose Ocarina's profile")
     check(game_profile.for_build(oot.build_id[:8]) is oot, "the 8-digit prefix the docs quote does not choose Ocarina")
-    check(game_profile.for_build(kar.build_id) is kar, "Kirby Air Riders' build id does not choose its profile")
+    check(game_profile.for_build(dkb.build_id) is dkb, "Donkey Kong Bananza's build id does not choose its profile")
     check(game_profile.for_build("0123456789abcdef0123456789abcdef01234567") is none,
           "a build no profile knows does not get the empty profile")
     check(game_profile.for_build("e0f3") is none, "four digits are taken as a build id")
-    check(game_profile.active({}, build_id=kar.build_id) is kar, "a lift of Kirby's dump does not get Kirby's profile")
+    check(game_profile.active({}, build_id=dkb.build_id) is dkb, "a lift of Bananza's dump does not get its profile")
     check(game_profile.active({}, build_id="ffffffff") is none, "a lift of an unknown dump gets a profile with patches")
     check(game_profile.active({}) is game_profile.GAMES[game_profile.DEFAULT], "no dump does not mean the default")
-    check(game_profile.active({"HOOKSHOT_GAME": "kar"}, build_id=oot.build_id) is kar, "HOOKSHOT_GAME does not override")
+    check(game_profile.active({"HOOKSHOT_GAME": "dkb"}, build_id=oot.build_id) is dkb, "HOOKSHOT_GAME does not override")
     try:
         game_profile.active({"HOOKSHOT_GAME": "nope"})
         check(False, "an unknown HOOKSHOT_GAME is accepted")
@@ -86,7 +86,7 @@ def check_choice():
     ids = [p.build_id for p in game_profile.GAMES.values() if p.build_id]
     check(len(ids) == len(set(ids)) and all(re.fullmatch(r"[0-9a-f]{40}", b) for b in ids),
           "a profile's build id is not main's whole 40-digit build id, or two profiles share one")
-    check({p.key for p, _ in game_profile.known_builds()} == {"oot", "kar"}, "make_game.py's known builds are not these")
+    check({p.key for p, _ in game_profile.known_builds()} == {"oot", "dkb"}, "make_game.py's known builds are not these")
 
 
 def check_wholeness():
@@ -100,17 +100,17 @@ def check_wholeness():
         check(isinstance(p.account_users, int) and 1 <= p.account_users <= 8, "%s: account_users is not 1..8" % p.key)
         check(p.npad_players == "auto" or (isinstance(p.npad_players, int) and 1 <= p.npad_players <= 8),
               "%s: npad_players is not 1..8 or auto" % p.key)
-    kar = game_profile.GAMES["kar"]
-    check(not kar.patch_modules and kar.code_patch_module is None and kar.hooks == game_profile.EMPTY_HOOKS and
-          kar.gfx == game_profile.EMPTY_GFX and kar.upscale == game_profile.EMPTY_UPSCALE,
-          "the Kirby profile claims a patch, an offset, a hook or a key that nobody has found yet")
+    dkb = game_profile.GAMES["dkb"]
+    check(not dkb.patch_modules and dkb.code_patch_module is None and dkb.hooks == game_profile.EMPTY_HOOKS and
+          dkb.gfx == game_profile.EMPTY_GFX and dkb.upscale == game_profile.EMPTY_UPSCALE,
+          "the Bananza profile claims a patch, an offset, a hook or a key that nobody has found yet")
 
 
 def check_patches():
     none = game_profile.GAMES["none"]
     lifter = FakeLifter()
     with contextlib.redirect_stdout(io.StringIO()):
-        n = game_profile.install_patches(lifter, FakeImage(), game_profile.GAMES["kar"], game_profile.GAMES["kar"].build_id)
+        n = game_profile.install_patches(lifter, FakeImage(), game_profile.GAMES["dkb"], game_profile.GAMES["dkb"].build_id)
         n += game_profile.install_patches(lifter, FakeImage(), none, "")
     check(n == 0 and not lifter.after, "a profile with no patch modules installed C")
     oot = game_profile.GAMES["oot"]
@@ -202,10 +202,10 @@ def check_headers(cc):
             r = subprocess.run([cc, "-std=c11", "-Wall", "-Werror", "-fsyntax-only", "-I" + folder, str(src)],
                                capture_output=True, text=True)
             check(r.returncode == 0, "%s's header does not compile with the runtime's guard: %s" % (key, r.stderr[-400:]))
-            if key == "kar":
-                check("#define GAME_HAVE_LR_GFX_CLOCK 0" in text and "#define GAME_NPAD_PLAYERS -1" in text and
-                      "#define GAME_ACCOUNT_USERS 4" in text,
-                      "Kirby's header hooks a graphics module or does not serve a player per controller")
+            if key == "dkb":
+                check("#define GAME_HAVE_LR_GFX_CLOCK 0" in text and "#define GAME_HAVE_GFX_FRAME_LIMITER 0" not in text
+                      and "#define GAME_GFX_HAVE_FRAME_LIMITER 0" in text and "#define GAME_HAVE_LR_PRESENT_POLL 0" in text,
+                      "Bananza's header hooks a graphics module or a present poll nobody has found yet")
         # the guard has to be able to fail: a profile with the module's address and none of its offsets
         bad = game_profile.Profile("bad", "half", build_id="0" * 40, main_base=0x80020000,
                                    hooks=game_profile.Hooks(gfx_clock=0x80000004, present_poll=None, present_events=()))
