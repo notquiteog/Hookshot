@@ -57,10 +57,13 @@ typedef struct {
 /* the preference MakeDecodeImagePreference returns (the caller's buffer is larger: only these fields are ours) */
 typedef struct { uint32_t magic; uint16_t w, h; uint32_t format, tiling; } Pref;
 /* (dkb) the preference of SDK 20's MakeDecodeImagePreference(w, h, OutputFormat, CodecMode), as Donkey Kong Bananza
-   3.2.0 asks for it: the SDK's own layout keeps u16 width - 1 and height - 1 at +8 and +10 (dkb-pc-recomp read that
-   from the SDK's code), so those are written there in case the game reads them, and ours sit around them */
+   3.2.0 asks for it. The SDK's own (sdk 0x82b0aa50 on that build) fills 64 bytes at x8: a word from its format table,
+   u16 width - 1 and height - 1 at +8 and +10, zeros to +0x40; so the callers' buffers hold 64 (Bananza's two are 72 and
+   64 bytes on the stack, main 0x80e3be7c and 0x80e3bef8). This writes 20 of them, with width - 1 and height - 1 where
+   the SDK keeps them in case the game reads them, and ours around them. */
 #define PREF20_MAGIC 0x32465250u   /* 'PRF2' */
 typedef struct { uint32_t magic; uint16_t w, h; uint16_t w_minus_1, h_minus_1; uint32_t format, mode; } Pref20;
+_Static_assert(sizeof(Pref20) <= 64, "SDK 20's preference is 64 bytes: the callers' buffers hold no more");
 
 /* (rgba NULL: a picture decoded as NV12 is kept as that alone; its pool makes the RGBA if a reader wants it) */
 typedef struct { uint8_t *rgba, *nv12; int w, h; int64_t pts; int last; } Picture;
@@ -233,8 +236,9 @@ HLE(_ZN2nn5codec26InitializeDecoderImagePoolEPNS0_25VideoDecoderImagePoolTypeEPv
 }
 /* (dkb) SDK 20's forms, as Donkey Kong Bananza 3.2.0 calls them for its guide movies (Movie/Guide*.webm, VP9): the
    preference takes a CodecMode, and InitializeDecoderImagePool(pool, memory, size, preference, u32 count, CodecMode).
-   The game's movie player reads each pool's size back at +0x20 / +0x22 (u16 width, height), which the SDK writes
-   there: so does this. (What the player reads is dkb-pc-recomp's finding, runtime/ov_codec.c; the code is ours.) */
+   The SDK's pool is 24 bytes (its initialiser zeroes and fills +0..+0x18, sdk 0x82b0ac20); nothing past that is the
+   pool's. The game's movie player keeps the size it asked for right after it, at +0x20 / +0x22, and format and mode
+   at +0x24 / +0x28, and writes them itself once the call succeeds (main 0x80e3bf40), so they are left alone here. */
 HLE(_ZN2nn5codec25MakeDecodeImagePreferenceEttNS0_24VideoDecoderOutputFormatENS0_9CodecModeE) {
     const uint64_t out = c->x[8];
     const uint16_t w = (uint16_t)ARG(0), h = (uint16_t)ARG(1);
@@ -247,9 +251,6 @@ HLE(_ZN2nn5codec26InitializeDecoderImagePoolEPNS0_25VideoDecoderImagePoolTypeEPv
     const int ok = p->magic == PREF20_MAGIC;
     const uint16_t w = ok && p->w ? p->w : 1280, h = ok && p->h ? p->h : 720;
     pool_init(c, w, h, ok ? (int)p->format : 2);
-    memcpy(GP(ARG(0) + 0x20), &w, 2);
-    memcpy(GP(ARG(0) + 0x22), &h, 2);
-    HOS_WRITTEN(GP(ARG(0) + 0x20), 4);
 }
 /* (dkb) GetDecoderImagePoolNativeImageHandle(pool, u32 index) -> NativeImageHandle: no GPU image (the movie player's
    other path; it reads the NV12 through ReadDecoderOutputImageNv12 when there is none) */
