@@ -452,6 +452,11 @@ def patch_movie_frames(s):
 # - f_803edf70, the time of day: each frame it adds (int)(2 * step) game seconds (+60) to the seconds of the day (+40, a day of
 #   86400, then the day count +44). Cut, it added 1 a frame below 120 fps (the day slower: 83% at 100) and 0 above 120, where
 #   the clock stood still and the sun swung back and forth over the frozen hour.
+# - f_83895f20 and f_838a2660, the physics' two water managers (phive::InteractiveWaterMgr and ResponsiveWaterMgr: their water,
+#   ice and sand bodies): each update divides the frame's seconds by 1/60 and cuts the quotient to the fixed 1/60 s steps it
+#   runs (at most 3), and runs none while that is 0, so above 60 fps those surfaces stood still whatever pushed into them. Their
+#   remainder is kept per manager (x19, the function's x0). After NX2navi (chrg6) commit 750034b, used with its author's
+#   permission; the floor web below is the third function of that commit, which Hookshot had already.
 # hos_frame_whole carries the fractions per counter while the frames' own time is the step, so each moves at the game's rate;
 # otherwise it cuts as the game does. A site is added here once it is seen to misbehave in game. (A site's function, its code to
 # replace, and the counter's address for its remainder.)
@@ -471,6 +476,13 @@ WHOLE_SITES = (
      "    c->x[8]=recomp_fp_to_int(c->vreg[0][0]&UINT64_C(0xffffffff),32,32,1,3,c->fpcr,&c->fpsr);@"
      "    recomp_store32(c,c->x[19] + 60,c->x[8]);@",
      "c->x[19] + 60"),
+    # (the water managers' fixed steps, before their 0..3 clamp: the cut alone, each function's one)
+    ("void f_83895f20(Ctx *__restrict A64_NOESC c) {@",
+     "    c->x[8]=recomp_fp_to_int(c->vreg[0][0]&UINT64_C(0xffffffff),32,32,1,3,c->fpcr,&c->fpsr);@",
+     "c->x[19]"),
+    ("void f_838a2660(Ctx *__restrict A64_NOESC c) {@",
+     "    c->x[8]=recomp_fp_to_int(c->vreg[0][0]&UINT64_C(0xffffffff),32,32,1,3,c->fpcr,&c->fpsr);@",
+     "c->x[19]"),
     # (the floor web's simulation steps: keep each object's fraction before the existing 0..3 clamp, issues 2667/2271)
     ("void f_80652cb0(Ctx *__restrict A64_NOESC c) {@",
      "    c->x[22]=recomp_fp_to_int(c->vreg[0][0]&UINT64_C(0xffffffff),32,32,1,3,c->fpcr,&c->fpsr);@",
@@ -1000,7 +1012,7 @@ def report(paths, counts, protect_hearts=False):
               "keeps the game's own step)" % (step_sites, len(STEP_SITES)))
     elif whole_sites != len(WHOLE_SITES):   # (the frames' own time without them: the pick-up indicator stays above 60 fps)
         print("oot_patches: WARNING: %d of %d frame counters found for the step's whole frames (above 60 fps a counter can stop: "
-              "the pick-up indicator, the water ripples, the time of day)" % (whole_sites, len(WHOLE_SITES)))
+              "the pick-up indicator, the water ripples, the time of day, the water surfaces)" % (whole_sites, len(WHOLE_SITES)))
 
 
 def apply(gen, *, protect_hearts=False, required=False):
