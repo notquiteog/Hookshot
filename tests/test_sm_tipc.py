@@ -10,7 +10,8 @@ The fixture compiles sm_tipc_request and its counters, cut from the source, over
 - GetServiceHandle: the reply's type is the request's, one data word after a special header with one moved handle;
   the handle is a new 0x7Exxxxxx session, a second request gets another; the result is 0; the log names the service;
 - RegisterClient and any other command: one data word, result 0;
-- svc 0x21 sends sm:'s session's TIPC requests here (the session ConnectToNamedPort("sm:") handed out), and only those.
+- svc 0x21 sends sm:'s sessions' TIPC requests here (every session ConnectToNamedPort("sm:") handed out, not only the
+  latest), and only those: another service's session, or a handle past the ones told apart, is not sm:'s.
 
 python -I -B tests/test_sm_tipc.py [--cc gcc]
 """
@@ -23,7 +24,9 @@ from pathlib import Path
 
 RUN_ALL_ARGS = ["--cc", "gcc"]
 ROOT = Path(__file__).resolve().parents[1]
-COUNTERS = "static volatile LONG ipc_next_session, ipc_sm_session;"
+COUNTERS = "enum { SM_SESSIONS = 4096 };"
+MARKS = ("static volatile LONG ipc_next_session, ipc_sm_marks[SM_SESSIONS / 32];",
+         "static void sm_session_mark(uint32_t h) {", "static int sm_session_is(uint32_t h) {")
 HELPER = "static void sm_tipc_request(Ctx *c, uint8_t *tls, uint32_t w0) {"
 
 
@@ -46,6 +49,7 @@ FIXTURE = r'''#include <stdint.h>
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); exit(1); } } while (0)
 typedef long LONG;
 static LONG InterlockedIncrement(volatile LONG *p) { return ++*p; }
+static LONG InterlockedOr(volatile LONG *p, LONG v) { LONG o = *p; *p |= v; return o; }
 typedef struct { uint64_t x[32]; } Ctx;
 #define R_OK 0
 static char said[4096];
@@ -57,6 +61,7 @@ static void hos_log(const char *fmt, ...) {
     strncat(said, "\n", sizeof said - strlen(said) - 1);
 }
 @COUNTERS@
+@MARKS@
 @HELPER@
 
 static uint32_t w(const uint8_t *tls, int i) { uint32_t v; memcpy(&v, tls + 4 * i, 4); return v; }
@@ -90,6 +95,15 @@ int main(void) {
     request(tls, 4, NULL);
     sm_tipc_request(&c, tls, w(tls, 0));
     CHECK(w(tls, 0) == 0x14 && w(tls, 1) == 1 && w(tls, 2) == 0);
+    /* several sm: sessions: each one stays sm:'s, a service's session is not, nor a handle past those told apart */
+    const uint32_t sm1 = 0x7E000000u + 1, sm2 = 0x7E000000u + 40, sm3 = 0x7E000000u + 4095;
+    sm_session_mark(sm1), sm_session_mark(sm2), sm_session_mark(sm3);
+    CHECK(sm_session_is(sm1) && sm_session_is(sm2) && sm_session_is(sm3));
+    CHECK(!sm_session_is(first) && !sm_session_is(0x7E000000u + 41) && !sm_session_is(0x7E000000u + 4096));
+    CHECK(!sm_session_is(0xC0FE0001u) && !sm_session_is(0));
+    said[0] = 0;
+    sm_session_mark(0x7E000000u + 5000);
+    CHECK(!sm_session_is(0x7E000000u + 5000) && strstr(said, "past the 4096"));
     puts("ok");
     return 0;
 }
@@ -103,12 +117,14 @@ def main():
     source = (ROOT / "host" / "hos_svc.c").read_text(encoding="utf-8")
     check(COUNTERS in source, "host/hos_svc.c has no '%s'" % COUNTERS)
     port = function(source, "    case 0x1F: {")
-    check('if (!strncmp(name, "sm:", 4)) InterlockedExchange(&ipc_sm_session, (LONG)h);' in port,
-          "ConnectToNamedPort no longer remembers sm:'s session")
+    check('if (!strncmp(name, "sm:", 4)) sm_session_mark(h);' in port,
+          "ConnectToNamedPort no longer marks each sm: session")
     send = function(source, "    case 0x21: {")
-    check("(uint32_t)c->x[0] == (uint32_t)ipc_sm_session && (w0 & 0xFFFF) >= 0x10" in send and
+    check("sm_session_is((uint32_t)c->x[0]) && (w0 & 0xFFFF) >= 0x10" in send and
           "sm_tipc_request(c, tls, w0);" in send, "svc 0x21 does not send sm:'s TIPC requests to sm_tipc_request")
-    fixture = FIXTURE.replace("@COUNTERS@", COUNTERS).replace("@HELPER@", function(source, HELPER))
+    check(MARKS[0] in source, "host/hos_svc.c has no '%s'" % MARKS[0])
+    marks = MARKS[0] + "\n" + "\n".join(function(source, m) for m in MARKS[1:])
+    fixture = FIXTURE.replace("@COUNTERS@", COUNTERS).replace("@MARKS@", marks).replace("@HELPER@", function(source, HELPER))
     with tempfile.TemporaryDirectory(prefix="sm-tipc-") as tmp:
         src, exe = Path(tmp, "sm.c"), Path(tmp, "sm")
         src.write_text(fixture, encoding="utf-8")

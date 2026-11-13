@@ -340,8 +340,21 @@ static void query_memory(uint64_t out, uint64_t addr) {
     G32(out + 16) = state;
     G32(out + 24) = perm;
 }
-/* (dkb) The session handles ConnectToNamedPort and sm: hand out (0x7Exxxxxx), and which one is sm:'s. */
-static volatile LONG ipc_next_session, ipc_sm_session;
+/* (dkb) The session handles ConnectToNamedPort and sm: hand out (0x7E000000 + a count), and which of them are sm:'s.
+   The SDK's sm client may connect more than once (a library of its own, a thread's session), so each is marked by its
+   count: the first 4096 sessions are told apart, which is many more than a game makes; past them, sm: is taken by
+   name no more and its requests are answered as any session's, with a line in the log. */
+enum { SM_SESSIONS = 4096 };
+static volatile LONG ipc_next_session, ipc_sm_marks[SM_SESSIONS / 32];
+static void sm_session_mark(uint32_t h) {
+    const uint32_t n = h - 0x7E000000u;
+    if (n < SM_SESSIONS) InterlockedOr(&ipc_sm_marks[n / 32], (LONG)(1u << (n % 32)));
+    else hos_log("ipc: sm: session %#x past the %d told apart: answered as any session", h, SM_SESSIONS);
+}
+static int sm_session_is(uint32_t h) {
+    const uint32_t n = h - 0x7E000000u;
+    return n < SM_SESSIONS && ((uint32_t)ipc_sm_marks[n / 32] >> (n % 32) & 1);
+}
 
 /* (dkb) sm: speaks TIPC on this firmware: the HIPC header's type is 16 + the command id, and a reply is the result
    word, after a moved handle for GetServiceHandle. The CMIF reply below happened to read as a success for
@@ -520,7 +533,7 @@ void a64_svc(Ctx *c, uint32_t imm) {
                     whose requests svc 0x21 answers empty, as for any service the runtime does not emulate. */
         const char *name = c->x[1] ? (const char *)GP(c->x[1]) : "";
         uint32_t h = 0x7E000000u | (uint32_t)InterlockedIncrement(&ipc_next_session);
-        if (!strncmp(name, "sm:", 4)) InterlockedExchange(&ipc_sm_session, (LONG)h);
+        if (!strncmp(name, "sm:", 4)) sm_session_mark(h);
         hos_log("ipc: ConnectToNamedPort(\"%.11s\") -> session %#x (requests answered empty) (lr %#llx)", name, h,
                 (unsigned long long)c->x[30]);
         c->x[0] = R_OK;
@@ -532,7 +545,7 @@ void a64_svc(Ctx *c, uint32_t imm) {
                     Eglantine's auto-stub does, so a lifted service client sees an empty, successful reply. */
         uint8_t *tls = (uint8_t *)GP(c->tpidrro_el0);
         const uint32_t w0 = *(uint32_t *)tls, w1 = *(uint32_t *)(tls + 4);
-        if ((uint32_t)c->x[0] == (uint32_t)ipc_sm_session && (w0 & 0xFFFF) >= 0x10) {
+        if (sm_session_is((uint32_t)c->x[0]) && (w0 & 0xFFFF) >= 0x10) {
             sm_tipc_request(c, tls, w0);
             return;
         }
