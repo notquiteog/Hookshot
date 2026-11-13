@@ -57,6 +57,8 @@ def main():
     files = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
     stale = []
     for rel in files:
+        if rel == "tests/test_repository_default.py":   # (this file names it, to look for it)
+            continue
         if rel.startswith("third_party/") or rel.endswith((".md", ".txt", ".png", ".bin", ".xz", ".ico", ".ttf", ".otf")):
             continue
         try:
