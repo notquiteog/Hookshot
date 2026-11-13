@@ -213,6 +213,26 @@ int main(int argc, char **argv) {
         free(memory);
         return 0;
     }
+    if (!strcmp(name, "single-state")) {
+        /* GetNpadState, the single-state form: the same state GetNpadStates writes, one of them, for the same pad */
+        front = 1;
+        Ctx many = {{0}};
+        many.x[0] = 64; many.x[1] = 1; many.x[2] = 16; many.x[30] = 0x1234;
+        G32(16) = NPAD_NO1;
+        memset(memory + 64, 0xa5, 2 * STATE_SIZE);
+        npad_states(&many);
+        Ctx one = {{0}};
+        one.x[0] = 256; one.x[1] = 16; one.x[30] = 0x1234;   /* (out, &npadId: no count) */
+        memset(memory + 256, 0xa5, STATE_SIZE + 8);
+        npad_state_one(&one);
+        CHECK(G64(256) == G64(64) + 1);                                       /* the next sample */
+        CHECK(!memcmp(memory + 256 + 8, memory + 64 + 8, STATE_SIZE - 8));    /* the same buttons, sticks, attributes */
+        CHECK(G64(256 + 8) & (1ULL << B_A));                                  /* the script's A */
+        for (int i = 0; i < 8; i++) CHECK(memory[256 + STATE_SIZE + i] == 0xa5);   /* one state, nothing past it */
+        printf("PASS: actual GetNpadState single-state\n");
+        free(memory);
+        return 0;
+    }
     front = !strcmp(name, "foreground") || !strcmp(name, "exclusive-foreground");
     menu_background = !strcmp(name, "pads-menu") || !strcmp(name, "pads-off") || !strcmp(name, "pads-insert");
     const int exclusive = !strncmp(name, "exclusive-", 10);

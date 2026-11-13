@@ -1155,6 +1155,22 @@ HLE(_ZN2nn3hid13GetNpadStatesEPNS0_17NpadHandheldStateEiRKj) { npad_states(c); }
 HLE(_ZN2nn3hid13GetNpadStatesEPNS0_16NpadJoyDualStateEiRKj) { npad_states(c); }
 HLE(_ZN2nn3hid13GetNpadStatesEPNS0_16NpadJoyLeftStateEiRKj) { npad_states(c); }
 HLE(_ZN2nn3hid13GetNpadStatesEPNS0_17NpadJoyRightStateEiRKj) { npad_states(c); }
+/* GetNpadState(State* out, unsigned int const& npadId): the latest state alone. Ocarina reads its pad with
+   GetNpadStates; a game that imports GetNpadState instead (Kirby Air Riders, for every style) got the generic import stub,
+   which answers 0 and writes nothing: the game read whatever its buffer held, which is no input at all. The state is the
+   struct GetNpadStates fills one of, so this is that call with a count of one. (The GameCube controller's NpadGcState is
+   another layout and is not answered: no Gc style is ever reported, GetNpadStyleSet below.) */
+static void npad_state_one(Ctx *c) {
+    const uint64_t id = ARG(1);
+    c->x[1] = 1;
+    c->x[2] = id;
+    npad_states(c);
+}
+HLE(_ZN2nn3hid12GetNpadStateEPNS0_16NpadFullKeyStateERKj) { npad_state_one(c); }
+HLE(_ZN2nn3hid12GetNpadStateEPNS0_17NpadHandheldStateERKj) { npad_state_one(c); }
+HLE(_ZN2nn3hid12GetNpadStateEPNS0_16NpadJoyDualStateERKj) { npad_state_one(c); }
+HLE(_ZN2nn3hid12GetNpadStateEPNS0_16NpadJoyLeftStateERKj) { npad_state_one(c); }
+HLE(_ZN2nn3hid12GetNpadStateEPNS0_17NpadJoyRightStateERKj) { npad_state_one(c); }
 /* GetNpadStyleSet(unsigned int const&) -> BitFlagSet<32, NpadStyleTag> */
 HLE(_ZN2nn3hid15GetNpadStyleSetERKj) { RET(G32(ARG(0)) == NPAD_NO1 ? STYLE_FULLKEY : 0); }
 
