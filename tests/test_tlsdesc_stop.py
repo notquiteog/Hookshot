@@ -15,10 +15,18 @@ python -I -B tests/test_tlsdesc_stop.py
 import re
 import struct
 import sys
+import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "nx2"))
+# (a64-kit's nso.py imports lz4 to decompress modules from a dump. This check builds its module by hand and decompresses
+# nothing, and CI installs no lz4, so an empty stand-in is enough when the real package is not there)
+try:
+    import lz4.block  # noqa: F401
+except ImportError:
+    sys.modules["lz4"] = types.ModuleType("lz4")
+    sys.modules["lz4.block"] = sys.modules["lz4"].block = types.ModuleType("lz4.block")
 import image  # noqa: E402  (nx2/image.py: kit puts a64-kit on the path)
 import nx_image  # noqa: E402
 
