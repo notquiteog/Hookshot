@@ -318,7 +318,6 @@ void hos_log(const char *fmt, ...) {
     fflush(stderr);
 }
 
-void hos_fatal(Ctx *c, const char *fmt, ...);
 /* The resolver every R_AARCH64_TLSDESC descriptor is bound to (nx2/image.py: thread-local storage descriptors are not
    implemented). x0 is the descriptor, whose second word nx2/image.py set to its own address. Called only when the game
    first reaches that thread-local variable: the run stops there and says which one it was, rather than going on with an

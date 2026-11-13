@@ -30,6 +30,9 @@ ARGS_SIZE = 0x9000
 # bound to a stop instead: its resolver is the host's hos_tlsdesc_unsupported (host/hos_thread.c), which names the
 # descriptor and stops the run the moment the game first uses it, and its argument is the descriptor's own address,
 # for that message. Not a guess at an offset, and not a jump to 0.
+# (a64-kit's own table, third_party/a64-kit/tools/nso.py R_AARCH64, names 1030 "TLSDESC"; 1030 is R_AARCH64_TLS_TPREL64
+# and TLSDESC is 1031, so a64-kit hands 1031 through as the bare number this matches. If a64-kit ever fixes its table
+# and names 1031, this check must still match it: tests/test_tlsdesc_stop.py reads a64-kit's table to hold it to that.)
 TLSDESC = 1031
 TLSDESC_STOP = "hos_tlsdesc_unsupported"
 

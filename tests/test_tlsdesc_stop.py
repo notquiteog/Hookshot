@@ -64,6 +64,12 @@ def main():
     check(argument == base + tls_at, "the descriptor's argument is not its own address (%#x)" % argument)
     check(struct.unpack_from("<Q", img.mem, rel_at)[0] == base + 0x1234, "the module's other relocation was not applied")
     check(all(r["type"] != image.TLSDESC for r in img.modules[0].relocs), "a TLSDESC entry was left for a64-kit to refuse")
+    # a64-kit's parse names relocation types by its own table, R_AARCH64 in tools/nso.py, which calls 1030 (really
+    # TLS_TPREL64) "TLSDESC" and leaves 1031 a bare number. Whatever it does with 1031, nx2/image.py's check must see it
+    import nso
+    parsed = nso.R_AARCH64.get(1031, 1031)
+    check(parsed == image.TLSDESC,
+          "a64-kit's parse turns R_AARCH64_TLSDESC (1031) into %r, which nx2/image.py does not match" % (parsed,))
     # the stop is a host function the runtime defines, under the name the trampoline calls
     host = (ROOT / "host" / "hos_thread.c").read_text(encoding="utf-8")
     check(re.search(r"^HLE\(%s\)" % image.TLSDESC_STOP, host, re.M),
