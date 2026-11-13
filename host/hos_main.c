@@ -301,7 +301,8 @@ static void call_guest(Ctx *c, uint64_t addr, uint64_t sp, const char *what) {
 }
 
 #ifndef _WIN32
-/* (linux) Saves live in $XDG_DATA_HOME/hookshot (~/.local/share/hookshot), so a rebuilt game folder still finds them.
+/* (linux) Saves live in $XDG_DATA_HOME/hookshot (~/.local/share/hookshot; another game's in hookshot-<key>, below), so a
+   rebuilt game folder still finds them.
    A user/ folder beside the executable from before is moved there the first time, entry by entry. Anything that
    cannot be moved keeps the old place. --user still wins.
    A symbolic link in it, to saves the player keeps elsewhere (a synced folder, another drive), is made again in the
@@ -407,6 +408,12 @@ static void delete_tree(const char *p) {
     }
     RemoveDirectoryA(p);
 }
+/* (dkb) Each game's saves in a folder of its own: game_profile.h's GAME_SAVES_DIR, Ocarina's "hookshot" and any other
+   game's "hookshot-<profile key>". The save folder has no word of which game wrote it, and the forks of this engine
+   (Lakitu, Dragoon, this one) all used "hookshot", so a second game's first run wrote into Ocarina's saves. */
+#ifndef GAME_SAVES_DIR
+#define GAME_SAVES_DIR "hookshot"
+#endif
 static const char *saves_dir(const char *beside) {
     static char dir[MAX_PATH];
     const char *xdg = getenv("XDG_DATA_HOME"), *home = getenv("HOME");
@@ -418,7 +425,7 @@ static const char *saves_dir(const char *beside) {
         snprintf(dir, sizeof dir, "%s/.local/share", home);
     } else return beside;
     CreateDirectoryA(dir, NULL);
-    snprintf(dir + strlen(dir), sizeof dir - strlen(dir), "/hookshot");
+    snprintf(dir + strlen(dir), sizeof dir - strlen(dir), "/" GAME_SAVES_DIR);
     CreateDirectoryA(dir, NULL);
     if (GetFileAttributesA(dir) == INVALID_FILE_ATTRIBUTES) return beside;
     char pattern[MAX_PATH];

@@ -248,6 +248,13 @@ def _init(fmt, values):
     return "{ %s }" % (", ".join(fmt % v for v in values) if values else "0")
 
 
+def saves_dir(profile):
+    """The saves' folder name under $XDG_DATA_HOME on Linux: Ocarina's "hookshot", where its players' saves have always
+    been; any other game's "hookshot-<key>". The save folder holds save/<user id>/ with the game's own files in it and
+    nothing that says which game wrote them, so two games sharing one would read, and overwrite, each other's."""
+    return "hookshot" if profile.key == "oot" else "hookshot-" + profile.key
+
+
 def emit_header(profile=None):
     p = GAMES[DEFAULT] if profile is None else profile
     out = []
@@ -308,6 +315,10 @@ def emit_header(profile=None):
     w("")
     w("/* Npads served when HOS_NPAD_PLAYERS is unset: a count, or -1 for one per attached controller */")
     w("#define GAME_NPAD_PLAYERS %d" % (-1 if p.npad_players == "auto" else int(p.npad_players)))
+    w("")
+    w("/* (dkb) the saves' folder on Linux, under $XDG_DATA_HOME (host/hos_main.c saves_dir): Ocarina's stays where its")
+    w("   players' saves are, every other game has its own, so no two games ever write one save folder */")
+    w('#define GAME_SAVES_DIR "%s"' % saves_dir(p))
     w("")
     w("/* the console's users (nn::account) when HOS_ACCOUNT_USERS is unset: host/nn_applet.c */")
     w("#define GAME_ACCOUNT_USERS %d" % int(p.account_users))

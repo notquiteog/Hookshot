@@ -60,6 +60,10 @@
 /* Npads served when HOS_NPAD_PLAYERS is unset: a count, or -1 for one per attached controller */
 #define GAME_NPAD_PLAYERS 1
 
+/* (dkb) the saves' folder on Linux, under $XDG_DATA_HOME (host/hos_main.c saves_dir): Ocarina's stays where its
+   players' saves are, every other game has its own, so no two games ever write one save folder */
+#define GAME_SAVES_DIR "hookshot"
+
 /* the console's users (nn::account) when HOS_ACCOUNT_USERS is unset: host/nn_applet.c */
 #define GAME_ACCOUNT_USERS 1
 

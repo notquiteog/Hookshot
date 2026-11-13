@@ -163,6 +163,9 @@ def check_no_literals():
         src = code_only(read(rel, "game_profile.h"))
         for lit in ("fd029a317a9a4b94", "9dc98871eb7fc101"):
             check(lit not in src, "%s names Ocarina's program %s outside a comment" % (rel, lit))
+    main_c = code_only(read("host/hos_main.c", "GAME_SAVES_DIR"))
+    check('"/" GAME_SAVES_DIR' in block_of(main_c, "static const char *saves_dir(const char *beside) {"),
+          "host/hos_main.c's saves folder is not the game profile's: two games would share one")
     make = read("nx2/make_game.py", "game_profile")
     check(not re.search(r"""^BUILD_ID\s*=\s*["']""", make, re.M), "nx2/make_game.py has its own supported build again")
     # (Dragoon also checks that host/nn_hid.c's npad_players defaults to GAME_NPAD_PLAYERS: its multi-pad layer, which
@@ -202,6 +205,8 @@ def check_headers(cc):
             r = subprocess.run([cc, "-std=c11", "-Wall", "-Werror", "-fsyntax-only", "-I" + folder, str(src)],
                                capture_output=True, text=True)
             check(r.returncode == 0, "%s's header does not compile with the runtime's guard: %s" % (key, r.stderr[-400:]))
+            check(('#define GAME_SAVES_DIR "%s"' % ("hookshot" if key == "oot" else "hookshot-" + key)) in text,
+                  "%s's saves would not be in a folder of their own" % key)
             if key == "dkb":
                 check("#define GAME_HAVE_LR_GFX_CLOCK 0" in text and "#define GAME_HAVE_GFX_FRAME_LIMITER 0" not in text
                       and "#define GAME_GFX_HAVE_FRAME_LIMITER 0" in text and "#define GAME_HAVE_LR_PRESENT_POLL 0" in text,
