@@ -229,6 +229,16 @@ int main(int argc, char **argv) {
         CHECK(!memcmp(memory + 256 + 8, memory + 64 + 8, STATE_SIZE - 8));    /* the same buttons, sticks, attributes */
         CHECK(G64(256 + 8) & (1ULL << B_A));                                  /* the script's A */
         for (int i = 0; i < 8; i++) CHECK(memory[256 + STATE_SIZE + i] == 0xa5);   /* one state, nothing past it */
+        /* another style's single state (Handheld, JoyDual, JoyLeft, JoyRight): a pad that is not there, and the input
+           not read again for it (the sampling number stays the last reading's) */
+        const int64_t before = sampling;
+        Ctx other = {{0}};
+        other.x[0] = 384; other.x[1] = 16; other.x[30] = 0x1234;
+        memset(memory + 384, 0xa5, STATE_SIZE + 8);
+        npad_state_absent(&other);
+        CHECK(sampling == before && G64(384) == (uint64_t)before);
+        for (int i = 8; i < STATE_SIZE; i++) CHECK(memory[384 + i] == 0);   /* no buttons, sticks or attributes */
+        for (int i = 0; i < 8; i++) CHECK(memory[384 + STATE_SIZE + i] == 0xa5);
         printf("PASS: actual GetNpadState single-state\n");
         free(memory);
         return 0;
