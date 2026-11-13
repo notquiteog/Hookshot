@@ -239,6 +239,42 @@ HLE(_ZN2nn7account16GetUserExistenceEPbRKNS0_3UidE) {
     *(uint8_t *)GP(ARG(0)) = G64(ARG(1)) == user_uid[0] && G64(ARG(1) + 8) == user_uid[1];
     RET(0);
 }
+/* (dkb) GetLastOpenedUser(Uid*) -> Result: the one user, the only one ever opened. Donkey Kong Bananza asks for it
+   after TryOpenPreselectedUser; the generic stub left the Uid zero, which names no user. (dkb-pc-recomp's
+   runtime/ov_system.c ov_last_opened_user found that the game asks: behaviour only, the code is this file's.) */
+HLE(_ZN2nn7account17GetLastOpenedUserEPNS0_3UidE) {
+    G64(ARG(0)) = user_uid[0];
+    G64(ARG(0) + 8) = user_uid[1];
+    RET(0);
+}
+/* (dkb) LoadCachedNintendoAccountInfo(CachedNintendoAccountInfo*, UserHandle const&, void*, size_t) -> Result: the
+   user has no Nintendo Account linked, which is nn::account's 0x1907c (module 124, description 200: registration
+   required). The generic stub's 0 said the outputs were filled, and nothing was. The SDK leaves the outputs alone on a
+   failure. (The result, as dkb-pc-recomp answers it for Donkey Kong Bananza 3.2.0, ACCOUNT_R_REGISTRATION_REQUIRED.) */
+HLE(_ZN2nn7account29LoadCachedNintendoAccountInfoEPNS0_25CachedNintendoAccountInfoERKNS0_10UserHandleEPvm) {
+    RET(0x1907C);
+}
+
+/* ---- (dkb) services a console has and this PC does not ------------------------------------------------------------
+   Each answers "not here" with the failure the SDK itself gives when the thing is absent, so the game takes its
+   offline path; the generic stub's 0 (success with empty outputs) and the lifted SDK's IPC (a session whose replies
+   are empty) both said it was there. Found on Donkey Kong Bananza 3.2.0; the answers are the ones dkb-pc-recomp
+   (github.com/Lucas-blip-png/dkb-pc-recomp, runtime/ov_system.c) reached by running the game. */
+/* nn::bcat::MountDeliveryCacheStorage() -> Result: no delivery cache is installed: bcat's FailedOpenEntity, 0x47a
+   (module 122, description 2) */
+HLE(_ZN2nn4bcat25MountDeliveryCacheStorageEv) {
+    static volatile LONG told;
+    if (!InterlockedExchange(&told, 1)) hos_log("bcat: no delivery cache (offline): MountDeliveryCacheStorage -> 0x47a");
+    RET(0x47A);
+}
+/* nn::streamplay::GetRequiredMemorySize(StreamPlayType, StreamingMode, int) -> size_t: GameShare (streaming the game
+   to another console) is not available here, so it needs no memory. The lifted SDK opened the streamplay service
+   through sm: to ask, and aborted on the empty reply (svcBreak from nn::streamplay::detail::CreateUserServiceByHipc). */
+HLE(_ZN2nn10streamplay21GetRequiredMemorySizeENS0_14StreamPlayTypeENS0_13StreamingModeEi) {
+    static volatile LONG told;
+    if (!InterlockedExchange(&told, 1)) hos_log("streamplay: GameShare is not available: GetRequiredMemorySize -> 0");
+    RET(0);
+}
 
 /* ---- nn::time: the host clock --------------------------------------------------------------------------------- */
 HLE(_ZN2nn4time10InitializeEv) { RET(0); }
