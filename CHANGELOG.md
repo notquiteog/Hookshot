@@ -1,5 +1,163 @@
 # Changelog
 
+## [2.3.0-rc.1](https://github.com/notquiteog/Hookshot/compare/v2.2.0...v2.3.0-rc.1) (2026-11-13)
+
+
+### Features
+
+* **agents:** pin test requests and results to commits ([#2830](https://github.com/notquiteog/Hookshot/issues/2830)) ([c1f6d17](https://github.com/notquiteog/Hookshot/commit/c1f6d17c91f808b9393fc08ee2e22194b52c0df1))
+* **builder:** an up-to-date game without a ticked DLSS or FSR 4 offers Update, not Play ([#2591](https://github.com/notquiteog/Hookshot/issues/2591)) ([5634175](https://github.com/notquiteog/Hookshot/commit/563417575dfdf369640fb405a9284e46408d147a))
+* **dev:** test a change against a base, as a pack of what it changes ([#2732](https://github.com/notquiteog/Hookshot/issues/2732)) ([ac11719](https://github.com/notquiteog/Hookshot/commit/ac11719642d12254004e6b0ae2e7907c36e1d462))
+* **fps:** add a 30 FPS cap that keeps real time ([#2582](https://github.com/notquiteog/Hookshot/issues/2582)) ([6cc3902](https://github.com/notquiteog/Hookshot/commit/6cc39027ef30681f2aee4d6c023142021ebeb7d1)), closes [#2570](https://github.com/notquiteog/Hookshot/issues/2570) [#1007](https://github.com/notquiteog/Hookshot/issues/1007)
+* **input:** a DualShock 4 or DualSense touchpad click can be bound in Controls ([#2989](https://github.com/notquiteog/Hookshot/issues/2989)) ([22666a8](https://github.com/notquiteog/Hookshot/commit/22666a8bd4b97947be49c4f9e61f957505deaae5))
+* **input:** Auto run, the sprint goes on after A is let go ([#2747](https://github.com/notquiteog/Hookshot/issues/2747)) ([48b7584](https://github.com/notquiteog/Hookshot/commit/48b7584d686844a4715e81de686b8408649b7d01))
+* **menu:** a Quality preset "Auto (this PC)" that picks settings from the hardware and tunes them in play ([#2850](https://github.com/notquiteog/Hookshot/issues/2850)) ([f6cfd98](https://github.com/notquiteog/Hookshot/commit/f6cfd9876c4724b00dc84002b6fb6769cfd57d3c))
+* **menu:** a Texture detail row (Auto, Full, Medium, Low) for cards short of video memory ([#2557](https://github.com/notquiteog/Hookshot/issues/2557)) ([d78c923](https://github.com/notquiteog/Hookshot/commit/d78c92361be6ab88786a3bd3eda68d1f9b5bf404))
+* **menu:** Frame generation by and the FPS counter name who makes the frames ([#2788](https://github.com/notquiteog/Hookshot/issues/2788)) ([8296d07](https://github.com/notquiteog/Hookshot/commit/8296d07c05aaa787fa1e8e8c0dd9f2f1163601a0))
+* **menu:** Mesh shaders is a launch switch, not a menu row ([#2881](https://github.com/notquiteog/Hookshot/issues/2881)) ([8694e3c](https://github.com/notquiteog/Hookshot/commit/8694e3c6bdbef9ea44f37e07a1ffcadbc449f0cf))
+* **scripts:** hookshot_bench.py, a repeatable benchmark route through the control bridge ([#2714](https://github.com/notquiteog/Hookshot/issues/2714)) ([6929c10](https://github.com/notquiteog/Hookshot/commit/6929c1047ba782839e4a4aae7128076399fa20f8))
+* **tests:** run_all.py --changed runs the checks that read what changed ([#2887](https://github.com/notquiteog/Hookshot/issues/2887)) ([8c359bc](https://github.com/notquiteog/Hookshot/commit/8c359bca1192d9c68d802bc99163be3b70156265))
+* **vk:** FSR 3.1 on the chain keeps the game's native HDR highlights ([#2614](https://github.com/notquiteog/Hookshot/issues/2614)) ([e101e02](https://github.com/notquiteog/Hookshot/commit/e101e02adb58b77eac19ba15a09e6fbacaa9133a))
+
+
+### Bug Fixes
+
+* **agents:** a mistyped date in a claim does not stop the test request replay ([#2949](https://github.com/notquiteog/Hookshot/issues/2949)) ([0eb55c4](https://github.com/notquiteog/Hookshot/commit/0eb55c42a1c292116e42af561831feab05deb121))
+* **audio:** Auto counts 5.1 speakers, not channels ([#3044](https://github.com/notquiteog/Hookshot/issues/3044)) ([9b8ea27](https://github.com/notquiteog/Hookshot/commit/9b8ea2779e57abdae415a8216f6c3c31c1eecddd))
+* **build:** a direct lift removes an earlier lift's split parts before it writes its own ([#2953](https://github.com/notquiteog/Hookshot/issues/2953)) ([5123a5a](https://github.com/notquiteog/Hookshot/commit/5123a5a7abf2fc57ab7b767f951774b9e278b327))
+* **builder:** a preparation the GPU driver stalled is not promised for the first start ([#2985](https://github.com/notquiteog/Hookshot/issues/2985)) ([f26dc78](https://github.com/notquiteog/Hookshot/commit/f26dc7827f45c38ced0de0e81bde8eba1fb4ef2c))
+* **builder:** a refused extracted dump leaves the saved copy of the game code alone ([#2968](https://github.com/notquiteog/Hookshot/issues/2968)) ([8288581](https://github.com/notquiteog/Hookshot/commit/828858147553fa066259bca26f1fa339f028d253))
+* **builder:** the Linux game files page scrolls and keeps Build in view ([#3015](https://github.com/notquiteog/Hookshot/issues/3015)) ([9a017f0](https://github.com/notquiteog/Hookshot/commit/9a017f04e1dc6c3659cf997184a50e51ddb0a28b)), closes [#3006](https://github.com/notquiteog/Hookshot/issues/3006)
+* **build:** the hash record is written under its build's start, and keeps only the keys used ([#2873](https://github.com/notquiteog/Hookshot/issues/2873)) ([7f29c57](https://github.com/notquiteog/Hookshot/commit/7f29c5780280dc489c4c6fe79544904b6ba56c68))
+* **framegen:** the game keeps its own frame rate with frame generation on ([#2531](https://github.com/notquiteog/Hookshot/issues/2531)) ([2ddaf86](https://github.com/notquiteog/Hookshot/commit/2ddaf8672ffdc4f39f8022cd37bfb176597906df))
+* **fsr4:** the tail is written before its reader also when the unrolled shader arrives between bind and dispatch ([#2952](https://github.com/notquiteog/Hookshot/issues/2952)) ([546e348](https://github.com/notquiteog/Hookshot/commit/546e348accd7497b2b1d785f2801f14f53737b1f))
+* **host:** BroadcastConditionVariable and the timed semaphore acquires reach the HLE's objects ([#2765](https://github.com/notquiteog/Hookshot/issues/2765)) ([277d78a](https://github.com/notquiteog/Hookshot/commit/277d78ae0832b02aba2901f00355ce066635ea85))
+* **input:** a pad's gyro stops with its buttons when the game is behind another window ([#2542](https://github.com/notquiteog/Hookshot/issues/2542)) ([0a5ec95](https://github.com/notquiteog/Hookshot/commit/0a5ec95e31267b0e3b31dcbb4d1bff096920bd49))
+* **input:** custom ocarina note buttons count with the controller in the background ([#2944](https://github.com/notquiteog/Hookshot/issues/2944)) ([337c063](https://github.com/notquiteog/Hookshot/commit/337c0635e5cc309b6661312d4b65066891ee7e80))
+* **input:** Mouse 4 and Mouse 5 can be bound on Linux ([#2961](https://github.com/notquiteog/Hookshot/issues/2961)) ([f0c2a5e](https://github.com/notquiteog/Hookshot/commit/f0c2a5efd9ada05af158cd8923838f054135ab3c))
+* **input:** the controller in the background stays out of the game while the Insert menu is open ([#2963](https://github.com/notquiteog/Hookshot/issues/2963)) ([ef13d99](https://github.com/notquiteog/Hookshot/commit/ef13d999c55aedc5d367e48c2fa3c083e702673a))
+* **input:** the gyro is at rest while the Insert menu is open ([#2962](https://github.com/notquiteog/Hookshot/issues/2962)) ([fdc45e5](https://github.com/notquiteog/Hookshot/commit/fdc45e51962348e25cb339821739bd3c110d28f7))
+* **input:** the native mouse camera leaves the view to the game while the mouse is released ([#2947](https://github.com/notquiteog/Hookshot/issues/2947)) ([96465de](https://github.com/notquiteog/Hookshot/commit/96465dedfdf8ab23a987405af8731c0d78185132))
+* **lift:** a function with code below its entry starts at its entry ([#3038](https://github.com/notquiteog/Hookshot/issues/3038)) ([56ca2f8](https://github.com/notquiteog/Hookshot/commit/56ca2f89badf4d63c8fb177a111ab8b087b6dc9b))
+* **linux:** enable ReplayPin on the reserved core and reset child thread affinity ([#2903](https://github.com/notquiteog/Hookshot/issues/2903)) ([b0373ae](https://github.com/notquiteog/Hookshot/commit/b0373aeab0038215ec87cd47684ee28c811679c6))
+* **linux:** the log says why the renderer did not load ([#2875](https://github.com/notquiteog/Hookshot/issues/2875)) ([bfe1502](https://github.com/notquiteog/Hookshot/commit/bfe1502724ecf53e472bbd545a97c27bccf6f572))
+* **linux:** the sound output is closed before it is opened again ([#2970](https://github.com/notquiteog/Hookshot/issues/2970)) ([f6e6097](https://github.com/notquiteog/Hookshot/commit/f6e60978e8b09f096436de911d72a62b9a629a75))
+* **memory:** a failed allocation at the commit limit no longer closes the game ([#2941](https://github.com/notquiteog/Hookshot/issues/2941)) ([#3017](https://github.com/notquiteog/Hookshot/issues/3017)) ([25b6f9f](https://github.com/notquiteog/Hookshot/commit/25b6f9f9c45fe69e6178a96fcc4beb3943093432))
+* **memory:** give commit back near Windows' commit limit instead of crashing ([#2972](https://github.com/notquiteog/Hookshot/issues/2972)) ([e9975d6](https://github.com/notquiteog/Hookshot/commit/e9975d6c245275aaf89a34e8d17a6bbe8badab46))
+* **menu:** a bug report whose report.txt could not be written out is not shown as saved ([#2948](https://github.com/notquiteog/Hookshot/issues/2948)) ([606e6c8](https://github.com/notquiteog/Hookshot/commit/606e6c8f74cfc685fa531f78f0997cf68b86377a))
+* **menu:** a control's second key survives a rebind, with a column of its own ([#2933](https://github.com/notquiteog/Hookshot/issues/2933)) ([3a9e39b](https://github.com/notquiteog/Hookshot/commit/3a9e39b0ed16f558982162720b4bc84b04fe0623))
+* **menu:** Auto takes the screen's own size on screens that are not a multiple of 8 ([#2946](https://github.com/notquiteog/Hookshot/issues/2946)) ([65faf69](https://github.com/notquiteog/Hookshot/commit/65faf69ab6107f4de5e5e73865447389a04bdcb5))
+* **menu:** Windows' reason for a bug report that could not be saved is UTF-8 whatever the code page ([#2954](https://github.com/notquiteog/Hookshot/issues/2954)) ([#2978](https://github.com/notquiteog/Hookshot/issues/2978)) ([190f65a](https://github.com/notquiteog/Hookshot/commit/190f65a7797bdc58963c124509e0292ea8e21341))
+* **oot:** the scarecrow's recall of the recorded song takes the note remaps too (kind 11) ([#3018](https://github.com/notquiteog/Hookshot/issues/3018)) ([988f80e](https://github.com/notquiteog/Hookshot/commit/988f80e6911bddbb68fd683d0d8efde0f1ea7f22))
+* readme's work/ffx-sdk, and the build log names an FSR 4 tick without AMD's license ([#2553](https://github.com/notquiteog/Hookshot/issues/2553)) ([1e2b112](https://github.com/notquiteog/Hookshot/commit/1e2b11292fc7cff8f1442be22ff3f0e8b15aabdc))
+* **release:** a draft keeps its tag when its notes are written, and a release just made is waited for ([#2626](https://github.com/notquiteog/Hookshot/issues/2626)) ([cf09841](https://github.com/notquiteog/Hookshot/commit/cf09841af03b5caaf4efc75d8f3c81722abd15d4))
+* **runtime:** let the floor web react above 60 fps ([#2929](https://github.com/notquiteog/Hookshot/issues/2929)) ([db0dd71](https://github.com/notquiteog/Hookshot/commit/db0dd7140b1a71165b93ba27db5f5b80c8981efb))
+* **setup:** a rename blocked by a scanner is tried again, and the message carries Windows' error ([#3021](https://github.com/notquiteog/Hookshot/issues/3021)) ([6bc7eb8](https://github.com/notquiteog/Hookshot/commit/6bc7eb89629e2e7a29ab07b25927613151e8dae3))
+* **shaders:** the noperspective workaround baked offline too; RX_VK_LOWER_SKIP in the program stamp ([#2782](https://github.com/notquiteog/Hookshot/issues/2782)) ([87934f7](https://github.com/notquiteog/Hookshot/commit/87934f72cd11889ec45bf012f17898a3067c0033))
+* **tests:** main's readme and Windows write-back checks pass again ([#2883](https://github.com/notquiteog/Hookshot/issues/2883)) ([a997297](https://github.com/notquiteog/Hookshot/commit/a997297f223f98f3ae656dfbbb64fb76adbe9a8f))
+* **ultrawide:** the sides stay closed while the loading cover shows in the middle 16:9 ([#2939](https://github.com/notquiteog/Hookshot/issues/2939)) ([d367f2a](https://github.com/notquiteog/Hookshot/commit/d367f2aa9b8042e1474518a0e91128862bc2d2d7)), closes [#2220](https://github.com/notquiteog/Hookshot/issues/2220)
+* **vk:** a background-prepared update makes the state list's pipelines behind the preparing screen too ([#2982](https://github.com/notquiteog/Hookshot/issues/2982)) ([4644b41](https://github.com/notquiteog/Hookshot/commit/4644b41ca0ea0e52e90ecea3ceda750135e18bcc))
+* **vk:** a camera cut starts a new upscaler history (DLSS, FSR, their frame generation) ([#2927](https://github.com/notquiteog/Hookshot/issues/2927)) ([5d7a3d0](https://github.com/notquiteog/Hookshot/commit/5d7a3d0c7613c7de22fae6c1f3e8f979d23740df))
+* **vk:** a GPU buffer write into a texture's storage is found under a later, smaller write ([#3002](https://github.com/notquiteog/Hookshot/issues/3002)) ([f44d790](https://github.com/notquiteog/Hookshot/commit/f44d790a7f50670940e8d35b3a25e526ace68d8a))
+* **vk:** a half-written last record is cut off before the pipeline lists are added to ([#2983](https://github.com/notquiteog/Hookshot/issues/2983)) ([ec3ef6a](https://github.com/notquiteog/Hookshot/commit/ec3ef6a6171c760b3dd13ef51635bd9a0c715063))
+* **vk:** a large excess over the 90% rule or the driver's limit is cut to 7/8 again, only a small one is trimmed ([#3020](https://github.com/notquiteog/Hookshot/issues/3020)) ([030b4e9](https://github.com/notquiteog/Hookshot/commit/030b4e9a8d5caba8c46368e8e78b2ad9990a7cfd))
+* **vk:** a texture whose upload failed is tried again, not left empty or stale ([#3003](https://github.com/notquiteog/Hookshot/issues/3003)) ([71f2685](https://github.com/notquiteog/Hookshot/commit/71f268520afeb8b22889f50136cf352ee911d40d))
+* **vk:** actor motion pairs a model's copies by place, so the Gossip Stones stay whole under frame generation ([#2992](https://github.com/notquiteog/Hookshot/issues/2992)) ([e79d8cc](https://github.com/notquiteog/Hookshot/commit/e79d8cccb4c99c8ad584e9527cb3634e9ca23437))
+* **vk:** allow raw colour attachment usage and views on 2D BC textures on AMD ([#2001](https://github.com/notquiteog/Hookshot/issues/2001)) ([c044631](https://github.com/notquiteog/Hookshot/commit/c044631be5702f2dd861d291812828d952822fd6))
+* **vk:** automatically query VK_EXT_device_fault on device lost when NV checkpoints and buffer markers are absent ([#2117](https://github.com/notquiteog/Hookshot/issues/2117)) ([ee64a96](https://github.com/notquiteog/Hookshot/commit/ee64a963b2ad6e127fbe79218f40898234d51b7f))
+* **vk:** bind a sparse texture's queued blocks when its upload runs out of staging ([#3031](https://github.com/notquiteog/Hookshot/issues/3031)) ([bdbe098](https://github.com/notquiteog/Hookshot/commit/bdbe098bdcfcaed83b3f20728cd787f25bcd089a))
+* **vk:** do not reuse the read-back command buffer while a timed-out submission holds it ([#3032](https://github.com/notquiteog/Hookshot/issues/3032)) ([0e633ef](https://github.com/notquiteog/Hookshot/commit/0e633ef349f944b46d5e6ae4c6695b6ec7093a9c))
+* **vk:** fall back to host pointers on udmabuf rejection and retry mirror allocation ([#2482](https://github.com/notquiteog/Hookshot/issues/2482)) ([472846f](https://github.com/notquiteog/Hookshot/commit/472846fd67ec5598681689f88efb9fc3b3e3c655))
+* **vk:** HUD and lighting artifacts on GPUs without buffer mirrors ([#1795](https://github.com/notquiteog/Hookshot/issues/1795)) ([a5028dc](https://github.com/notquiteog/Hookshot/commit/a5028dc52d39121c6ef12d00a2ca2daf1eac3330))
+* **vk:** HUD labels the GPU drew no longer go blank after a zone change ([#3004](https://github.com/notquiteog/Hookshot/issues/3004)) ([40955ed](https://github.com/notquiteog/Hookshot/commit/40955ed3ad5cba480961f0b92ccab69f52407843))
+* **vk:** image pool blocks of 32 MB by default, not 128 ([#2967](https://github.com/notquiteog/Hookshot/issues/2967)) ([725d955](https://github.com/notquiteog/Hookshot/commit/725d955f60d9a34b9ee08d409ed538de70dfcf0c))
+* **vk:** keep mesh indirect argument ranges from overlapping ([#2719](https://github.com/notquiteog/Hookshot/issues/2719)) ([85a1b0c](https://github.com/notquiteog/Hookshot/commit/85a1b0c2b2217bac2a8084f0ef90cbb8672e7caa))
+* **vk:** keep the staging arenas, and answer repeated texture views from a front cache ([#2960](https://github.com/notquiteog/Hookshot/issues/2960)) ([9e1559e](https://github.com/notquiteog/Hookshot/commit/9e1559ec326c5ba9ca4bb754a181ad971c998b36))
+* **vk:** let render targets go as newer ones together cover them, and reuse their images at once ([#2766](https://github.com/notquiteog/Hookshot/issues/2766)) ([7bba12a](https://github.com/notquiteog/Hookshot/commit/7bba12ad1abc3ad4ae12b02241bb132a576adecd))
+* **vk:** make the compute pipelines of the mesh fallback programs already read in, before the title ([#2880](https://github.com/notquiteog/Hookshot/issues/2880)) ([3c2d80c](https://github.com/notquiteog/Hookshot/commit/3c2d80cf33c2463b8ca10897d41fa80aee8e730e))
+* **vk:** on Intel a split submission's uniform updates are written by its last part ([#3000](https://github.com/notquiteog/Hookshot/issues/3000)) ([94f290c](https://github.com/notquiteog/Hookshot/commit/94f290ce583f87baf402dfcec5e4732f409b0528))
+* **vk:** one pipeline play file a session, and the next start puts them together ([#2625](https://github.com/notquiteog/Hookshot/issues/2625)) ([0c48d68](https://github.com/notquiteog/Hookshot/commit/0c48d68d732a456d6cc65b3c271b5be265e46810))
+* **vk:** release abandoned pipeline batches and borrowed shader handles ([#2910](https://github.com/notquiteog/Hookshot/issues/2910)) ([9553c03](https://github.com/notquiteog/Hookshot/commit/9553c039eba17ee8f1ab0cffbe3fcf9ae1dec74a))
+* **vk:** report GPU resource waits beyond recording-slot reuse ([#2897](https://github.com/notquiteog/Hookshot/issues/2897)) ([37b5091](https://github.com/notquiteog/Hookshot/commit/37b5091791a38508817aeb9ccdf1576bb13c4f7c))
+* **vk:** report native shader keys in draw statistics ([#2896](https://github.com/notquiteog/Hookshot/issues/2896)) ([a316414](https://github.com/notquiteog/Hookshot/commit/a316414b8cd777c28bb7df85f1b6522cae876257))
+* **vk:** retry sparse blocks whose bind failed ([#2743](https://github.com/notquiteog/Hookshot/issues/2743)) ([bbc59c3](https://github.com/notquiteog/Hookshot/commit/bbc59c308483609b67508c1126c772f0c43357da))
+* **vk:** skip clears of textures kept in ASTC blocks ([#2718](https://github.com/notquiteog/Hookshot/issues/2718)) ([a6a717d](https://github.com/notquiteog/Hookshot/commit/a6a717dd257109a2d09a13a083d3c90e347877cb))
+* **vk:** skip texel buffer views of formats the device cannot use ([#2741](https://github.com/notquiteog/Hookshot/issues/2741)) ([2e61823](https://github.com/notquiteog/Hookshot/commit/2e61823a6d8674410165d9ceb703e376581982c5))
+* **vk:** stop requiring vertex strides for mesh fallback draws ([#2796](https://github.com/notquiteog/Hookshot/issues/2796)) ([9b6072c](https://github.com/notquiteog/Hookshot/commit/9b6072cd4b373bdd9ff3a8e056b7dc2b7dc359a5))
+* **vk:** the fragment shuffle fallback on RADV too (RDNA1 flicker) ([#1893](https://github.com/notquiteog/Hookshot/issues/1893)) ([9e1ea08](https://github.com/notquiteog/Hookshot/commit/9e1ea088a5eb95016365bfc638f3e751277b5557))
+* **vk:** the load default's safety net counts only what the loads found in no cache ([#2884](https://github.com/notquiteog/Hookshot/issues/2884)) ([15d4ae8](https://github.com/notquiteog/Hookshot/commit/15d4ae8c6188bd681ab0547e4536cb2ad3fe6dc1))
+* **vk:** the networks a card leaves out are not logged or counted as shader failures ([#2987](https://github.com/notquiteog/Hookshot/issues/2987)) ([d038e64](https://github.com/notquiteog/Hookshot/commit/d038e64fe5a34ce87043cff0e03ea5db8df88167))
+* **vk:** validate texture blits before vkCmdBlitImage ([#2691](https://github.com/notquiteog/Hookshot/issues/2691)) ([a50d29e](https://github.com/notquiteog/Hookshot/commit/a50d29e05d8a97d0bac6d4164baf0aa3a55b46c5))
+* write 8/16-bit global stores directly instead of a compare-exchange loop ([#2976](https://github.com/notquiteog/Hookshot/issues/2976)) ([358e7c3](https://github.com/notquiteog/Hookshot/commit/358e7c3fc44088c275cb0f137e3f25f3d1edaa9f))
+
+
+### Performance Improvements
+
+* **build:** compile the lifted code without lifetime markers ([#2775](https://github.com/notquiteog/Hookshot/issues/2775)) ([7e45ba0](https://github.com/notquiteog/Hookshot/commit/7e45ba03d0ff2b2fa3a44be133ff420b351022ad))
+* **build:** lifted chunks of ~4 MB, by guest address, besides chunks.txt's boundaries ([#2890](https://github.com/notquiteog/Hookshot/issues/2890)) ([59c9c56](https://github.com/notquiteog/Hookshot/commit/59c9c56f88e27af3be0ec329e0abba59d0db5cc3))
+* **build:** skip unchanged links, write compile_commands.json, key the hot pieces by the profile's contents ([#2893](https://github.com/notquiteog/Hookshot/issues/2893)) ([19d9755](https://github.com/notquiteog/Hookshot/commit/19d9755f5fd976f0dddd7e4846e5909fdf9e5649))
+* **host:** three per-call costs on hot paths removed (own-thread lookups, a Signal with no waiter, switches read once) ([#2708](https://github.com/notquiteog/Hookshot/issues/2708)) ([49dda37](https://github.com/notquiteog/Hookshot/commit/49dda379d3c7c3ea7d481e1dd617237a401b1ab0))
+* **host:** walk the written-page marks once, in 256-page vector steps ([#2988](https://github.com/notquiteog/Hookshot/issues/2988)) ([36f05ec](https://github.com/notquiteog/Hookshot/commit/36f05ec148f697685f17fc8306f44393b3907fe6))
+* **lift:** fast float regions, plain SSE checked once by MXCSR with the exact copy as fallback ([#2433](https://github.com/notquiteog/Hookshot/issues/2433)) ([556a248](https://github.com/notquiteog/Hookshot/commit/556a24858ce21164728e49bf0f3b37a3dbf3c74e))
+* **vk:** a mirror sync's pages from the captures go in one compute dispatch, not one copy region each ([#3023](https://github.com/notquiteog/Hookshot/issues/3023)) ([1ea715d](https://github.com/notquiteog/Hookshot/commit/1ea715d1d91c82bb421b6aa95a21c6b625ac8eea))
+* **vk:** a pool import does not pay a walk over the game's heap ([#3043](https://github.com/notquiteog/Hookshot/issues/3043)) ([771a9e4](https://github.com/notquiteog/Hookshot/commit/771a9e46773c71819d0f17512759bdd35dea0034))
+* **vk:** a spare staging arena, made and freed off the replay thread ([#2997](https://github.com/notquiteog/Hookshot/issues/2997)) ([443ee32](https://github.com/notquiteog/Hookshot/commit/443ee32f95fe422bdd6043cec91d924a12746628))
+* **vk:** allow pooled descriptors to avoid expensive push calls ([#2965](https://github.com/notquiteog/Hookshot/issues/2965)) ([6e0edbe](https://github.com/notquiteog/Hookshot/commit/6e0edbe003417bcd67bb7264a535986bf32f742f))
+* **vk:** back-to-back passes and dispatches ordered by the game's barriers (NVIDIA by default) ([#2559](https://github.com/notquiteog/Hookshot/issues/2559)) ([b2d03d5](https://github.com/notquiteog/Hookshot/commit/b2d03d5220bfc8e1974229107dfc287be569a9df))
+* **vk:** no pool import for one GPU unswizzle, and the CPU unswizzle threaded from 4 MB ([#2785](https://github.com/notquiteog/Hookshot/issues/2785)) ([5192732](https://github.com/notquiteog/Hookshot/commit/5192732af7e6541bfed091970b133af0a6eabea0))
+* **vk:** on the Steam Deck's APU, no idle send by default, and held submits go out while a readback waits ([#2422](https://github.com/notquiteog/Hookshot/issues/2422)) ([8b76270](https://github.com/notquiteog/Hookshot/commit/8b76270482e04dc45879bad65083ee52eac54009))
+* **vk:** opaque ASTC textures kept as BC1, half the video memory of BC3 ([#2554](https://github.com/notquiteog/Hookshot/issues/2554)) ([e986825](https://github.com/notquiteog/Hookshot/commit/e9868252efd967154a0b7f89e67464b2f1104145))
+* **vk:** persist pipeline caches without full-size heap copies ([#2649](https://github.com/notquiteog/Hookshot/issues/2649)) ([fc5ab98](https://github.com/notquiteog/Hookshot/commit/fc5ab98158757bc5cf895452e7548118b82c4fe3))
+* **vk:** suballocate untouched tails of in-flight staging arenas ([#2469](https://github.com/notquiteog/Hookshot/issues/2469)) ([ec0dbeb](https://github.com/notquiteog/Hookshot/commit/ec0dbeb5c1215b8df66d614de17c79a4317c5d0b))
+
+
+### Code Refactoring
+
+* **builder:** name the DLSS license flag apart from the dialog text, and finish its comment ([#2565](https://github.com/notquiteog/Hookshot/issues/2565)) ([20d0734](https://github.com/notquiteog/Hookshot/commit/20d0734a316fc84ae526ede68ea834bd9fe191bb))
+* **update:** the game no longer checks for updates; its folder's launcher does ([#2926](https://github.com/notquiteog/Hookshot/issues/2926)) ([d7fef7c](https://github.com/notquiteog/Hookshot/commit/d7fef7c70ff5cbdb4801b505eb4fca9d090ebae0))
+
+
+### Build System
+
+* **linux:** ship third_party/zbic's sources so a build with NVIDIA DLSS compiles in the AppImage ([#2935](https://github.com/notquiteog/Hookshot/issues/2935)) ([e0e6092](https://github.com/notquiteog/Hookshot/commit/e0e60920991931f24cbe817bd5fff782ef4f5d9d))
+* **release:** a shipped pipeline list from a player's progress on Linux AMD, 1364 pipelines ([#3029](https://github.com/notquiteog/Hookshot/issues/3029)) ([2cb7d29](https://github.com/notquiteog/Hookshot/commit/2cb7d29ca1457509d2c3e719f64bb7a1b15cd57f))
+* **release:** a shipped pipeline list from an overnight tour of 21 areas, 3388 pipelines ([#3030](https://github.com/notquiteog/Hookshot/issues/3030)) ([1ffb7c6](https://github.com/notquiteog/Hookshot/commit/1ffb7c6ce3f8861b42cafac9a7ec8066c644ea2a))
+* **release:** the RTX 5090 fork list's note says what its build changed ([#2143](https://github.com/notquiteog/Hookshot/issues/2143) follow-up) ([#2703](https://github.com/notquiteog/Hookshot/issues/2703)) ([c60018e](https://github.com/notquiteog/Hookshot/commit/c60018ed895ae0cb29d4aba13264efaa699e77d5))
+
+
+### Continuous Integration
+
+* execute authored Vulkan fixtures on lavapipe ([#2866](https://github.com/notquiteog/Hookshot/issues/2866)) ([c86c3dd](https://github.com/notquiteog/Hookshot/commit/c86c3dd7606fcdb0ea9fdb300884b0f50d6d1239))
+
+
+### Documentation
+
+* add RTX 5050 Laptop 8 GB runs with and without RX_VK_COMPACT=1 on v2.1.0 ([#2889](https://github.com/notquiteog/Hookshot/issues/2889)) ([024e280](https://github.com/notquiteog/Hookshot/commit/024e280ac230cdd8e1365a44ad50795e52352ddc))
+* add tested-configurations rows for DLSS Frame Generation on an RTX 4090 (Windows) ([#2771](https://github.com/notquiteog/Hookshot/issues/2771)) ([108dac7](https://github.com/notquiteog/Hookshot/commit/108dac7fdf28ea91b5f32ac75014c52b3a9c2061))
+* add tested-configurations rows for the recorder thread on an RTX 4090 (Windows) ([#2912](https://github.com/notquiteog/Hookshot/issues/2912)) ([ce0681b](https://github.com/notquiteog/Hookshot/commit/ce0681ba1947096d6f14ceae27929d55bb9aad8a))
+* add the tested-configurations row for [#2748](https://github.com/notquiteog/Hookshot/issues/2748)'s game run ([#2757](https://github.com/notquiteog/Hookshot/issues/2757)) ([4614e71](https://github.com/notquiteog/Hookshot/commit/4614e71eb9f308a548c1eb0928aaa44603dc29f0))
+* tested configurations: RX 5500 XT 8 GB (RDNA1, no mesh shaders), Windows 11, v2.2.0-rc.1-6 ([#3028](https://github.com/notquiteog/Hookshot/issues/3028)) ([fad9677](https://github.com/notquiteog/Hookshot/commit/fad9677ad9d1b5a7cf7bdd100c2936077d620e97))
+* tested configurations: RX 5600 XT 6 GB (RDNA1, no mesh shaders), Windows 11, main de866017 ([#2715](https://github.com/notquiteog/Hookshot/issues/2715)) ([2546ab0](https://github.com/notquiteog/Hookshot/commit/2546ab01ab46f9395946a829fb551ee9961a99b7))
+* tested configurations: RX 7900 XTX, RADV Mesa 26.2.6, Ubuntu 24.04 GNOME X11 (v2.1.0) ([#2616](https://github.com/notquiteog/Hookshot/issues/2616)) ([c6335ff](https://github.com/notquiteog/Hookshot/commit/c6335ffdd2fcf5e4630277e0162879efdba2bb7d))
+* **tested:** record paired Linux RTX 4090 rolling results ([#2778](https://github.com/notquiteog/Hookshot/issues/2778)) ([fcd2a67](https://github.com/notquiteog/Hookshot/commit/fcd2a67607d8982b4d06fcecec4856a54ef3d6be))
+* **tested:** RTX 5080 on Windows, [#2306](https://github.com/notquiteog/Hookshot/issues/2306)'s native float add against the loop ([#2844](https://github.com/notquiteog/Hookshot/issues/2844)) ([cb34e7f](https://github.com/notquiteog/Hookshot/commit/cb34e7f2b222dc321c2ff91d2b71c144a4994486))
+* **tested:** RTX 5090 on Windows, Kokiri Forest: main against v2.1.0, 49f75dc8 and the last main before [#2602](https://github.com/notquiteog/Hookshot/issues/2602) ([#2840](https://github.com/notquiteog/Hookshot/issues/2840)) ([208de27](https://github.com/notquiteog/Hookshot/commit/208de2776e0c1aabed2d5ad6953d4029b670fc7a))
+* **tested:** RX 7700 XT on CachyOS, v2.2.0-rc.1 in Kokiri Forest ([#3014](https://github.com/notquiteog/Hookshot/issues/3014)) ([157e4b7](https://github.com/notquiteog/Hookshot/commit/157e4b7af75ad7f3becb95a015476ecb1fb24482))
+
+
+### Tests
+
+* one source cutter for the checks (tests/srccut.py), 80 checks moved to it ([#2914](https://github.com/notquiteog/Hookshot/issues/2914)) ([b4c8153](https://github.com/notquiteog/Hookshot/commit/b4c81530967ea3ef6e7a4cce7c96fde4c45cf2dc))
+* **saves:** cover newest-first directory order in the late-link case ([#2888](https://github.com/notquiteog/Hookshot/issues/2888)) ([4dd972a](https://github.com/notquiteog/Hookshot/commit/4dd972a85ed5291ba7747ead68fbc38cdd69ec8e))
+* the draw stream and recording admission fixtures have [#2960](https://github.com/notquiteog/Hookshot/issues/2960)'s view_fast ([#3061](https://github.com/notquiteog/Hookshot/issues/3061)) ([21f4894](https://github.com/notquiteog/Hookshot/commit/21f48948d85e88db547de77930c901b0f63b9d24))
+* **vk:** execute startup pool placement and fallback checks ([#2877](https://github.com/notquiteog/Hookshot/issues/2877)) ([20f5854](https://github.com/notquiteog/Hookshot/commit/20f58542ccc43ff57557e6e047b7f1afdba8c7ca))
+
+
+### Miscellaneous Chores
+
+* **main:** release 2.2.0-rc.1 ([#2913](https://github.com/notquiteog/Hookshot/issues/2913)) ([4aee236](https://github.com/notquiteog/Hookshot/commit/4aee23659b9436dab2cd7be1ac07333c06246b7c))
+* **release:** record 2.2.0 as released ([670c811](https://github.com/notquiteog/Hookshot/commit/670c8119db81fee35d8664acd06b1932b7dd500e))
+
 ## [2.2.0](https://github.com/notquiteog/Hookshot/releases/tag/v2.2.0) (2026-11-12)
 
 Release candidate [v2.2.0-rc.3](https://github.com/notquiteog/Hookshot/releases/tag/v2.2.0-rc.3), published as 2.2.0. Its changes are in its release candidates' entries below.
