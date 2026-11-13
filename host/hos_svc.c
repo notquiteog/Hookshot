@@ -340,6 +340,42 @@ static void query_memory(uint64_t out, uint64_t addr) {
     G32(out + 16) = state;
     G32(out + 24) = perm;
 }
+/* (dkb) The session handles ConnectToNamedPort and sm: hand out (0x7Exxxxxx), and which one is sm:'s. */
+static volatile LONG ipc_next_session, ipc_sm_session;
+
+/* (dkb) sm: speaks TIPC on this firmware: the HIPC header's type is 16 + the command id, and a reply is the result
+   word, after a moved handle for GetServiceHandle. The CMIF reply below happened to read as a success for
+   RegisterClient (command 0), but GetServiceHandle (command 1, the service's name in the request's 8 data bytes)
+   found no handle in it, and the SDK aborted: Donkey Kong Bananza's nn::streamplay client did
+   (CreateUserServiceByHipc, svcBreak). Each service gets a session of its own whose requests are answered empty, as
+   ConnectToNamedPort's are, and its name in the log, so the next service the runtime does not emulate is named
+   rather than an abort in the SDK. */
+static void sm_tipc_request(Ctx *c, uint8_t *tls, uint32_t w0) {
+    const uint32_t type = w0 & 0xFFFF, cmd = type - 0x10;
+    char name[9] = {0};
+    if (cmd == 1) memcpy(name, tls + 8, 8);
+    memset(tls, 0, 0x100);
+    *(uint32_t *)(tls + 0) = type;
+    if (cmd == 1) {
+        const uint32_t h = 0x7E000000u | (uint32_t)InterlockedIncrement(&ipc_next_session);
+        static volatile LONG logged;
+        if (InterlockedIncrement(&logged) <= 64)
+            hos_log("ipc: sm: GetServiceHandle(\"%s\") -> session %#x (requests answered empty) (lr %#llx)", name, h,
+                    (unsigned long long)c->x[30]);
+        *(uint32_t *)(tls + 4) = 1u | 1u << 31;   /* one data word; a special header follows */
+        *(uint32_t *)(tls + 8) = 1u << 5;         /* the special header: one moved handle */
+        *(uint32_t *)(tls + 12) = h;
+        *(uint32_t *)(tls + 16) = 0;              /* the result */
+    } else {
+        static volatile LONG logged;
+        if (InterlockedIncrement(&logged) <= 16)
+            hos_log("ipc: sm: command %u (tipc): answered with success (lr %#llx)", cmd, (unsigned long long)c->x[30]);
+        *(uint32_t *)(tls + 4) = 1;               /* one data word: the result */
+        *(uint32_t *)(tls + 8) = 0;
+    }
+    c->x[0] = R_OK;
+}
+
 
 /* A thread handle, with Horizon's pseudo-handle for the current thread. */
 #define CUR_THREAD 0xFFFF8000u
@@ -482,9 +518,9 @@ void a64_svc(Ctx *c, uint32_t imm) {
     case 0x1F: { /* ConnectToNamedPort(-, name) -> (result, session handle): (hookshot) SDK code that resolves a
                     service through "sm:" (nn::sm::Initialize, from nn::nsd's HIPC client in OoT) gets a session
                     whose requests svc 0x21 answers empty, as for any service the runtime does not emulate. */
-        static volatile LONG next = 0;
         const char *name = c->x[1] ? (const char *)GP(c->x[1]) : "";
-        uint32_t h = 0x7E000000u | (uint32_t)InterlockedIncrement(&next);
+        uint32_t h = 0x7E000000u | (uint32_t)InterlockedIncrement(&ipc_next_session);
+        if (!strncmp(name, "sm:", 4)) InterlockedExchange(&ipc_sm_session, (LONG)h);
         hos_log("ipc: ConnectToNamedPort(\"%.11s\") -> session %#x (requests answered empty) (lr %#llx)", name, h,
                 (unsigned long long)c->x[30]);
         c->x[0] = R_OK;
@@ -496,6 +532,10 @@ void a64_svc(Ctx *c, uint32_t imm) {
                     Eglantine's auto-stub does, so a lifted service client sees an empty, successful reply. */
         uint8_t *tls = (uint8_t *)GP(c->tpidrro_el0);
         const uint32_t w0 = *(uint32_t *)tls, w1 = *(uint32_t *)(tls + 4);
+        if ((uint32_t)c->x[0] == (uint32_t)ipc_sm_session && (w0 & 0xFFFF) >= 0x10) {
+            sm_tipc_request(c, tls, w0);
+            return;
+        }
         /* the request's CMIF header ('SFCI', version, command id) after the HIPC header, 16-byte aligned */
         uint32_t cmd = 0;
         for (int off = 8; off < 0x40; off += 4)
