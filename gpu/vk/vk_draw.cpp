@@ -88,6 +88,11 @@ namespace {
 // the thread ends. Only the list that owns them has a destructor, and only a thread's first use of each object touches it.
 // A new per-thread object of a type with a constructor or destructor belongs here too (tests/test_tls_objects.py checks).
 // (They go when the thread ends, with the list: no other thread_local's destructor may use them.)
+// name() is always inlined and its first-use path is not: with the allocation inlined into it, clang made name() a function
+// of its own that saved six registers and found the thread's TLS block on every call (on Linux a __tls_get_addr call, the
+// renderer being a shared object), some 60 times a draw from build_descriptors, bind_descriptors and the draw's pass().
+// Inlined, a function finds the block once for all its uses. ~4% of the replay thread in the Market, RTX 5060 Ti, Linux
+// (HOS_SAMPLE_ALL): see the PR. (tests/test_tls_objects.py compiles the macro and checks a use makes no call)
 struct TlsOwned {
     void* object;
     void** slot;
@@ -104,16 +109,16 @@ std::vector<TlsOwned>& tls_owned() {
     return list.v;
 }
 template <class T>
-T& tls_make(T*& slot) {
+[[gnu::noinline, gnu::cold]] T& tls_make(T*& slot) {
     slot = new T();   // (value-initialized: zeroed as a thread_local's static storage was)
     tls_owned().push_back({slot, reinterpret_cast<void**>(&slot), [](void* p) { delete static_cast<T*>(p); }});
     return *slot;
 }
 #define TLS_OBJECT(name, ...)                                                         \
     thread_local __VA_ARGS__* name##_tls = nullptr;                                   \
-    inline __VA_ARGS__& name() {                                                      \
+    [[gnu::always_inline]] inline __VA_ARGS__& name() {                               \
         __VA_ARGS__* p = name##_tls;                                                  \
-        return p ? *p : tls_make(name##_tls);                                         \
+        return __builtin_expect(p != nullptr, 1) ? *p : tls_make(name##_tls);         \
     }
 
 // ---- (hookshot) RX_VK_PROF_FINE=1: where a draw's time goes, finer than the frame line's phases, and what each draw does ----
