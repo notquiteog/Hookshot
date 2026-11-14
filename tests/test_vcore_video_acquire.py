@@ -112,15 +112,21 @@ static void decode_next(Dec *d) {
     d->qn++;
 }
 static void decode_pending(Dec *d) { decode_next(d); }
+/* the reservations (a buffer acquired before its picture): counted, not filled here */
+static int reserves, fills;
+static uint64_t sync_reserve(void) { return 0x5ec0000000000000ull | (uint64_t)++reserves; }
+static void fill_reserved(Dec *d) { (void)d; fills++; }
 
+@PUT@
 @ACQUIRE@
 
 static int bad;
 static void check(int ok, const char *what) { if (!ok) { printf("FAIL: %s\n", what); bad = 1; } }
 /* one AcquireXDecoderOutputBuffer(&index, &sync, decoder) by a thread that holds a core (or not) */
+static uint32_t out_index;
+static uint64_t sync;   /* (the sync handle the last acquire wrote) */
 static uint64_t acquire(int core, int pending, int registered) {
-    static uint32_t index;
-    static uint64_t sync;
+    sync = 0;
     for (int i = 0; i < dec.qn; i++) picture_free(&dec.queue[(dec.qhead + i) % MAX_QUEUE]);
     memset(&dec, 0, sizeof dec);
     if (!pool.nv12) pool.w = pool.h = 4, pool.count = 1, pool.nv12 = (uint8_t *)calloc(1, 4 * 4 * 3 / 2);
@@ -129,8 +135,9 @@ static uint64_t acquire(int core, int pending, int registered) {
     dec.stopped = stopped_now;
     Ctx c;
     memset(&c, 0, sizeof c);
-    c.x[0] = (uint64_t)(uintptr_t)&index, c.x[1] = (uint64_t)(uintptr_t)&sync, c.x[2] = 1;
+    c.x[0] = (uint64_t)(uintptr_t)&out_index, c.x[1] = (uint64_t)(uintptr_t)&sync, c.x[2] = 1;
     held = core, takes = takes_under_lock = decodes = decodes_with_core = sleeps = sleeps_with_core = 0;
+    reserves = fills = 0;
     dec_acquire(&c);
     return c.x[0];
 }
@@ -143,6 +150,7 @@ int main(void) {
     end_after = 1;
     r = acquire(1, 1, 1);
     check(r == 0 && dec.eos && decodes_with_core == 0, "nothing decoded after the last submission: decoded without the core");
+    check(reserves == 0 && sync == 0 && dec.slot_last[0], "after the end: no reservation, the buffer as the last, reached");
     check(takes == 1 && takes_under_lock == 0 && held == 1, "and the core back after the lock");
     end_after = 0;
 
@@ -164,6 +172,11 @@ int main(void) {
        after a Stop or a Flush (a movie's end: the thread its teardown joins sat here for 245-257 ms) */
     r = acquire(1, 0, 1);
     check(r == 0 && sleeps == 50 && sleeps_with_core == 0, "nothing decoded yet: 100 ms of 2-ms sleeps, then the buffer again");
+    /* (the buffer is reserved for the next picture, its sync not reached until that picture is in it: a sync reached at
+       once let Donkey Kong Bananza's player count a picture never sent, and abort) */
+    check(reserves == 1 && dec.reserved[0] == (0x5ec0000000000000ull | 1) && sync == dec.reserved[0] && dec.busy[0],
+          "the idle buffer is reserved, with the reservation's sync handle");
+    check(fills == 1, "reservations made before are owed the pictures first");
     sleep_takes_ns = 5000000;
     const int64_t before = clock_ns;
     r = acquire(1, 0, 1);
@@ -199,7 +212,9 @@ def main():
                        through(src, "typedef struct {\n    const char *name;", "} Av1Decoder;"),
                        through(src, "typedef struct {\n    AVCodecContext *ctx;", "} Dec;"),
                        "static volatile LONG64 submissions;"))
-    fixture = HARNESS.replace("@TYPES@", types).replace("@ACQUIRE@", block(src, "static void dec_acquire(Ctx *c) {"))
+    fixture = (HARNESS.replace("@TYPES@", types)
+               .replace("@PUT@", block(src, "static void put_picture(Dec *d, int slot, int reserved) {"))
+               .replace("@ACQUIRE@", block(src, "static void dec_acquire(Ctx *c) {")))
     compiler = shutil.which(args.cxx)
     if not compiler:
         raise SystemExit("C++ compiler not found: " + args.cxx)
