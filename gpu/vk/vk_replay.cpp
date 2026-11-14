@@ -2111,17 +2111,66 @@ uint64_t replay_pin_mask() {
 }
 thread_local int replay_pin_depth = 0;
 thread_local DWORD_PTR replay_pin_prev = 0;
+// (hookshot) The thread stays on the core after its replay, until another thread replays: that one moves it back to its own
+// processors first, then itself onto the core. Moving there and back for every replay was two affinity changes a replay,
+// each a move of the thread to another core (on Linux a sched_setaffinity that waits for the move): ~14 a frame and 4.3% of
+// the Presentation Thread in the Market, where the main thread waits for its replays (RTX 5060 Ti, i5-13600K, Linux;
+// HOS_SAMPLE_ALL). Now a frame has one change each time the replaying thread changes. The core is still one replay's at a
+// time (sync_order_mu orders them), and between its replays the thread that keeps it runs its own work there, on a core
+// no game thread may use. RX_VK_REPLAY_PIN_KEEP=0: back after every replay, as before.
+bool replay_pin_keep() {
+    static const bool on = !getenv("RX_VK_REPLAY_PIN_KEEP") || atoi(getenv("RX_VK_REPLAY_PIN_KEEP")) != 0;
+    return on;
+}
+std::mutex replay_pin_mu;                  // (the keeper below)
+HANDLE replay_pin_keeper = nullptr;        // the thread on the core between its replays: its own handle (replay_pin_mu)
+DWORD_PTR replay_pin_keeper_prev = 0;      // and the processors it goes back to
+std::atomic<int64_t> st_pin_moves{0};      // affinity changes (the frame line's "replay core moves")
+struct PinSelf {
+    HANDLE h = nullptr;   // (GetCurrentThread is a pseudo-handle another thread cannot use: a real one, for the thread's life)
+    ~PinSelf() {          // (a thread that ends keeping the core leaves it)
+        if (!h) return;
+        {
+            std::lock_guard lk(replay_pin_mu);
+            if (replay_pin_keeper == h) replay_pin_keeper = nullptr, replay_pin_keeper_prev = 0;
+        }
+        CloseHandle(h);
+    }
+};
+HANDLE pin_self() {
+    static thread_local PinSelf self;
+    if (!self.h && !DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &self.h, 0, FALSE,
+                                    DUPLICATE_SAME_ACCESS))
+        self.h = nullptr;
+    return self.h;
+}
 struct ReplayPin {
     bool counted = false;
     ReplayPin() {
         if (async_on()) return;
         counted = true;
         if (replay_pin_depth++) return;   // (the outermost one: a submit's replay inside its capture's)
-        if (const uint64_t m = replay_pin_mask()) replay_pin_prev = SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)m);
+        const uint64_t m = replay_pin_mask();
+        if (!m) return;
+        if (replay_pin_keep()) {
+            if (HANDLE me = pin_self()) {
+                std::lock_guard lk(replay_pin_mu);
+                if (replay_pin_keeper == me) return;   // (on the core since its last replay)
+                if (replay_pin_keeper) {   // (another thread's: back to its own processors, off the core)
+                    SetThreadAffinityMask(replay_pin_keeper, replay_pin_keeper_prev);
+                    replay_pin_keeper = nullptr, replay_pin_keeper_prev = 0, st_pin_moves++;
+                }
+                const DWORD_PTR prev = SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)m);
+                st_pin_moves++;
+                if (prev) replay_pin_keeper = me, replay_pin_keeper_prev = prev;
+                return;
+            }
+        }
+        replay_pin_prev = SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)m), st_pin_moves++;
     }
     ~ReplayPin() {
         if (!counted || --replay_pin_depth) return;
-        if (replay_pin_prev) SetThreadAffinityMask(GetCurrentThread(), replay_pin_prev), replay_pin_prev = 0;
+        if (replay_pin_prev) SetThreadAffinityMask(GetCurrentThread(), replay_pin_prev), replay_pin_prev = 0, st_pin_moves++;
     }
     ReplayPin(const ReplayPin&) = delete;
     ReplayPin& operator=(const ReplayPin&) = delete;
@@ -3216,6 +3265,13 @@ void log_frame_stats() {
              (long long)mirrors, (unsigned long long)mirror_mb, (sync_b - l_sync_b) / 120.0 / 1048576.0,
              (sync_c - l_sync_c) / 120.0, (wb_b - l_wb_b) / 120.0 / 1048576.0);
         l_sync_b = sync_b, l_sync_c = sync_c, l_wb_b = wb_b;
+        if (replay_pin_mask()) {
+            static int64_t l_moves;
+            const int64_t moves = st_pin_moves.load();
+            logf("vk: a frame: %.1f replay core moves (%s)", (moves - l_moves) / 120.0,
+                 replay_pin_keep() ? "kept between replays; RX_VK_REPLAY_PIN_KEEP=0: two a replay" : "two a replay: RX_VK_REPLAY_PIN_KEEP=0");
+            l_moves = moves;
+        }
         static int64_t l_d, l_sk, l_di, l_pass, l_sub, l_up, l_upb, l_bar, l_ubu, l_ubo, l_wait;
         logf("vk: %lld presents, %.1f fps; a frame: %.0f draws (%.0f skipped), %.0f dispatches, %.0f passes, %.0f "
              "barriers, %.0f submits, %.1f uploads (%.1f MB), %.0f ub updates (%.0f overlays), GPU-bound wait %.1f ms (recording slots only); "
