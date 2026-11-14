@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.3.0-rc.5](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.4...v2.3.0-rc.5) (2026-11-14)
+
+
+### Bug Fixes
+
+* **services:** offline answers for streamplay, BCAT and the account, as Donkey Kong Bananza needs them ([#14](https://github.com/notquiteog/Hookshot/issues/14)) ([5f5d52a](https://github.com/notquiteog/Hookshot/commit/5f5d52abedc3b8c37d924e7a5725fc5588ce2885))
+* **video:** SDK 20's nn::codec forms, for Donkey Kong Bananza's guide movies ([#16](https://github.com/notquiteog/Hookshot/issues/16)) ([d615471](https://github.com/notquiteog/Hookshot/commit/d6154715aac10c82bb461292691aeed17816d467))
+
+## [2.3.0-rc.4](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.3...v2.3.0-rc.4) (2026-11-13)
+
+
+### Bug Fixes
+
+* **vk:** destroy a linked pipeline once its full build has replaced it ([#23](https://github.com/notquiteog/Hookshot/issues/23)) ([a9edafd](https://github.com/notquiteog/Hookshot/commit/a9edafda6b713fe41aae959e59665342a1b6afc8))
+* **vk:** leave the overlays out of a frame, not crash, when their buffer cannot be made ([#24](https://github.com/notquiteog/Hookshot/issues/24)) ([23c3609](https://github.com/notquiteog/Hookshot/commit/23c360923f0dce516131002f357ab5a4d7ff67bc))
+
 ## [2.3.0-rc.3](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.2...v2.3.0-rc.3) (2026-11-13)
 
 
