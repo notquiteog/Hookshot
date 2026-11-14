@@ -12,6 +12,7 @@
    free registered buffer (host memory: the pool's guest memory is not used). The video service itself (nn::gsv) is
    not emulated: nn::codec::video::Initialize does nothing. */
 #include "hos.h"
+#include "game_profile.h"   /* (GAME_VIDEO_CATCHUP: the game's movie catch-up) */
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -123,6 +124,8 @@ typedef struct {
     int busy[MAX_SLOTS];             /* acquired, not released */
     int64_t slot_pts[MAX_SLOTS];
     int slot_last[MAX_SLOTS];        /* the stream's last picture (the submission marked last, all decoded) */
+    uint64_t reserved[MAX_SLOTS];    /* (hookshot) a buffer acquired before its picture: its sync handle, reached once the
+                                        next picture is decoded into it (fill_reserved); 0: none */
     Picture queue[MAX_QUEUE];
     int qhead, qn;
     int eos;                         /* the last submission is in and decoded: an empty queue is the end */
@@ -398,9 +401,11 @@ static void pending_free(Dec *d) {
     d->ptail = NULL;
 }
 static void movie_report(Dec *d);
+static void drop_reserved(Dec *d, int slot);
 static void dec_finalize(Ctx *c) {
     Dec *d = (Dec *)host_of(ARG(0), DEC_MAGIC);
     if (!d) return;
+    for (int i = 0; i < MAX_SLOTS; i++) drop_reserved(d, i);   /* (hookshot: their syncs reached, no decoder to fill them) */
     movie_report(d);
     pending_free(d);
     for (int i = 0; i < d->qn; i++) picture_free(&d->queue[(d->qhead + i) % MAX_QUEUE]);
@@ -496,6 +501,32 @@ static void drain(Dec *d) {
    it is next, pictures queued or not: the last picture decoded must carry the last flag, as the hardware's does. Media
    Foundation's decoder holds nothing back, so waiting for an empty queue gave the flag only to a buffer handed out
    again, with an older picture's pts, after the real last one went out unmarked */
+/* (hookshot) The stream's end is a picture of its own, as the hardware decoder gives it: the last picture again, marked
+   last, so every submission (the end's too) fills one buffer. Marking the last decoded picture instead gave a player
+   that counts its submissions one buffer fewer than it sent, and the acquires after it handed buffers out again, done:
+   Donkey Kong Bananza's guide player aborted at its next loop (main+0xe1ada0 from 0x8189b900). dkb-pc-recomp's model
+   (runtime/ov_codec.c: an end packet always fills a buffer, with the last picture). With nothing decoded before it, the
+   end's picture has no data: the buffer keeps what it held. */
+static void end_picture(Dec *d) {
+    Picture e;
+    memset(&e, 0, sizeof e);
+    e.pts = d->last_pts;
+    if (d->qn) {
+        const Picture *l = &d->queue[(d->qhead + d->qn - 1) % MAX_QUEUE];
+        const size_t nv12 = (size_t)l->w * l->h * 3 / 2, rgba = (size_t)l->w * l->h * 4;
+        e.w = l->w, e.h = l->h, e.pts = l->pts;
+        if (l->nv12 && (e.nv12 = (uint8_t *)malloc(nv12)) != NULL) memcpy(e.nv12, l->nv12, nv12);
+        if (l->rgba && (e.rgba = (uint8_t *)malloc(rgba)) != NULL) memcpy(e.rgba, l->rgba, rgba);
+        if (!e.nv12) e.w = e.h = 0;   /* (an allocation that failed: nothing to copy) */
+    }
+    e.last = 1;
+    if (d->qn == MAX_QUEUE) {
+        picture_free(&d->queue[d->qhead]);
+        d->qhead = (d->qhead + 1) % MAX_QUEUE, d->qn--;
+    }
+    d->queue[(d->qhead + d->qn) % MAX_QUEUE] = e;
+    d->qn++;
+}
 static void decode_next(Dec *d);
 static void decode_pending(Dec *d) {
     while (d->phead && (!d->qn || !d->phead->pkt)) decode_next(d);
@@ -520,7 +551,7 @@ static void decode_next(Dec *d) {
                 d->av1->decode(d->mf, NULL, 0, 0, mf_picture, d);
                 d->eos = 1;
                 d->log_submits = 8;   /* (data after the end: a restart, worth seeing) */
-                if (d->qn) d->queue[(d->qhead + d->qn - 1) % MAX_QUEUE].last = 1;
+                end_picture(d);
             }
         } else if (n->pkt) {
             d->eos = 0;
@@ -535,7 +566,7 @@ static void decode_next(Dec *d) {
             drain(d);
             d->eos = 1;
             d->log_submits = 8;
-            if (d->qn) d->queue[(d->qhead + d->qn - 1) % MAX_QUEUE].last = 1;
+            end_picture(d);
             avcodec_flush_buffers(d->ctx);   /* (a stream after it starts again) */
         }
         const int64_t ns = hos_now_ns() - t0;
@@ -569,34 +600,82 @@ static void pending_push(Dec *d, AVPacket *pkt) {
    acquired (the library submits a whole movie at once: its pictures decoded then would not fit any queue) */
 static volatile LONG64 submissions;
 
-/* (hookshot) A buffer handed out with nothing decoded into it, by a decoder with nothing left to decode, gets a sync
-   handle that is not reached until something is submitted again (anywhere: the count is global). Every other buffer's
-   is 0, reached. The hardware's is a fence the decoder signals once the picture is in the buffer, so an idle decoder's
-   never is; the movie library's VideoDecoder::Flush recycles buffers until it finds one not reached, and with all of
-   them reached it never returned: the movie never stopped, and the game sat on a black screen after its intro.
+/* (hookshot) A buffer acquired while nothing is decoded and nothing waits to be decoded is reserved, as the hardware
+   decoder reserves it: its sync handle is reached once a picture has been decoded into it (the next submission's, the
+   buffers in the order they were reserved), or once the game releases the buffer. Every other buffer's is 0, reached.
+   The movie library's VideoDecoder::Flush recycles buffers until it finds one not reached, and with all of them reached
+   it never returned: the movie never stopped, and the game sat on a black screen after its intro.
+   It used to be reached at the next submission while that submission's picture went to the next acquire instead: a
+   player that counts the pictures it submitted (Donkey Kong Bananza's guide movies, main+0xe1ada0 from 0x8189b9cc) then
+   saw more buffers done than pictures sent, found no entry for the extra one and aborted after a loop or a few. The
+   model is dkb-pc-recomp's (github.com/Lucas-blip-png/dkb-pc-recomp, runtime/ov_codec.c, GPL-3.0-or-later: a reserved
+   buffer's fence is signalled when a picture is decoded into it); the code is ours.
    The library also waits for the handle as a sync point event (VideoDecoderEventManager::SetFence), and the callback
-   that event runs aborts unless TryWaitNativeSync says reached: an event for a handle not reached is signalled at the
-   next submission, not when it is requested (hos_video_sync_defer, from nn_syncpt.c). */
-#define SYNC_IDLE_TAG 0x5ec0000000000000ull
-#define SYNC_IDLE_MASK 0x0000ffffffffffffull
-int hos_video_sync_reached(uint64_t handle) {   /* (nn_gs.c: TryWaitNativeSync, TimedWaitNativeSync) */
-    if ((handle & ~SYNC_IDLE_MASK) != SYNC_IDLE_TAG) return 1;
-    return (handle & SYNC_IDLE_MASK) != ((uint64_t)InterlockedCompareExchange64(&submissions, 0, 0) & SYNC_IDLE_MASK);
-}
+   that event runs aborts unless TryWaitNativeSync says reached: an event for a handle not reached is signalled when it
+   is (hos_video_sync_defer, from nn_syncpt.c), not when it is requested. */
+#define SYNC_RESERVED_TAG 0x5ec0000000000000ull
+#define SYNC_RESERVED_MASK 0x0000ffffffffffffull
+#define MAX_RESERVED 64
 
 static SRWLOCK waiter_lock = SRWLOCK_INIT;
-static uint64_t waiters[32];   /* sync point events (their guest addresses) waiting for the next submission */
+static uint64_t reserved_serials[MAX_RESERVED];   /* reserved buffers' sync serials, not reached yet */
+static int nreserved;
+static uint64_t serial_next;
+static struct { uint64_t event, handle; } waiters[32];   /* sync point events waiting for a reserved buffer's picture */
 static int nwaiters;
 
-/* RequestSyncPointEvent(event, handle): 1 when the event waits for the next submission, 0 when it is due now */
+static int reached_locked(uint64_t handle) {
+    if ((handle & ~SYNC_RESERVED_MASK) != SYNC_RESERVED_TAG) return 1;
+    for (int i = 0; i < nreserved; i++)
+        if (reserved_serials[i] == (handle & SYNC_RESERVED_MASK)) return 0;
+    return 1;
+}
+int hos_video_sync_reached(uint64_t handle) {   /* (nn_gs.c: TryWaitNativeSync, TimedWaitNativeSync) */
+    if ((handle & ~SYNC_RESERVED_MASK) != SYNC_RESERVED_TAG) return 1;
+    AcquireSRWLockExclusive(&waiter_lock);
+    const int r = reached_locked(handle);
+    ReleaseSRWLockExclusive(&waiter_lock);
+    return r;
+}
+
+/* a new reserved buffer's sync handle; 0 (reached, the buffer handed out as it was) when MAX_RESERVED are waiting */
+static uint64_t sync_reserve(void) {
+    uint64_t handle = 0;
+    AcquireSRWLockExclusive(&waiter_lock);
+    if (nreserved < MAX_RESERVED) {
+        if (!(++serial_next & SYNC_RESERVED_MASK)) ++serial_next;
+        reserved_serials[nreserved++] = serial_next & SYNC_RESERVED_MASK;
+        handle = SYNC_RESERVED_TAG | (serial_next & SYNC_RESERVED_MASK);
+    }
+    ReleaseSRWLockExclusive(&waiter_lock);
+    return handle;
+}
+
+void hos_system_event_signal(uint64_t key);
+/* a reserved buffer's handle reached (a picture in it, or the buffer released): the events waiting for it signalled */
+static void sync_reach(uint64_t handle) {
+    uint64_t due[32];
+    int n = 0;
+    AcquireSRWLockExclusive(&waiter_lock);
+    for (int i = 0; i < nreserved; i++)
+        if (reserved_serials[i] == (handle & SYNC_RESERVED_MASK)) { reserved_serials[i] = reserved_serials[--nreserved]; break; }
+    for (int i = 0; i < nwaiters;)
+        if (waiters[i].handle == handle) due[n++] = waiters[i].event, waiters[i] = waiters[--nwaiters];
+        else i++;
+    ReleaseSRWLockExclusive(&waiter_lock);
+    for (int i = 0; i < n; i++) hos_system_event_signal(due[i]);
+}
+
+/* RequestSyncPointEvent(event, handle): 1 when the event waits for its buffer's picture, 0 when it is due now */
 int hos_video_sync_defer(uint64_t event, uint64_t handle) {
-    AcquireSRWLockExclusive(&waiter_lock);   /* (checked under the lock submitted() takes: no submission slips between) */
-    int deferred = !hos_video_sync_reached(handle);
+    AcquireSRWLockExclusive(&waiter_lock);   /* (checked under the lock sync_reach() takes: no picture slips between) */
+    int deferred = !reached_locked(handle);
     if (deferred) {
         int i = 0;
-        while (i < nwaiters && waiters[i] != event) i++;
-        if (i == nwaiters && nwaiters < (int)(sizeof waiters / sizeof waiters[0])) waiters[nwaiters++] = event;
-        else if (i == nwaiters) deferred = 0;   /* (full: signalled now, as before) */
+        while (i < nwaiters && waiters[i].event != event) i++;
+        if (i < nwaiters) waiters[i].handle = handle;   /* (a new request for the same event starts over) */
+        else if (nwaiters < (int)(sizeof waiters / sizeof waiters[0])) waiters[nwaiters].event = event, waiters[nwaiters++].handle = handle;
+        else deferred = 0;   /* (full: signalled now, as before) */
     }
     ReleaseSRWLockExclusive(&waiter_lock);
     return deferred;
@@ -606,30 +685,56 @@ int hos_video_sync_defer(uint64_t event, uint64_t handle) {
 void hos_video_sync_cancel(uint64_t event) {
     AcquireSRWLockExclusive(&waiter_lock);
     for (int i = 0; i < nwaiters; i++)
-        if (waiters[i] == event) { waiters[i] = waiters[--nwaiters]; break; }
+        if (waiters[i].event == event) { waiters[i] = waiters[--nwaiters]; break; }
     ReleaseSRWLockExclusive(&waiter_lock);
 }
 
-int hos_video_sync_waiting(uint64_t event) {   /* TryWaitSyncPointEvent(event): 1 while it waits for a submission */
+int hos_video_sync_waiting(uint64_t event) {   /* TryWaitSyncPointEvent(event): 1 while it waits for its picture */
     AcquireSRWLockExclusive(&waiter_lock);
     int i = 0;
-    while (i < nwaiters && waiters[i] != event) i++;
+    while (i < nwaiters && waiters[i].event != event) i++;
     const int waiting = i < nwaiters;
     ReleaseSRWLockExclusive(&waiter_lock);
     return waiting;
 }
 
-void hos_system_event_signal(uint64_t key);
-static uint64_t submitted(void) {   /* a submission: every handle given out before it is reached */
-    uint64_t due[32];
-    AcquireSRWLockExclusive(&waiter_lock);
-    const uint64_t id = (uint64_t)InterlockedIncrement64(&submissions);
-    const int n = nwaiters;
-    memcpy(due, waiters, sizeof due);
-    nwaiters = 0;
-    ReleaseSRWLockExclusive(&waiter_lock);
-    for (int i = 0; i < n; i++) hos_system_event_signal(due[i]);
-    return id;
+static uint64_t submitted(void) {   /* a submission's id */
+    return (uint64_t)InterlockedIncrement64(&submissions);
+}
+
+static void put_picture(Dec *d, int slot, int reserved);
+/* the oldest reserved buffer of d, or -1 */
+static int oldest_reserved(const Dec *d) {
+    int s = -1;
+    for (int i = 0; i < MAX_SLOTS; i++)
+        if (d->reserved[i] && (s < 0 || (d->reserved[i] & SYNC_RESERVED_MASK) < (d->reserved[s] & SYNC_RESERVED_MASK))) s = i;
+    return s;
+}
+/* (under d->lock) pictures decoded into d's reserved buffers, oldest first, as far as the submissions go. A reserved
+   buffer whose pool is gone (FinalizeDecoderImagePool with the buffer still registered) is given up, its sync reached:
+   the acquire checked the pool was alive, but a reservation is filled later, at a submission */
+static void drop_reserved(Dec *d, int slot);
+static void fill_reserved(Dec *d) {
+    for (int s; (s = oldest_reserved(d)) >= 0;) {
+        if (!host_of(d->slots[s], POOL_MAGIC)) {
+            drop_reserved(d, s);
+            continue;
+        }
+        decode_pending(d);
+        if (!d->qn) break;
+        put_picture(d, s, 1);
+        const uint64_t handle = d->reserved[s];
+        d->reserved[s] = 0;
+        sync_reach(handle);
+    }
+}
+/* (under d->lock) a reservation given up: the game released its buffer, or the decoder went */
+static void drop_reserved(Dec *d, int slot) {
+    if (slot >= 0 && slot < MAX_SLOTS && d->reserved[slot]) {
+        const uint64_t handle = d->reserved[slot];
+        d->reserved[slot] = 0;
+        sync_reach(handle);
+    }
 }
 
 static void dec_submit(Ctx *c) {
@@ -661,6 +766,7 @@ static void dec_submit(Ctx *c) {
     if (video_log() && (d->submits <= 8 || (ARG(5) & 1) || logged_one))
         hos_log("video: submit %lld (%llu bytes, pts %lld%s)", (long long)d->submits, (unsigned long long)ARG(3),
                 (long long)ARG(4), (ARG(5) & 1) ? ", last" : "");
+    fill_reserved(d);   /* (hookshot: a buffer reserved by an acquire before this submission gets its picture now) */
     ReleaseSRWLockExclusive(&d->lock);
     RET(0);
 }
@@ -695,88 +801,24 @@ static void dec_register(Ctx *c) {
 }
 static void dec_unregister(Ctx *c) {
     Dec *d = (Dec *)host_of(ARG(0), DEC_MAGIC);
-    if (d && (uint32_t)ARG(1) < MAX_SLOTS) d->slots[(uint32_t)ARG(1)] = 0;
+    if (d && (uint32_t)ARG(1) < MAX_SLOTS) {
+        AcquireSRWLockExclusive(&d->lock);
+        d->slots[(uint32_t)ARG(1)] = 0;
+        drop_reserved(d, (int)ARG(1));
+        ReleaseSRWLockExclusive(&d->lock);
+    }
     RET(0);
 }
-/* AcquireXDecoderOutputBuffer(u32* index, NativeSyncHandle*, decoder): the oldest picture into a free buffer */
-static void dec_acquire(Ctx *c) {
-    Dec *d = (Dec *)host_of(ARG(2), DEC_MAGIC);
-    if (ARG(1)) G64(ARG(1)) = 0;
-    if (!d) { RET(RESULT_NO_OUTPUT); return; }
-    /* (the library aborts on any failure here: the hardware call waits for a picture. Up to ~100 ms for one decoded
-       by another thread's submission; then a free buffer as it was, so the caller is never refused) */
-    /* (hookshot, #1929) and no virtual core held through it: the decoding blocks (dav1d waits for its own frame
-       threads), and with the core held the movie thread kept it 100-270 ms on Linux while a thread waiting for that core
-       ran without one. It is taken again only once d->lock is let go, as in hos_cv_sleep: waiting for a core while
-       holding the lock could stall a thread that holds a core and waits for the lock (dec_submit) */
-    const int away = hos_vcore_away();
-    AcquireSRWLockExclusive(&d->lock);
-    decode_pending(d);
-    /* (hookshot) The wait is for a picture another thread's submission is about to bring, ~100 ms of it. It was 50 tries of a
-       2 ms sleep, and such a sleep takes 4-5 ms: 245-257 ms, on the thread a movie's end joins (title to game: the game's main
-       thread in hos_thread_join for a frame of ~250 ms, every start). Now by the clock, and none after a Stop or a Flush with
-       nothing submitted since: no picture is coming then. HOS_VIDEO_ACQUIRE_TRIES=1: 50 tries, as before */
-    static int by_tries = -1;
-    if (by_tries < 0) by_tries = env_on("HOS_VIDEO_ACQUIRE_TRIES");
-    const int64_t wait_until = hos_now_ns() + 100000000;
-    for (int tries = 0; !d->qn && !d->eos && (by_tries ? tries < 50 : !d->stopped && hos_now_ns() < wait_until); tries++) {
-        ReleaseSRWLockExclusive(&d->lock);
-        hos_sleep_ns(2000000);
-        AcquireSRWLockExclusive(&d->lock);
-        decode_pending(d);
-    }
-    int slot = -1;
-    for (int i = 0; i < MAX_SLOTS && slot < 0; i++)
-        if (d->slots[i] && !d->busy[i] && host_of(d->slots[i], POOL_MAGIC)) slot = i;
-    if (slot < 0) {
-        ReleaseSRWLockExclusive(&d->lock);
-        if (away) hos_vcore_back();
-        RET(RESULT_NO_OUTPUT);
-        return;
-    }
-    d->acquires++;
-    if (!d->qn) {   /* (nothing decoded: the buffer's last picture again; after the last submission, as the last) */
-        d->busy[slot] = 1;
-        if (d->eos) d->slot_last[slot] = 1, d->slot_pts[slot] = d->last_pts;   /* (the end at the last picture's time) */
-        const int idle = !d->eos && !d->phead;   /* (nothing will come into this buffer: its sync is not reached) */
-        if (idle && ARG(1))
-            G64(ARG(1)) = SYNC_IDLE_TAG | ((uint64_t)InterlockedCompareExchange64(&submissions, 0, 0) & SYNC_IDLE_MASK);
-        if (video_log()) hos_log("video: acquire %lld: nothing decoded%s, buffer %d again", (long long)d->acquires,
-                                 d->eos ? " (the end)" : idle ? " (idle: its sync not reached)" : "", slot);
-        else if (d->acquires == 1 && !d->eos)   /* (the start: the frame shows the buffer as it was, black since the pool's fill) */
-            hos_log("video: the first buffer went out before the first picture was decoded (shown black)");
-        ReleaseSRWLockExclusive(&d->lock);
-        if (away) hos_vcore_back();
-        if (ARG(0)) G32(ARG(0)) = (uint32_t)slot;
-        RET(0);
-        return;
-    }
-    {   /* (hookshot) The game takes one picture a frame, and the sound plays on: under 60 fps the movie fell behind its
-           sound (the intro "slow motion, audio ahead", issues 146 and 179). Pictures behind the movie's clock are skipped:
-           the next ones decoded, as the whole movie is submitted at once. HOS_VIDEO_NO_CATCHUP=1: as before */
-        static int off = -1;
-        if (off < 0) off = env_on("HOS_VIDEO_NO_CATCHUP");
-        const int64_t now = hos_now_ns(), late = 25000000;   /* (a frame and a half at 60 fps) */
-        Picture *h = &d->queue[d->qhead];
-        if (!d->clock_set || h->pts < d->clock_pts) d->clock_set = 1, d->clock_ns = now, d->clock_pts = h->pts;   /* (a start, a loop) */
-        int skipped = 0;
-        for (int guard = 0; !off && guard < 600 && !d->queue[d->qhead].last; guard++) {
-            const int64_t due = d->clock_pts + (now - d->clock_ns);
-            if (d->queue[d->qhead].pts + late >= due) break;
-            if (d->qn < 2) {
-                if (!d->phead) break;
-                decode_next(d);
-                continue;
-            }
-            picture_free(&d->queue[d->qhead]);
-            d->qhead = (d->qhead + 1) % MAX_QUEUE, d->qn--;
-            skipped++;
-        }
-        d->skipped += skipped;
-        if (skipped && video_log()) hos_log("video: %d pictures skipped to catch up with the movie's clock", skipped);
-    }
+/* (under d->lock) the oldest picture decoded into buffer `slot`: at its acquire, or later into a buffer the game reserved
+   (reserved: from fill_reserved, for the log) */
+static void put_picture(Dec *d, int slot, int reserved) {
     Picture *p = &d->queue[d->qhead];
+    /* (hookshot) a reserved buffer's picture starts the movie's clock as an acquired one does (dec_acquire's catch-up):
+       a clock started at the first acquired picture instead ran late by the reserved ones, and the catch-up dropped
+       pictures that were on time */
+    if (reserved && (!d->clock_set || p->pts < d->clock_pts)) d->clock_set = 1, d->clock_ns = hos_now_ns(), d->clock_pts = p->pts;
     Pool *o = (Pool *)host_of(d->slots[slot], POOL_MAGIC);
+    if (!o) return;   /* (its pool gone: nothing to put the picture in; it stays queued for the next buffer) */
     /* (the picture at the pool's size: rows and columns past either are left out) */
     const int ok = o->nv12 != NULL && p->nv12 != NULL;   /* (an allocation that failed: nothing copied; issue 342) */
     const int w = !ok ? 0 : p->w < o->w ? p->w : o->w, h = !ok ? 0 : p->h < o->h ? p->h : o->h;
@@ -822,13 +864,96 @@ static void dec_acquire(Ctx *c) {
                 sum += p->nv12[(size_t)y * p->w + x];
                 for (int k = 0; k < 3 && p->rgba; k++) rgb[k] += p->rgba[((size_t)y * p->w + x) * 4 + k];
             }
-        hos_log("video: acquire %lld: %dx%d pts %lld%s into buffer %d (mean Y %llu, RGB %llu %llu %llu)",
-                (long long)d->acquires, p->w, p->h, (long long)p->pts, p->last ? " (last)" : "", slot,
+        hos_log("video: %s %lld: %dx%d pts %lld%s into buffer %d (mean Y %llu, RGB %llu %llu %llu)",
+                reserved ? "reserved buffer of acquire" : "acquire", (long long)d->acquires, p->w, p->h, (long long)p->pts, p->last ? " (last)" : "", slot,
                 (unsigned long long)(n ? sum / n : 0), (unsigned long long)(n ? rgb[0] / n : 0),
                 (unsigned long long)(n ? rgb[1] / n : 0), (unsigned long long)(n ? rgb[2] / n : 0));
     }
     picture_free(p);
     d->qhead = (d->qhead + 1) % MAX_QUEUE, d->qn--;
+}
+/* AcquireXDecoderOutputBuffer(u32* index, NativeSyncHandle*, decoder): the oldest picture into a free buffer */
+static void dec_acquire(Ctx *c) {
+    Dec *d = (Dec *)host_of(ARG(2), DEC_MAGIC);
+    if (ARG(1)) G64(ARG(1)) = 0;
+    if (!d) { RET(RESULT_NO_OUTPUT); return; }
+    /* (the library aborts on any failure here: the hardware call waits for a picture. Up to ~100 ms for one decoded
+       by another thread's submission; then a free buffer as it was, so the caller is never refused) */
+    /* (hookshot, #1929) and no virtual core held through it: the decoding blocks (dav1d waits for its own frame
+       threads), and with the core held the movie thread kept it 100-270 ms on Linux while a thread waiting for that core
+       ran without one. It is taken again only once d->lock is let go, as in hos_cv_sleep: waiting for a core while
+       holding the lock could stall a thread that holds a core and waits for the lock (dec_submit) */
+    const int away = hos_vcore_away();
+    AcquireSRWLockExclusive(&d->lock);
+    fill_reserved(d);   /* (hookshot: buffers reserved before are owed the next pictures first) */
+    decode_pending(d);
+    /* (hookshot) The wait is for a picture another thread's submission is about to bring, ~100 ms of it. It was 50 tries of a
+       2 ms sleep, and such a sleep takes 4-5 ms: 245-257 ms, on the thread a movie's end joins (title to game: the game's main
+       thread in hos_thread_join for a frame of ~250 ms, every start). Now by the clock, and none after a Stop or a Flush with
+       nothing submitted since: no picture is coming then. HOS_VIDEO_ACQUIRE_TRIES=1: 50 tries, as before */
+    static int by_tries = -1;
+    if (by_tries < 0) by_tries = env_on("HOS_VIDEO_ACQUIRE_TRIES");
+    const int64_t wait_until = hos_now_ns() + 100000000;
+    for (int tries = 0; !d->qn && !d->eos && (by_tries ? tries < 50 : !d->stopped && hos_now_ns() < wait_until); tries++) {
+        ReleaseSRWLockExclusive(&d->lock);
+        hos_sleep_ns(2000000);
+        AcquireSRWLockExclusive(&d->lock);
+        decode_pending(d);
+    }
+    int slot = -1;
+    for (int i = 0; i < MAX_SLOTS && slot < 0; i++)
+        if (d->slots[i] && !d->busy[i] && host_of(d->slots[i], POOL_MAGIC)) slot = i;
+    if (slot < 0) {
+        ReleaseSRWLockExclusive(&d->lock);
+        if (away) hos_vcore_back();
+        RET(RESULT_NO_OUTPUT);
+        return;
+    }
+    d->acquires++;
+    if (!d->qn) {   /* (nothing decoded, nothing left to decode) */
+        d->busy[slot] = 1;
+        /* (hookshot) The buffer is reserved, as the hardware reserves it: the next picture decoded goes into it, and its
+           sync is reached then, not before. After the stream's end too: the end gave its own picture (end_picture), and
+           a buffer handed out again as done was one more than the player had sent */
+        d->reserved[slot] = sync_reserve();
+        if (ARG(1)) G64(ARG(1)) = d->reserved[slot];
+        if (!d->reserved[slot] && d->eos) d->slot_last[slot] = 1, d->slot_pts[slot] = d->last_pts;   /* (none left: as before) */
+        if (video_log()) hos_log("video: acquire %lld: nothing decoded%s, buffer %d %s", (long long)d->acquires,
+                                 d->eos ? " (after the end)" : "", slot,
+                                 d->reserved[slot] ? "reserved for the next picture" : "again");
+        else if (d->acquires == 1 && !d->eos)   /* (the start: the frame shows the buffer as it was, black since the pool's fill) */
+            hos_log("video: the first buffer went out before the first picture was decoded (shown black)");
+        ReleaseSRWLockExclusive(&d->lock);
+        if (away) hos_vcore_back();
+        if (ARG(0)) G32(ARG(0)) = (uint32_t)slot;
+        RET(0);
+        return;
+    }
+    {   /* (hookshot) The game takes one picture a frame, and the sound plays on: under 60 fps the movie fell behind its
+           sound (the intro "slow motion, audio ahead", issues 146 and 179). Pictures behind the movie's clock are skipped:
+           the next ones decoded, as the whole movie is submitted at once. HOS_VIDEO_NO_CATCHUP=1: as before */
+        static int off = -1;
+        if (off < 0) off = env_on("HOS_VIDEO_NO_CATCHUP") || !GAME_VIDEO_CATCHUP;   /* (the game profile's) */
+        const int64_t now = hos_now_ns(), late = 25000000;   /* (a frame and a half at 60 fps) */
+        Picture *h = &d->queue[d->qhead];
+        if (!d->clock_set || h->pts < d->clock_pts) d->clock_set = 1, d->clock_ns = now, d->clock_pts = h->pts;   /* (a start, a loop) */
+        int skipped = 0;
+        for (int guard = 0; !off && guard < 600 && !d->queue[d->qhead].last; guard++) {
+            const int64_t due = d->clock_pts + (now - d->clock_ns);
+            if (d->queue[d->qhead].pts + late >= due) break;
+            if (d->qn < 2) {
+                if (!d->phead) break;
+                decode_next(d);
+                continue;
+            }
+            picture_free(&d->queue[d->qhead]);
+            d->qhead = (d->qhead + 1) % MAX_QUEUE, d->qn--;
+            skipped++;
+        }
+        d->skipped += skipped;
+        if (skipped && video_log()) hos_log("video: %d pictures skipped to catch up with the movie's clock", skipped);
+    }
+    put_picture(d, slot, 0);
     ReleaseSRWLockExclusive(&d->lock);
     if (away) hos_vcore_back();
     if (ARG(0)) G32(ARG(0)) = (uint32_t)slot;
@@ -837,7 +962,12 @@ static void dec_acquire(Ctx *c) {
 /* ReleaseXDecoderOutputBuffer(decoder, u32 index, NativeSyncHandle) */
 static void dec_release(Ctx *c) {
     Dec *d = (Dec *)host_of(ARG(0), DEC_MAGIC);
-    if (d && (uint32_t)ARG(1) < MAX_SLOTS) d->busy[(uint32_t)ARG(1)] = 0;
+    if (d && (uint32_t)ARG(1) < MAX_SLOTS) {
+        AcquireSRWLockExclusive(&d->lock);
+        d->busy[(uint32_t)ARG(1)] = 0;
+        drop_reserved(d, (int)ARG(1));   /* (hookshot: given back before its picture came: no picture is owed to it) */
+        ReleaseSRWLockExclusive(&d->lock);
+    }
     RET(0);
 }
 /* GetXDecoderOutputBufferProperties(u16* w, u16* h, u16* display w, u16* display h[, ColorSpace*], TimeSpan* pts,

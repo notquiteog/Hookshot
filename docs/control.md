@@ -335,6 +335,9 @@ The client:
   data folder before the game starts: `--data`, or `data/` in the run folder. With `--slot` (`03` or `slot_03`) only
   that slot is copied, so Continue loads it. The source is only read. A destination that already holds saves is
   refused. Linux only (on Windows the game keeps its saves in its own folder).
+- `launch` makes its run folder 0700 on Linux (the game serves its socket only from a folder no one else can write; a
+  folder made beforehand under a umask of 002 kept the bridge off). It gives up, and kills the game it started, when the
+  game's log says the bridge is off (`control: off`), at `--timeout`, or when it is stopped (Ctrl+C, SIGTERM).
 
 ## Guest memory
 
@@ -447,7 +450,9 @@ One run:
 3. For each place (default Kokiri Forest, then Hyrule Field, as a child), teleports there and waits until no event or
    load is playing. It then lets the scene settle (`--settle`, 15 s) and measures for `--secs` (60) without touching
    anything.
-4. Takes a screenshot of each place and quits.
+4. Takes a screenshot of each place and quits. A game that has not closed 60 s after `quit` is killed, and so is the game
+   when the run is stopped (Ctrl+C, or SIGTERM from `timeout`): a run never leaves its game on the GPU. `summary.json`
+   says `"killed": true` when it had to.
 
 **Start every run from the same save (`--save`).** The game saves as it plays, a slot rewritten in each run, and Continue
 loads the newest, so without it the second run starts from wherever the first left off. `--save` takes a save folder
