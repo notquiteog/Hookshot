@@ -78,7 +78,7 @@ class Profile(object):
 
     def __init__(self, key, game, program_id=None, version=None, build_id=None, main_base=None,
                  patch_modules=(), code_patch_module=None, gfx=EMPTY_GFX, upscale=EMPTY_UPSCALE, hooks=EMPTY_HOOKS,
-                 npad_players=1, account_users=1, notes=""):
+                 npad_players=1, account_users=1, video_catchup=True, notes=""):
         self.key = key                                # HOOKSHOT_GAME=<this>
         self.game = game                              # the game's name, for logs
         self.program_id = program_id                  # as nx2/dump.py reports it
@@ -92,6 +92,7 @@ class Profile(object):
         self.hooks = hooks
         self.npad_players = npad_players              # 1..8, or "auto": one per attached controller
         self.account_users = account_users            # the console's users (nn::account), 1..8
+        self.video_catchup = video_catchup            # (dkb) movies skip pictures behind their clock (host/nn_video.c)
         self.notes = notes
 
     def __repr__(self):
@@ -158,7 +159,11 @@ DKB = Profile(
     hooks=EMPTY_HOOKS,
     npad_players=1,
     account_users=1,
-    notes="Identity measured on the dump; nothing game-specific found yet, so nothing is patched or hooked.",
+    #   video_catchup: off. The guide movies' player counts every picture it submitted; one the runtime skips to keep up
+    #   with the movie's clock is never handed back, and the player aborts at the loop's flush (main+0xe1ada0 from
+    #   0x8189b900). Measured 2026-11-13: with skips, an abort after 1-2 loops; with none, see the fork's status page.
+    video_catchup=False,
+    notes="Identity measured on the dump; the movie catch-up off (its guide player counts every picture).",
 )
 
 # The profile for a dump whose build no profile knows: nothing patched, nothing hooked, one player.
@@ -322,6 +327,10 @@ def emit_header(profile=None):
     w("")
     w("/* the console's users (nn::account) when HOS_ACCOUNT_USERS is unset: host/nn_applet.c */")
     w("#define GAME_ACCOUNT_USERS %d" % int(p.account_users))
+    w("")
+    w("/* (dkb) 1: a movie skips pictures behind its clock (host/nn_video.c, HOS_VIDEO_NO_CATCHUP=1 turns it off); 0: never,")
+    w("   for a game whose movie player counts every picture it submitted */")
+    w("#define GAME_VIDEO_CATCHUP %d" % (1 if p.video_catchup else 0))
     w("")
     w("#endif /* GAME_PROFILE_H */")
     return "\n".join(out) + "\n"
