@@ -192,6 +192,27 @@ uint64_t hos_rt_pool_size(uint64_t game) {
     return v;
 }
 HLE(_ZN2nn2oe16GetOperationModeEv) { RET(handheld() ? 0 : 1); }     /* OperationMode_Handheld / _Console (docked) */
+/* GetDefaultDisplayResolution(int* width, int* height): what a Switch 2 answers: 1920 x 1080 in handheld mode (its
+   screen), 3840 x 2160 docked (the dock's output to a 4K TV, which is what HOS_HANDHELD=0, the runtime's default, plays
+   as; on a 1080p TV the console says 1920 x 1080). It is the console's output, not this runtime's: the picture's
+   size here is hos_output_size's and the game's own render targets, which this answer does not change. Kirby Air
+   Riders asks at start (found in Dragoon, its fork); left to the SDK's own code, which asks the applet service this
+   runtime does not serve over IPC, both stayed whatever the stack held. Ocarina's SDK has the call too; the log says
+   whether it asks. */
+HLE(_ZN2nn2oe27GetDefaultDisplayResolutionEPiS1_) {
+    const uint32_t w = handheld() ? 1920 : 3840, h = handheld() ? 1080 : 2160;
+    static int logged;
+    if (!logged++) hos_log("oe: default display resolution %ux%u (%s; lr %#llx)", w, h, handheld() ? "handheld" : "docked",
+                           (unsigned long long)c->x[30]);
+    if (ARG(0) && hos_guest_range(ARG(0), 4)) G32(ARG(0)) = w;
+    if (ARG(1) && hos_guest_range(ARG(1), 4)) G32(ARG(1)) = h;
+}
+/* GetDefaultDisplayResolutionChangeEvent(SystemEvent*): an event that is never signalled, because the output never
+   changes while the game runs. Left to the stub, the game's event was never made at all. */
+void hos_system_event_init(uint64_t key, int autoclear);   /* nn_os_sync.c */
+HLE(_ZN2nn2oe38GetDefaultDisplayResolutionChangeEventEPNS_2os11SystemEventE) {
+    if (ARG(0)) hos_system_event_init(ARG(0), 0);
+}
 HLE(_ZN2nn2oe18GetPerformanceModeEv) { RET(handheld() ? 0 : 1); }   /* PerformanceMode_Normal / _Boost (docked) */
 HLE(_ZN2nn2oe20GetCurrentFocusStateEv) { RET(1); }    /* FocusState_InFocus */
 HLE(_ZN2nn2oe25GetProgramTotalActiveTimeEv) { RET(hos_now_ns() - boot_ns); }
@@ -237,6 +258,48 @@ HLE(_ZN2nn7account11GetNicknameEPNS0_8NicknameERKNS0_3UidE) {
 }
 HLE(_ZN2nn7account16GetUserExistenceEPbRKNS0_3UidE) {
     *(uint8_t *)GP(ARG(0)) = G64(ARG(1)) == user_uid[0] && G64(ARG(1) + 8) == user_uid[1];
+    RET(0);
+}
+/* (dkb) GetLastOpenedUser(Uid*) -> Result: the one user, the only one ever opened. Donkey Kong Bananza asks for it
+   after TryOpenPreselectedUser; the generic stub left the Uid zero, which names no user. (dkb-pc-recomp's
+   runtime/ov_system.c ov_last_opened_user found that the game asks: behaviour only, the code is this file's.) */
+HLE(_ZN2nn7account17GetLastOpenedUserEPNS0_3UidE) {
+    G64(ARG(0)) = user_uid[0];
+    G64(ARG(0) + 8) = user_uid[1];
+    RET(0);
+}
+/* (dkb) LoadCachedNintendoAccountInfo(CachedNintendoAccountInfo*, UserHandle const&, void*, size_t) -> Result: no
+   Nintendo Account is linked here, so a failure; the generic stub's 0 said the outputs were filled, and nothing was.
+   The result is the account service's on a console, not the SDK's, and no console's answer for an unlinked user was
+   measured here. 0x1907c is account module 124, description 200. It is dkb-pc-recomp's choice for Donkey Kong
+   Bananza 3.2.0 (ACCOUNT_R_REGISTRATION_REQUIRED), and the game's own code agrees with it: its one call (main
+   0x8048f460 on 3.2.0) takes the offline path on any failure, and tests account results with descriptions 200 to 269
+   as a family of their own; 200 is the first of them. (The 280 this file answers for the network service account
+   token is outside that family, and means a different thing.) The outputs are left alone, as on any failure. */
+HLE(_ZN2nn7account29LoadCachedNintendoAccountInfoEPNS0_25CachedNintendoAccountInfoERKNS0_10UserHandleEPvm) {
+    RET(0x1907C);
+}
+
+/* ---- (dkb) services a console has and this PC does not ------------------------------------------------------------
+   Each answers "not here", so the game takes its offline path, where the generic stub's 0 (success with empty
+   outputs) or the lifted SDK's IPC (a session whose replies are empty) said the thing was there. Found on Donkey Kong
+   Bananza 3.2.0; dkb-pc-recomp (github.com/Lucas-blip-png/dkb-pc-recomp, runtime/ov_system.c) reached the same
+   answers by running the game. Each comment says where its value comes from. */
+/* nn::bcat::MountDeliveryCacheStorage() -> Result: no delivery cache is installed: 0x47a, bcat module 122, description
+   2 (FailedOpenEntity), dkb-pc-recomp's answer; a console with no cache downloaded yet was not measured here */
+HLE(_ZN2nn4bcat25MountDeliveryCacheStorageEv) {
+    static volatile LONG told;
+    if (!InterlockedExchange(&told, 1)) hos_log("bcat: no delivery cache (offline): MountDeliveryCacheStorage -> 0x47a");
+    RET(0x47A);
+}
+/* nn::streamplay::GetRequiredMemorySize(StreamPlayType, StreamingMode, int) -> size_t: 0. A choice, not a console's
+   answer: GameShare (streaming the game to another console) is not available here, and with no streaming the game
+   needs no memory for it. Bananza goes on with 0, and asks the streamplay service nothing else. The lifted SDK opened
+   that service through sm: to ask, and aborted on the empty reply (svcBreak from
+   nn::streamplay::detail::CreateUserServiceByHipc). */
+HLE(_ZN2nn10streamplay21GetRequiredMemorySizeENS0_14StreamPlayTypeENS0_13StreamingModeEi) {
+    static volatile LONG told;
+    if (!InterlockedExchange(&told, 1)) hos_log("streamplay: GameShare is not available: GetRequiredMemorySize -> 0");
     RET(0);
 }
 
