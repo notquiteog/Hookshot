@@ -119,6 +119,7 @@ static uint64_t sync_reserve(void) { return 0x5ec0000000000000ull | (uint64_t)++
 static void fill_reserved(Dec *d) { (void)d; fills++; }
 
 @PUT@
+@END@
 @ACQUIRE@
 
 static int bad;
@@ -151,7 +152,8 @@ int main(void) {
     end_after = 1;
     r = acquire(1, 1, 1);
     check(r == 0 && dec.eos && decodes_with_core == 0, "nothing decoded after the last submission: decoded without the core");
-    check(reserves == 0 && sync == 0 && dec.slot_last[0], "after the end: no reservation, the buffer as the last, reached");
+    check(reserves == 1 && sync == dec.reserved[0] && !dec.slot_last[0],
+          "after the end, nothing left: reserved as any other (the end gave its own picture), not handed out again done");
     check(takes == 1 && takes_under_lock == 0 && held == 1, "and the core back after the lock");
     end_after = 0;
 
@@ -191,6 +193,22 @@ int main(void) {
     r = acquire(1, 1, 1);
     check(r == 0 && sleeps == 3, "a pending submission is still waited for");
     late = 0;
+
+    /* the stream's end is a picture of its own: the last one again, marked last (every submission fills one buffer) */
+    memset(&dec, 0, sizeof dec);
+    Picture *q = &dec.queue[0];
+    q->w = q->h = 4, q->pts = 700, q->nv12 = (uint8_t *)calloc(1, 4 * 4 * 3 / 2);
+    q->nv12[5] = 9;
+    dec.qn = 1;
+    end_picture(&dec);
+    check(dec.qn == 2 && dec.queue[1].last && !dec.queue[0].last && dec.queue[1].pts == 700, "the end: the last picture again, marked last");
+    check(dec.queue[1].nv12 && dec.queue[1].nv12 != q->nv12 && dec.queue[1].nv12[5] == 9 && dec.queue[1].w == 4, "a copy of its data");
+    picture_free(&dec.queue[0]), picture_free(&dec.queue[1]);
+    memset(&dec, 0, sizeof dec);
+    dec.last_pts = 900;
+    end_picture(&dec);
+    check(dec.qn == 1 && dec.queue[0].last && !dec.queue[0].nv12 && dec.queue[0].pts == 900,
+          "nothing decoded before the end: a picture without data at the last time, marked last");
     if (!bad) puts("ok");
     return bad;
 }
@@ -215,6 +233,7 @@ def main():
                        "static volatile LONG64 submissions;"))
     fixture = (HARNESS.replace("@TYPES@", types)
                .replace("@PUT@", block(src, "static void put_picture(Dec *d, int slot, int reserved) {"))
+               .replace("@END@", block(src, "static void end_picture(Dec *d) {"))
                .replace("@ACQUIRE@", block(src, "static void dec_acquire(Ctx *c) {")))
     compiler = shutil.which(args.cxx)
     if not compiler:

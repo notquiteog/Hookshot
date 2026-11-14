@@ -496,6 +496,32 @@ static void drain(Dec *d) {
    it is next, pictures queued or not: the last picture decoded must carry the last flag, as the hardware's does. Media
    Foundation's decoder holds nothing back, so waiting for an empty queue gave the flag only to a buffer handed out
    again, with an older picture's pts, after the real last one went out unmarked */
+/* (hookshot) The stream's end is a picture of its own, as the hardware decoder gives it: the last picture again, marked
+   last, so every submission (the end's too) fills one buffer. Marking the last decoded picture instead gave a player
+   that counts its submissions one buffer fewer than it sent, and the acquires after it handed buffers out again, done:
+   Donkey Kong Bananza's guide player aborted at its next loop (main+0xe1ada0 from 0x8189b900). dkb-pc-recomp's model
+   (runtime/ov_codec.c: an end packet always fills a buffer, with the last picture). With nothing decoded before it, the
+   end's picture has no data: the buffer keeps what it held. */
+static void end_picture(Dec *d) {
+    Picture e;
+    memset(&e, 0, sizeof e);
+    e.pts = d->last_pts;
+    if (d->qn) {
+        const Picture *l = &d->queue[(d->qhead + d->qn - 1) % MAX_QUEUE];
+        const size_t nv12 = (size_t)l->w * l->h * 3 / 2, rgba = (size_t)l->w * l->h * 4;
+        e.w = l->w, e.h = l->h, e.pts = l->pts;
+        if (l->nv12 && (e.nv12 = (uint8_t *)malloc(nv12)) != NULL) memcpy(e.nv12, l->nv12, nv12);
+        if (l->rgba && (e.rgba = (uint8_t *)malloc(rgba)) != NULL) memcpy(e.rgba, l->rgba, rgba);
+        if (!e.nv12) e.w = e.h = 0;   /* (an allocation that failed: nothing to copy) */
+    }
+    e.last = 1;
+    if (d->qn == MAX_QUEUE) {
+        picture_free(&d->queue[d->qhead]);
+        d->qhead = (d->qhead + 1) % MAX_QUEUE, d->qn--;
+    }
+    d->queue[(d->qhead + d->qn) % MAX_QUEUE] = e;
+    d->qn++;
+}
 static void decode_next(Dec *d);
 static void decode_pending(Dec *d) {
     while (d->phead && (!d->qn || !d->phead->pkt)) decode_next(d);
@@ -520,7 +546,7 @@ static void decode_next(Dec *d) {
                 d->av1->decode(d->mf, NULL, 0, 0, mf_picture, d);
                 d->eos = 1;
                 d->log_submits = 8;   /* (data after the end: a restart, worth seeing) */
-                if (d->qn) d->queue[(d->qhead + d->qn - 1) % MAX_QUEUE].last = 1;
+                end_picture(d);
             }
         } else if (n->pkt) {
             d->eos = 0;
@@ -535,7 +561,7 @@ static void decode_next(Dec *d) {
             drain(d);
             d->eos = 1;
             d->log_submits = 8;
-            if (d->qn) d->queue[(d->qhead + d->qn - 1) % MAX_QUEUE].last = 1;
+            end_picture(d);
             avcodec_flush_buffers(d->ctx);   /* (a stream after it starts again) */
         }
         const int64_t ns = hos_now_ns() - t0;
@@ -871,17 +897,17 @@ static void dec_acquire(Ctx *c) {
         return;
     }
     d->acquires++;
-    if (!d->qn) {   /* (nothing decoded: the buffer's last picture again; after the last submission, as the last) */
+    if (!d->qn) {   /* (nothing decoded, nothing left to decode) */
         d->busy[slot] = 1;
-        if (d->eos) d->slot_last[slot] = 1, d->slot_pts[slot] = d->last_pts;   /* (the end at the last picture's time) */
-        /* (hookshot) idle: nothing to decode and the stream not at its end. The buffer is reserved: the next picture
-           decoded goes into it, and its sync is reached then, not before */
-        const int idle = !d->eos && !d->phead;
-        if (idle) d->reserved[slot] = sync_reserve();
-        if (idle && ARG(1)) G64(ARG(1)) = d->reserved[slot];
+        /* (hookshot) The buffer is reserved, as the hardware reserves it: the next picture decoded goes into it, and its
+           sync is reached then, not before. After the stream's end too: the end gave its own picture (end_picture), and
+           a buffer handed out again as done was one more than the player had sent */
+        d->reserved[slot] = sync_reserve();
+        if (ARG(1)) G64(ARG(1)) = d->reserved[slot];
+        if (!d->reserved[slot] && d->eos) d->slot_last[slot] = 1, d->slot_pts[slot] = d->last_pts;   /* (none left: as before) */
         if (video_log()) hos_log("video: acquire %lld: nothing decoded%s, buffer %d %s", (long long)d->acquires,
-                                 d->eos ? " (the end)" : idle ? " (idle)" : "", slot,
-                                 idle && d->reserved[slot] ? "reserved for the next picture" : "again");
+                                 d->eos ? " (after the end)" : "", slot,
+                                 d->reserved[slot] ? "reserved for the next picture" : "again");
         else if (d->acquires == 1 && !d->eos)   /* (the start: the frame shows the buffer as it was, black since the pool's fill) */
             hos_log("video: the first buffer went out before the first picture was decoded (shown black)");
         ReleaseSRWLockExclusive(&d->lock);
