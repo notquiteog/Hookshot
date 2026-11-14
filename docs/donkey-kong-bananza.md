@@ -44,16 +44,34 @@ Also fixed on the way, because they would have bitten any second game: saves in 
 
 ## 3. Open
 
-1. **`nvnCommandBufferPushGraphicsConstants`** is not implemented (logged once, answered 0). The game pushes
-   `{1/w, 1/h, w, h}` into graphics root table 0, which its full-screen blit shaders read as constant bank 24
-   (dkb-pc-recomp). Nothing has looked wrong in the tunnel yet; a frame capture of a blit would tell.
+1. **`nvnCommandBufferPushGraphicsConstants`: checked, not needed (a tripwire).** The game pushes `{1/w, 1/h, w, h}`
+   into graphics root table 0, which its full-screen blit shaders read as constant bank 24. The replay already gives
+   those reads values: the recompiler lowers bank 24 to bank 17, and `BlitConstantsPass`
+   (`gpu/vk/eden/shader_recompiler/ir_opt/position_pass.cpp`) answers a blit covering the whole render target. A build
+   that logged every distinct push (2026-11-14: first start, the tunnel, the guide, 5 minutes of play) saw one call
+   site, main 0x808ca7e0 (`PushGraphicsConstants(cmdbuf, 0, 0, 16, data)`, the two `fdiv`s from 1.0 at 0x808ca7a8 and
+   0x808ca7cc), and three distinct blocks:
+
+   | Block | Bound target | Viewport |
+   |---|---|---|
+   | 1/2304, 1/1296, 2304, 1296 | 2304x1296 | 0,0 2304x1296 |
+   | 1/1536, 1/864, 1536, 864 | 1536x864 | 0,0 1536x864 |
+   | 1/1676, 1/943, 1676, 943 | 1676x943 | 0,0 1676x943 |
+
+   Each is the pass's value word for word, so taking the pushed bytes would draw the same picture. The HLE now checks
+   every push against what the pass gives and logs once when a game pushes something else
+   (`HOS_NVN_PUSH_LOG=1`: the counts). The sizes are 80% of the game's 2880x1620: see 4.
 2. **Virtual-core waits** of 200-850 ms appeared once, with the PC loaded (load average 79). dkb-pc-recomp lists 23
    recursive spin-lock loops in 3.2.0 main that stall heap and RomFS loads under virtual cores. Measure on an idle PC
    before acting.
 3. **Add-on content**: `aoc::CountAddOnContent` is the generic stub's 0, so the DLC (mounted as "EmeraldRush" on a
    console) is not offered. Not needed to play the base game.
-4. **`oe::GetCurrentGraphicsScale`** answers Ocarina's meaning (1.00). Bananza maps an int enum 0..2 differently
-   (dkb-pc-recomp answers 2). The game renders at its own 2880x1620.
+4. **`oe::GetCurrentGraphicsScale`: Bananza renders at 80%.** The host answers Ocarina's enum 1 (x0.8) unless an output
+   size is set. Bananza reads it as an enum: main 0x8033e9b4 and 0x80569324 keep a mode byte (1 → 1, 2 → 2, else 0),
+   and 0x803ad180 and 0x805695d0 index a float table `{3, 12, 16}` with it. With 0 (`HOS_OUTPUT_RES=2880x1620`, the
+   game's own window size) its targets are 1.25x larger: 2880x1620 instead of 2304x1296, 1920x1080 and 2095x1179
+   instead of 1536x864 and 1676x943. GPU time stayed about 2.2-2.4 ms a frame on an RTX 5060 Ti (not measured in a
+   quiet window yet). Next: a profile field for the enum, Bananza 0, with a measured cost.
 5. **`oe::GetDisplayVersion`** answers "1.8.0" (the game logs `ReleaseVersion : 320 (nmeta=1.8.0)`). The update's real
    string is not in the dump.
 6. **Not tried:** sound (every run had `HOS_AUDIO=0`), Windows, AMD, the add-on content, play past the tutorial.
@@ -74,7 +92,7 @@ where they are used:
 | SDK 20 `nn::codec` VP9 names, the preference's +8 / +10 | yes (#16) |
 | `fs::EnsureSaveData` answered above IPC | yes (#40) |
 | The movie decoder's model: a reserved buffer filled by the next picture, an end packet filling a buffer | yes (#41) |
-| NVN2 procs Hookshot lacks (`DeviceGetFlags`, `RegisterFastClear*`, `DeviceMessageBuffer*`, `PushGraphicsConstants`, HDR window metadata, ...) | not needed so far: only `PushGraphicsConstants` was called (section 3.1) |
+| NVN2 procs Hookshot lacks (`DeviceGetFlags`, `RegisterFastClear*`, `DeviceMessageBuffer*`, `PushGraphicsConstants`, HDR window metadata, ...) | not needed so far: only `PushGraphicsConstants` was called, and its blocks are what the blit pass gives (section 3.1) |
 | NVN API minor 30 gate at main+0x5c61ac | not needed: Hookshot's 231.40 passes |
 | Memory: below 8 GiB the game crashes at start; it asks ~9 GiB | already met (9,809 MB) |
 | Spin-lock loop heads in 3.2.0 main | not yet: measure first (section 3.2) |
