@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.3.0-rc.12](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.11...v2.3.0-rc.12) (2026-11-14)
+
+
+### Bug Fixes
+
+* **runtime:** a moving floor carries Link above 100 fps as at 60 ([#25](https://github.com/notquiteog/Hookshot/issues/25)) ([f54dc31](https://github.com/notquiteog/Hookshot/commit/f54dc315ad50350b1a74ec34a55b14dcdc96594d))
+
+
+### Documentation
+
+* Donkey Kong Bananza plays from main alone, and its page moves here from the fork ([#46](https://github.com/notquiteog/Hookshot/issues/46)) ([0e63f92](https://github.com/notquiteog/Hookshot/commit/0e63f925694d8877962597abac2f92e08405e178))
+* **worklist:** the memory row measured over a 42-minute session on main ([#48](https://github.com/notquiteog/Hookshot/issues/48)) ([07d84c5](https://github.com/notquiteog/Hookshot/commit/07d84c551ce943165fe9e3cb74aae78877c2e00b))
+
 ## [2.3.0-rc.11](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.10...v2.3.0-rc.11) (2026-11-14)
 
 
