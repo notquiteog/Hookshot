@@ -67,4 +67,8 @@
 /* the console's users (nn::account) when HOS_ACCOUNT_USERS is unset: host/nn_applet.c */
 #define GAME_ACCOUNT_USERS 1
 
+/* 1: a movie skips pictures behind its clock (host/nn_video.c; HOS_VIDEO_NO_CATCHUP=1 turns it off); 0: never, for
+   a game whose movie player counts every picture it submitted */
+#define GAME_VIDEO_CATCHUP 1
+
 #endif /* GAME_PROFILE_H */

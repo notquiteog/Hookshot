@@ -291,6 +291,32 @@ int main(int argc, char **argv) {
     check(dec.skipped > 100 && late_recovered >= 0 && late_recovered <= 60, "after a 2 s frame the movie is on its clock again within a second");
     check(starved_frames == 0 && out_of_order == 0 && dec.eos, "without starving the decoder, to the movie's end");
 
+    /* (hookshot) with the reservations (an Acquire before its picture, #41): acquires that find nothing reserve their
+       buffers; submissions up to the limit fill them, oldest first, and the limit still refuses past it; no reserved
+       buffer is left unfilled, and the end fills a buffer of its own, marked last, though the decoder was full */
+    fresh();
+    dec.slots[1] = 2, dec.slots[2] = 2;
+    const uint64_t r0 = acquire(), s0 = slot;
+    const uint64_t r1 = acquire(), s1 = slot;
+    check(r0 == 0 && r1 == 0 && dec.reserved[s0] && dec.reserved[s1] && s0 != s1, "two acquires before any picture reserve two buffers");
+    for (n = 0; n < 1000 && submit((int64_t)n * FRAME_NS, 0, &id) == 0; n++) {}
+    check(n == INPUT_LIMIT + 2 + DELAY && dec.refused == 1 && dec.npending == INPUT_LIMIT,
+          "the limit still refuses: its count waiting, past the two pictures the reserved buffers took and those the decoder holds");
+    check(!dec.reserved[s0] && !dec.reserved[s1], "both reserved buffers filled by the first pictures decoded");
+    check(dec.slot_pts[s0] == 0 && dec.slot_pts[s1] == FRAME_NS, "oldest reservation first: the first picture, then the second");
+    release(s0), release(s1);
+    int refused_end = 0;
+    if (submit((int64_t)n * FRAME_NS, 1, &id) != 0) refused_end = 1;
+    check(!refused_end, "the stream's end is taken though the decoder is full");
+    int got_last = 0;
+    for (int k = 0; k < 2000 && !got_last; k++) {
+        if (acquire() != 0) { check(0, "an Acquire failed"); break; }
+        got_last = dec.slot_last[slot] && !dec.reserved[slot];
+        release(slot);
+    }
+    check(got_last, "the end's own picture fills a buffer, marked last");
+    check(nreserved == 0, "no reservation left waiting at the end");
+
     /* the decoder's end gives its event back, signalled; the next decoder gets it */
     fresh();
     const uint64_t first = ready();
@@ -315,7 +341,7 @@ def main():
     args = parser.parse_args()
     src = args.source.read_text(encoding="utf-8")
     defines = "\n".join(re.findall(r"^#define (?:RESULT_NO_OUTPUT|RESULT_INPUT_FULL|INPUT_LIMIT|POOL_MAGIC|DEC_MAGIC|MAX_SLOTS|"
-                                   r"MAX_QUEUE|SYNC_IDLE_TAG|SYNC_IDLE_MASK)\b.*$", src, re.M))
+                                   r"MAX_QUEUE|SYNC_IDLE_TAG|SYNC_IDLE_MASK|SYNC_RESERVED_TAG|SYNC_RESERVED_MASK|MAX_RESERVED)\b.*$", src, re.M))
     types = "\n".join((defines,
                        through(src, "typedef struct {\n    int w, h, format, count;", "} Pool;"),
                        through(src, "typedef struct { uint8_t *rgba, *nv12;", "} Picture;"),
@@ -328,12 +354,25 @@ def main():
                       block(src, "static void input_room(Dec *d) {"),
                       block(src, "static void pending_free(Dec *d) {"),
                       "static void decode_next(Dec *d);",
+                      "static void end_picture(Dec *d);",
                       block(src, "static void decode_pending(Dec *d) {"),
                       block(src, "static void decode_next(Dec *d) {"),
                       block(src, "static void pending_push(Dec *d, AVPacket *pkt) {"),
+                      "#define GAME_VIDEO_CATCHUP 1",
+                      through(src, "#define SYNC_RESERVED_TAG", "static int nwaiters;"),
+                      block(src, "static int reached_locked(uint64_t handle) {"),
+                      block(src, "static uint64_t sync_reserve(void) {"),
+                      block(src, "static void sync_reach(uint64_t handle) {"),
+                      block(src, "static void end_picture(Dec *d) {"),
+                      "static void put_picture(Dec *d, int slot, int reserved);",
+                      "static void drop_reserved(Dec *d, int slot);",
+                      block(src, "static int oldest_reserved(const Dec *d) {"),
+                      block(src, "static void fill_reserved(Dec *d) {"),
+                      block(src, "static void drop_reserved(Dec *d, int slot) {"),
                       block(src, "static int submit_refused(Dec *d, int last) {"),
                       block(src, "static void dec_submit(Ctx *c) {"),
                       block(src, "static void dec_flush(Ctx *c, const char *what) {"),
+                      block(src, "static void put_picture(Dec *d, int slot, int reserved) {"),
                       block(src, "static void dec_acquire(Ctx *c) {"),
                       block(src, "static void dec_release(Ctx *c) {"),
                       through(src, "static SRWLOCK ready_lock", "static int nready_spare;"),
