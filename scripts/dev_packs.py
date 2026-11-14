@@ -288,6 +288,15 @@ def base_env(predict_s):
     return {"RX_VK_PREDICT_S": str(predict_s)} if predict_s > 0 else {}
 
 
+def renderer_profile(base_work, environ):
+    """The renderer's play profile for a pack of the renderer alone: the one make_game.py gave the base's build
+    (<base work>/hookshot_vk.profdata, by the same path, so the base's objects are found again), since nx2/build.py run by
+    itself uses none and the pack's renderer would then differ from the base's by more than the change. Nothing when the base
+    had none, or when RX_VK_PGO is set (a counting pack, or another profile)"""
+    prof = os.path.join(base_work, "hookshot_vk.profdata")
+    return {"RX_VK_PGO": prof} if not environ.get("RX_VK_PGO") and os.path.isfile(prof) else {}
+
+
 def prepare(game, b):
     """The game's own preparation in a game folder, as make_game.py runs it (the game's environment, without the build's
     switches), with the base's budget; nothing on a Windows game built on Linux, which prepares at its first start"""
@@ -444,7 +453,8 @@ def cmd_pack(a):
     elif how == "renderer":
         link_objects(b["work"], w["renderer_work"])
         run([sys.executable, "-I", "nx2/build.py", "--standalone"], tree,
-            {"OOT_WORK": w["renderer_work"], "RX_RELEASE": "1", "RX_VK_ONLY": "1", "HOOKSHOT_KEEP_BUILD_FILES": "1"})
+            dict({"OOT_WORK": w["renderer_work"], "RX_RELEASE": "1", "RX_VK_ONLY": "1", "HOOKSHOT_KEEP_BUILD_FILES": "1"},
+                 **renderer_profile(b["work"], os.environ)))
         built, kinds = os.path.join(w["renderer_work"], "sa", "build"), MODULES[1:]
     else:
         built, kinds = None, ()
