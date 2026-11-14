@@ -1,5 +1,39 @@
 # Changelog
 
+## [2.3.0-rc.8](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.7...v2.3.0-rc.8) (2026-11-14)
+
+
+### Bug Fixes
+
+* **linux:** a headless run ends on SIGINT and SIGTERM again ([#27](https://github.com/notquiteog/Hookshot/issues/27)) ([0602531](https://github.com/notquiteog/Hookshot/commit/0602531e4d9129a1114f26dae67f88600e75c07b))
+
+## [2.3.0-rc.7](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.6...v2.3.0-rc.7) (2026-11-14)
+
+
+### Features
+
+* a game profile, chosen by main's build id, holds what is one game's ([#10](https://github.com/notquiteog/Hookshot/issues/10)) ([99f0ee9](https://github.com/notquiteog/Hookshot/commit/99f0ee9739da9c3a6235e9999af641fc254aefb0))
+
+
+### Bug Fixes
+
+* answer random bytes and the default display resolution a game asks for at start ([#9](https://github.com/notquiteog/Hookshot/issues/9)) ([4513f91](https://github.com/notquiteog/Hookshot/commit/4513f913ff3fe4f1b9cf1caf5227618d997fe3f3))
+* **hid:** answer GetNpadState, the single-state controller read ([#8](https://github.com/notquiteog/Hookshot/issues/8)) ([4e9ff07](https://github.com/notquiteog/Hookshot/commit/4e9ff0772139731c5af2e537e0970554e5d701e4))
+* **lift:** bind R_AARCH64_TLSDESC relocations to a host stop instead of refusing the game ([#7](https://github.com/notquiteog/Hookshot/issues/7)) ([1b9a277](https://github.com/notquiteog/Hookshot/commit/1b9a2778a940c969c0a6b29c50fce4966b1d1b28))
+
+## [2.3.0-rc.6](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.5...v2.3.0-rc.6) (2026-11-14)
+
+
+### Bug Fixes
+
+* **lift:** a compare above an unconditional branch no longer bounds the next block's jump table ([#31](https://github.com/notquiteog/Hookshot/issues/31)) ([8315fad](https://github.com/notquiteog/Hookshot/commit/8315fad2d680e43056c8951125a0805cd0a8758a))
+* **video:** answer the older SDK's video decoder calls [#16](https://github.com/notquiteog/Hookshot/issues/16) leaves out (Mario Kart World 1.0.0's movies) ([#21](https://github.com/notquiteog/Hookshot/issues/21)) ([5702c41](https://github.com/notquiteog/Hookshot/commit/5702c41dda28b80c3e64497402bbca36b12a4341))
+
+
+### Tests
+
+* catch an unordered vkDestroyBuffer and query read whatever the runner's timing ([#32](https://github.com/notquiteog/Hookshot/issues/32)) ([a8150d5](https://github.com/notquiteog/Hookshot/commit/a8150d5c8ea69b48d497100caae67f571ab03651))
+
 ## [2.3.0-rc.5](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.4...v2.3.0-rc.5) (2026-11-14)
 
 
