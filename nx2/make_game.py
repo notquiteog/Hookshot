@@ -47,9 +47,23 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 PY = [sys.executable, "-I", "-u", "-X", "utf8"]   # (utf8: every step's output in UTF-8 whatever the console's code page: lift.py crashed on a letter, #180)   # (-u: the steps' output as it comes, not in 8 KB blocks minutes apart)
-BUILD_ID = "e0f3ccfa"   # (the version the patches, the hot list and the profile were made from)
 STARTED = time.time()   # (the build's total time, kept in build_times.json and said as @@times)
 sys.path[:0] = [HERE, os.path.join(ROOT, "third_party", "a64-kit", "tools")]   # (python -I leaves the script folder off)
+import game_profile   # noqa: E402  (which builds have a game profile, nx2/game_profile.py)
+# The default game's build, as the docs quote it (Ocarina's e0f3ccfa: the version its patches, the hot list and the
+# profile were made from). Which builds are accepted is the game profiles' list (supported_build), not this one.
+BUILD_ID = game_profile.GAMES[game_profile.DEFAULT].build_id[:8]
+
+
+def supported_text():
+    """The builds a game profile knows, as the refusal says them (e0f3ccfa or 9ede0383)"""
+    return " or ".join(prefix for _, prefix in game_profile.known_builds())
+
+
+def supported_build(bid):
+    """The game profile for this main's build id, or None when no profile knows it"""
+    p = game_profile.for_build(bid[:8])   # (by the 8 digits the messages quote, as the check always went)
+    return p if p.build_id else None
 import toolchain as _toolchain
 import disk as _disk
 # (hookshot) RX_TARGET=windows on Linux: the Windows game, with llvm-mingw's Linux release (HOOKSHOT_MINGW, or llvm-mingw
@@ -450,8 +464,8 @@ def check_modules(exefs):
 
 def check_supported_build(exefs):
     bid = build_id(os.path.join(exefs, "main"))
-    if not bid.startswith(BUILD_ID):
-        fail("This is build %s. Hookshot supports build %s." % (bid[:8], BUILD_ID))
+    if not supported_build(bid):
+        fail("This is build %s. Hookshot supports build %s." % (bid[:8], supported_text()))
 
 
 def file_progress(verb, clock=time.monotonic):
@@ -613,10 +627,10 @@ def check(a, work):
         shutil.rmtree(probe, ignore_errors=True)
     else:
         bid = build_id(os.path.join(a.exefs, "main"))
-    if bid.startswith(BUILD_ID):
+    if supported_build(bid):   # (a build some game profile knows: nx2/game_profile.py)
         say("check", "ok", "This is the version Hookshot supports (build %s)." % bid[:8])
     else:
-        say("check", "bad", "This is build %s. Hookshot supports build %s." % (bid[:8], BUILD_ID))
+        say("check", "bad", "This is build %s. Hookshot supports build %s." % (bid[:8], supported_text()))
 
 
 def visual_studio_environment():
@@ -1597,6 +1611,12 @@ def lift_sources():
     kit_dir = os.path.join(ROOT, "third_party", "a64-kit")
     path = [os.path.join(kit_dir, d) for d in ("rt", "hos", "tools", "lift")] + [HERE]
     todo = [os.path.join(HERE, f) for f in LIFT_SCRIPTS]
+    # (the game profiles' patch modules: nx2/game_profile.py imports them by the names its profiles hold, which this walk
+    # cannot see, so every profile's are roots of it. All profiles', not the active one's: the key then does not depend
+    # on HOOKSHOT_GAME, and a change to any game's patches translates again, which is the safe direction. Lakitu fafd5cde)
+    for prof in game_profile.GAMES.values():
+        for name in prof.patch_modules + ((prof.code_patch_module,) if prof.code_patch_module else ()):
+            todo.append(os.path.join(HERE, name + ".py"))
     seen = set()
     while todo:
         f = todo.pop()

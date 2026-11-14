@@ -2,6 +2,7 @@
    layer, and the display's vsync event, signaled at 60 Hz by a host thread. HDR and VRR are reported unsupported,
    so the game takes its SDR path. Frames are paced at the native NVN layer's window acquire (the end of this file). */
 #include "hos.h"
+#include "game_profile.h"   /* (the graphics module's offsets, below) */
 #include "../gpu/vk/vk_api.h"   /* (HOS_OPT_HDR_*, HOS_OPT_CAMERA_SPEED: the Insert menu's HDR and Camera speed, answered by the renderer) */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -391,17 +392,25 @@ static void realtime_step(int64_t now) {
     }
     const uint64_t mod = hos_gfx_module;
     if (!mod) return;
+    /* The offsets below are the game profile's (game/game_profile.h; Ocarina's +0xfc, +0x231, +0x232, +0x2c8
+       and +0x270). A module is only captured for a profile that names them all (host/hos_thread.c, and
+       host/game_profile_check.h stops a build that names the module and not its offsets), so they are used as they
+       are. */
+    static const unsigned ctl_words[] = GAME_GFX_CONTROLLER_WORDS, ctl_rate_words[] = GAME_GFX_CONTROLLER_RATE_WORDS;
     {   /* (hookshot) The frame limiter (f_8042cd20 sleeps to 1 / +0xfc). The engine's adaptive controller writes +0xfc when
            variable refresh is on (+0x231, f_804fc0f0), any rate from 40 up. HOS_FPS_TARGET=<fps>: that rate kept, 0: left alone;
            HOS_FPS_LOG=1: what the game asks for, every 300 presents */
         static int target = -1, log_on = -1;
         static long long n;
         if (target < 0) target = getenv("HOS_FPS_TARGET") ? atoi(getenv("HOS_FPS_TARGET")) : 0, log_on = env_on("HOS_FPS_LOG");
-        int *limit = (int *)GP(mod + 0xfc);
-        if (log_on && !(n++ % 300))
-            hos_log("vi: frame limiter %d, vrr %d %d, nominal %d, controller +0x58.. %d %d %d %d", *limit, *(uint8_t *)GP(mod + 0x231),
-                    *(uint8_t *)GP(mod + 0x232), *(int *)GP(mod + 0x2c8), *(int *)GP(mod + 0x270 + 0x58), *(int *)GP(mod + 0x270 + 0x28),
-                    *(int *)GP(mod + 0x270 + 0x2c), *(int *)GP(mod + 0x270 + 0x30));
+        int *limit = (int *)GP(mod + GAME_GFX_FRAME_LIMITER);
+        if (log_on && !(n++ % 300)) {
+            char ctl[96] = "";   /* (the controller's words, as many as the profile names) */
+            for (int i = 0, at = 0; i < GAME_GFX_CONTROLLER_WORD_COUNT && at < (int)sizeof ctl - 16; i++)
+                at += snprintf(ctl + at, sizeof ctl - at, " %d", *(int *)GP(mod + GAME_GFX_CONTROLLER + ctl_words[i]));
+            hos_log("vi: frame limiter %d, vrr %d %d, nominal %d, controller +0x%x..%s", *limit, *(uint8_t *)GP(mod + GAME_GFX_VRR_MODE),
+                    *(uint8_t *)GP(mod + GAME_GFX_VRR_GATE), *(int *)GP(mod + GAME_GFX_NOMINAL_FPS), ctl_words[0], ctl);
+        }
         if (log_on && !((n - 1) % 300) && hos_step_probe) {   /* (game speed: the game clock's 1/60 s units a second of wall time, 60.0 at speed 1) */
             static double clock_before;
             static int64_t at_before;
@@ -427,16 +436,17 @@ static void realtime_step(int64_t now) {
                "vrr %d %d": +0x231 is 1 here and +0x232 is 0, so the store never runs and +0xfc
                keeps the 60 it has, whatever the controller words say. Setting it lets the game's
                own code take a higher rate. */
-            uint8_t *const gate = (uint8_t *)GP(mod + 0x232);
+            uint8_t *const gate = (uint8_t *)GP(mod + GAME_GFX_VRR_GATE);
             if (!*gate) *gate = 1;
             /* NOT +0x2c8. The real-time frame step above owns that word, and the engine steps
                game time by 60 / it: forcing it to 165 while the game renders at 57 steps time by
                0.36 a frame, which is slow motion on screen. Reported from a real run, and the
                commit that added this block had already warned it changed two things at once. */
-            int *const words[] = {(int *)GP(mod + 0x270 + 0x58), (int *)GP(mod + 0x270 + 0x28),
-                                  (int *)GP(mod + 0x270 + 0x2c)};
-            for (size_t i = 0; i < sizeof words / sizeof words[0]; i++)
-                if (*words[i] > 0 && *words[i] < target) *words[i] = target;
+            /* (the profile keeps these apart from the words it only logs: Ocarina's +0x58, +0x28, +0x2c) */
+            for (int i = 0; i < GAME_GFX_CONTROLLER_RATE_WORD_COUNT; i++) {
+                int *const word = (int *)GP(mod + GAME_GFX_CONTROLLER + ctl_rate_words[i]);
+                if (*word > 0 && *word < target) *word = target;
+            }
         }
         if (fps_max() > 60 && *limit > 0 && *limit < fps_max()) *limit = fps_max();
         if (fps_max() == 30 && *limit > 30) *limit = 30;
@@ -444,7 +454,7 @@ static void realtime_step(int64_t now) {
     /* (the Insert menu's Game speed "per frame": a frame is a 60th of a second of game time. Only at a cap of 60: other caps
        keep the real-time step whatever that row says, so 30 fps does not run at half speed) */
     if (!rx_option(0, 1) && fps_max() == 60) {
-        int *slot = (int *)GP(mod + 0x2c8);
+        int *slot = (int *)GP(mod + GAME_GFX_NOMINAL_FPS);
         if (*slot >= 15 && *slot <= 60) *slot = 60;
         return;
     }
@@ -486,7 +496,7 @@ static void realtime_step(int64_t now) {
     }
     const int top = timed ? 60 : fps_max();
     const double ratio = sum / count * 60.0;
-    int *slot = (int *)GP(mod + 0x2c8);
+    int *slot = (int *)GP(mod + GAME_GFX_NOMINAL_FPS);
     if (*slot < 15 || *slot > (fps_max() < 60 ? 60 : fps_max())) {
         static int logged;
         if (!logged++) hos_log("vi: the graphics module's frame rate reads %d: no real-time step", *slot);
