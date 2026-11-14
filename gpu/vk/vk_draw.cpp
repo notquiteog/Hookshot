@@ -7,6 +7,7 @@
 //
 // Pipelines persist in a VkPipelineCache next to the executable (mkw_vk_pipelines.bin).
 #include <algorithm>
+#include "game_profile.h"   // (the program keys this game's renderer treats specially)
 #include <filesystem>
 #include <iterator>
 #include <tuple>
@@ -7685,7 +7686,34 @@ bool movie_upscale(VkCommandBuffer cmd, uint32_t in_handle, uint32_t out_handle,
 // of GPU time (vk_replay.cpp), they are left out from then on, as on AMD: the linear upscale below, the same picture a little
 // softer. The gameplay networks are never left out. RX_VK_NETWORK_KEEP=all: never
 std::atomic<bool> movie_networks_slow{false};
-bool gameplay_network(uint64_t key) { return key == 0xfd029a317a9a4b94ull || key == 0x9dc98871eb7fc101ull; }
+// The game profile's program keys: the runtime's (HOOKSHOT_PROFILE_*, set from the profile it is compiled
+// for: host/hos_main.c game_profile_env), else game/game_profile.h's, which this renderer is built with (Ocarina's).
+const char* profile_keys(const char* runtime, const char* built) {
+    const char* e = getenv(runtime);
+    return e ? e : built;
+}
+static bool key_listed(uint64_t key, const char* prefixes) {   // (a comma-separated list of hex prefixes; "" or "-": none)
+    char hex[24];
+    snprintf(hex, sizeof hex, "%016llx", (unsigned long long)key);
+    for (const char* at = prefixes; at && *at;) {
+        const char* e = strchr(at, ',');
+        const size_t n = e ? (size_t)(e - at) : strlen(at);
+        if (n && strncmp(at, "-", n) && !strncmp(hex, at, n)) return true;
+        at = e ? e + 1 : at + n;
+    }
+    return false;
+}
+bool gameplay_network(uint64_t key) {   // (Ocarina's: fd029a317a9a4b94 and 9dc98871eb7fc101)
+    static const std::string keys = [] {
+        static const unsigned long long built[] = GAME_GAMEPLAY_NETWORK_KEYS;
+        std::string s;
+        char hex[24];
+        for (int i = 0; i < GAME_GAMEPLAY_NETWORK_KEY_COUNT; i++)
+            snprintf(hex, sizeof hex, "%s%016llx", i ? "," : "", built[i]), s += hex;
+        return std::string(profile_keys("HOOKSHOT_PROFILE_GAMEPLAY_KEYS", s.c_str()));
+    }();
+    return key_listed(key, keys.c_str());
+}
 
 static movie_upscale_policy::Mode movie_upscale_mode() {
     // Read on first dispatch, after host/hos_main.c has loaded hookshot_env.txt.
@@ -7770,7 +7798,8 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
     }
     // Failed upscales can receive RGB9E5 bits in a shared R11 image, including the 75% gameplay TAAU.
     // Match the observed base-level 2D case only; other fallbacks keep their existing blit.
-    const bool gameplay_taau = key == 0xfd029a317a9a4b94ull;
+    const bool gameplay_taau = gameplay_network(key) &&   // (Ocarina's fd029a317a9a4b94: the profile's TAAU program)
+                               key_listed(key, profile_keys("HOOKSHOT_PROFILE_TAAU_KEYS", GAME_UPSCALE_TAAU_KEYS));
     if ((!gameplay_network(key) || gameplay_taau) && in.d.format == NVN_FORMAT_RGB9E5F && out.d.format == NVN_FORMAT_R11G11B10F &&
         src->format == VK_FORMAT_B10G11R11_UFLOAT_PACK32 && dst->format == VK_FORMAT_B10G11R11_UFLOAT_PACK32 &&
         (fd.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) &&
@@ -7838,13 +7867,14 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
 /// (hookshot) OoT's gameplay TAAU network (fd029a317a9a4b94) stood in for: its input upscaled into its output
 /// (shaders/taau_upscale.comp). The network's translation loses the blue channel, the yellow cast over every
 /// scene; with this the picture is right, without the network's temporal anti-aliasing.
-/// RX_VK_TAAU_KEYS=<program key prefixes,...> (default fd029a317a9a4b94; "-": none, the network runs)
+/// RX_VK_TAAU_KEYS=<program key prefixes,...> (default the game profile's, Ocarina's fd029a317a9a4b94; "-": none, the network runs)
 bool taau_key(uint64_t key) {
     // (the real network where the card runs it as the console does; on the software multiplies it cost most of a frame on AMD's cards, and a
     // locked 60 with this in its place: Hookshot issue 52)
     static const char* keys = getenv("RX_VK_TAAU_KEYS") ? getenv("RX_VK_TAAU_KEYS")
                               : Shader::Backend::SPIRV::mma_software || env_on("RX_VK_NO_F16")
-                                    ? "fd029a317a9a4b94" : "-";   // (RX_VK_NO_F16: vk_shader.cpp leaves the network out)
+                                    ? profile_keys("HOOKSHOT_PROFILE_TAAU_KEYS", GAME_UPSCALE_TAAU_KEYS)
+                                    : "-";   // (RX_VK_NO_F16: vk_shader.cpp leaves the network out)
     char hex[24];
     snprintf(hex, sizeof hex, "%016llx", (unsigned long long)key);
     bool match = false;
@@ -8083,7 +8113,8 @@ bool taau_stand_in(VkCommandBuffer cmd, const NvnState& s, const Program& p) {
     if (!handle) return false;
     texture_view_of(handle, VK_IMAGE_VIEW_TYPE_2D, ViewUse::Storage, image_format(od.format), &out, &level);
     if (!out || out->format != VK_FORMAT_B10G11R11_UFLOAT_PACK32) return false;
-    const char* keys = getenv("RX_VK_TAAU_KEYS") ? getenv("RX_VK_TAAU_KEYS") : "fd029a317a9a4b94";
+    const char* keys = getenv("RX_VK_TAAU_KEYS") ? getenv("RX_VK_TAAU_KEYS")
+                                                 : profile_keys("HOOKSHOT_PROFILE_TAAU_KEYS", GAME_UPSCALE_TAAU_KEYS);
     return typed_upscale(cmd, dw().imgs[0].imageView, dw().imgs[ntex].imageView, out, level, p.key, keys, true);
 }
 
