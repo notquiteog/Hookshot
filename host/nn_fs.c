@@ -276,6 +276,18 @@ HLE(_ZN2nn2fs18IsSaveDataExistingENS_13ApplicationIdERKNS_7account3UidE) {
              (unsigned long long)G64(ARG(1)));
     RET(GetFileAttributesA(root) != INVALID_FILE_ATTRIBUTES);
 }
+/* (hookshot) nn::fs::EnsureSaveData(account::Uid const&) -> Result: the user's save data is made if it is not there, as
+   MountSaveData's folder. Left to the lifted SDK it asked for the fs service proxy, which the runtime does not have (fs is
+   answered above IPC), and read through the null it got: Donkey Kong Bananza's nnMain (main+0x5c29a4) calls it before
+   its first mount, and with null guest reads faulting (#20, as on Windows and the console) it crashed at boot.
+   dkb-pc-recomp (github.com/Lucas-blip-png/dkb-pc-recomp, GPL-3.0-or-later) answers it the same way; the code is ours. */
+HLE(_ZN2nn2fs14EnsureSaveDataERKNS_7account3UidE) {
+    char root[HOS_FS_PATH];
+    snprintf(root, sizeof root, "%s\\save\\%016llx%016llx\\", hos_user_dir, (unsigned long long)G64(ARG(0) + 8),
+             (unsigned long long)G64(ARG(0)));
+    make_dirs(root);
+    RET(0);
+}
 /* MountSaveData(char const*, account::Uid const&) */
 HLE(_ZN2nn2fs13MountSaveDataEPKcRKNS_7account3UidE) {
     char sub[64];
