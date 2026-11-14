@@ -81,7 +81,7 @@ class Profile(object):
 
     def __init__(self, key, game, program_id=None, version=None, build_id=None, main_base=None,
                  patch_modules=(), code_patch_module=None, gfx=EMPTY_GFX, upscale=EMPTY_UPSCALE, hooks=EMPTY_HOOKS,
-                 npad_players=1, account_users=1, video_catchup=True, released=True, notes=""):
+                 npad_players=1, account_users=1, video_catchup=True, vk_parallel=None, released=True, graphics_scale=None, notes=""):
         self.key = key                                # HOOKSHOT_GAME=<this>
         self.game = game                              # the game's name, for logs
         self.program_id = program_id                  # as nx2/dump.py reports it
@@ -100,9 +100,17 @@ class Profile(object):
         # a movie skips pictures behind its clock (host/nn_video.c's catch-up, for Ocarina's intro and its sound); off
         # for a game whose movie player counts every picture it submitted
         self.video_catchup = video_catchup
+        # The renderer's parallel replay (gpu/vk/vk_replay.cpp par_threads): the threads that record one command buffer,
+        # as RX_VK_PARALLEL gives them, or None for the renderer's own default (off). It helps a game that hands over most
+        # of a frame in one command buffer and costs one that does not (docs/performance.md: Ocarina loses a fifth), so it
+        # is the game's. Handed to the renderer at run time (HOOKSHOT_PROFILE_VK_PARALLEL); RX_VK_PARALLEL still overrides
+        self.vk_parallel = vk_parallel
         # in the release: recomplauncher.json's games[] (nx2/game_folders.py released()). A profile main builds but the
         # release does not offer yet says False (docs/one-engine.md step 5: a game joins with its games[] row)
         self.released = released
+        # what nn::oe::GetCurrentGraphicsScale answers in w0: an enum, 0 the full scale, 1 x0.8, 2 x0.667 (host/nn_applet.c);
+        # None: the host's own answer (1, or 0 when an output size is set)
+        self.graphics_scale = graphics_scale
         self.notes = notes
 
     def __repr__(self):
@@ -166,6 +174,10 @@ DKB = Profile(
     # Built from main, not offered by the release yet: joining it (games[] in recomplauncher.json, and the builder
     # checking each game's copy, which the launcher's schema cannot yet) is a decision of its own (one-engine.md step 5)
     released=False,
+    # Bananza sizes its render targets by GetCurrentGraphicsScale's enum (main 0x8033e9b4 / 0x80569324 keep it as a mode
+    # byte, 0x803ad180 / 0x805695d0 index a float table {3, 12, 16} with it): with the host's 1 it drew at 80% of its
+    # 2880x1620 (2304x1296; scenes 1536x864 / 1676x943), with 0 at the full size (2880x1620; 1920x1080 / 2095x1179)
+    graphics_scale=0,
     notes="Identity measured on the dump; movie catch-up off (the guide player counts every picture).",
 )
 
@@ -327,6 +339,13 @@ def emit_header(profile=None):
     w("/* 1: a movie skips pictures behind its clock (host/nn_video.c; HOS_VIDEO_NO_CATCHUP=1 turns it off); 0: never, for")
     w("   a game whose movie player counts every picture it submitted */")
     w("#define GAME_VIDEO_CATCHUP %d" % (1 if p.video_catchup else 0))
+    w("")
+    w("/* the renderer's parallel replay threads (RX_VK_PARALLEL's default, handed over at run time as")
+    w("   HOOKSHOT_PROFILE_VK_PARALLEL by host/hos_main.c); -1: the renderer's own default (off) */")
+    w("#define GAME_VK_PARALLEL %d" % (-1 if p.vk_parallel is None else int(p.vk_parallel)))
+    w("")
+    w("/* what nn::oe::GetCurrentGraphicsScale answers in w0 (0 the full scale, 1 x0.8, 2 x0.667); -1: the host's own answer */")
+    w("#define GAME_GRAPHICS_SCALE %d" % (-1 if p.graphics_scale is None else int(p.graphics_scale)))
     w("")
     w("#endif /* GAME_PROFILE_H */")
     return "\n".join(out) + "\n"
