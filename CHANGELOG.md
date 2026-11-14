@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.3.0-rc.9](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.8...v2.3.0-rc.9) (2026-11-14)
+
+
+### Features
+
+* **launcher:** each game its own game folder, work folder and saves; Play takes --game &lt;key&gt; ([#19](https://github.com/notquiteog/Hookshot/issues/19)) ([69e1445](https://github.com/notquiteog/Hookshot/commit/69e14459b15353dcfa9cb3dd41cac3685b550538))
+
+
+### Performance Improvements
+
+* **vk:** the ASTC upload's BC1/BC3 choice reads the blocks as they are copied, not back from staging ([#39](https://github.com/notquiteog/Hookshot/issues/39)) ([f33ca75](https://github.com/notquiteog/Hookshot/commit/f33ca75d7336c1ebaaffa4d4cbf66607a1cfb0f6))
+
+## [2.3.0-rc.8](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.7...v2.3.0-rc.8) (2026-11-14)
+
+
+### Bug Fixes
+
+* **linux:** a headless run ends on SIGINT and SIGTERM again ([#27](https://github.com/notquiteog/Hookshot/issues/27)) ([0602531](https://github.com/notquiteog/Hookshot/commit/0602531e4d9129a1114f26dae67f88600e75c07b))
+
 ## [2.3.0-rc.7](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.6...v2.3.0-rc.7) (2026-11-14)
 
 
