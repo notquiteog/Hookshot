@@ -246,6 +246,11 @@ HLE(_ZN2nn5codec25MakeDecodeImagePreferenceEttNS0_24VideoDecoderOutputFormatENS0
     if (out) memcpy(GP(out), &p, sizeof p);
     RET(out);
 }
+/* (hookshot) the same preference's "ForCompat" twin, which Mario Kart World 1.0.0 (SDK 21.4) calls; mkw-recomp answers
+   both names with one function (adriadam10/mkw-recomp@5ff4fbb, runtime/sdk/ov/ov_codec.c, MIT, Copyright (c) 2026 Adria) */
+HLE(_ZN2nn5codec3sdk34MakeDecodeImagePreferenceForCompatEttNS0_24VideoDecoderOutputFormatENS0_9CodecModeE) {
+    imp__ZN2nn5codec25MakeDecodeImagePreferenceEttNS0_24VideoDecoderOutputFormatENS0_9CodecModeE(c);
+}
 HLE(_ZN2nn5codec26InitializeDecoderImagePoolEPNS0_25VideoDecoderImagePoolTypeEPvmRKNS0_27VideoDecoderImagePreferenceEjNS0_9CodecModeE) {
     const Pref20 *p = (const Pref20 *)GP(ARG(3));
     const int ok = p->magic == PREF20_MAGIC;
@@ -835,19 +840,24 @@ static void dec_release(Ctx *c) {
     if (d && (uint32_t)ARG(1) < MAX_SLOTS) d->busy[(uint32_t)ARG(1)] = 0;
     RET(0);
 }
-/* GetXDecoderOutputBufferProperties(u16* w, u16* h, u16* display w, u16* display h, TimeSpan* pts, bool* last,
-   decoder, u32 index) */
-static void dec_properties(Ctx *c) {
-    Dec *d = (Dec *)host_of(ARG(6), DEC_MAGIC);
-    const uint32_t i = (uint32_t)ARG(7);
+/* GetXDecoderOutputBufferProperties(u16* w, u16* h, u16* display w, u16* display h[, ColorSpace*], TimeSpan* pts,
+   bool* last, decoder, u32 index). colour_space is the ColorSpace pointer's argument (the older SDK's form, Mario Kart
+   World 1.0.0), or -1 where the call has none; with it the index is the ninth argument, on the guest stack */
+static void dec_properties_cs(Ctx *c, int colour_space);
+static void dec_properties(Ctx *c) { dec_properties_cs(c, -1); }
+static void dec_properties_cs(Ctx *c, int colour_space) {
+    const int k = colour_space < 0 ? 0 : 1;
+    Dec *d = (Dec *)host_of(ARG(6 + k), DEC_MAGIC);
+    const uint32_t i = k ? G32(c->x[31]) : (uint32_t)ARG(7);
+    if (k && ARG(colour_space)) G32(ARG(colour_space)) = 0;   /* (the default colour space, as mkw-recomp answers) */
     const Pool *o = d && i < MAX_SLOTS ? (const Pool *)host_of(d->slots[i], POOL_MAGIC) : NULL;
     const uint16_t w = o ? (uint16_t)o->w : 0, h = o ? (uint16_t)o->h : 0;
     if (ARG(0)) *(uint16_t *)GP(ARG(0)) = w;
     if (ARG(1)) *(uint16_t *)GP(ARG(1)) = h;
     if (ARG(2)) *(uint16_t *)GP(ARG(2)) = w;
     if (ARG(3)) *(uint16_t *)GP(ARG(3)) = h;
-    if (ARG(4)) G64(ARG(4)) = d && i < MAX_SLOTS ? (uint64_t)d->slot_pts[i] : 0;
-    if (ARG(5)) *(uint8_t *)GP(ARG(5)) = d && i < MAX_SLOTS ? (uint8_t)d->slot_last[i] : 0;
+    if (ARG(4 + k)) G64(ARG(4 + k)) = d && i < MAX_SLOTS ? (uint64_t)d->slot_pts[i] : 0;
+    if (ARG(5 + k)) *(uint8_t *)GP(ARG(5 + k)) = d && i < MAX_SLOTS ? (uint8_t)d->slot_last[i] : 0;
     {   /* (HOS_VIDEO_LOG) the first times the game is told a picture is the last */
         static volatile LONG n;
         if (video_log() && d && i < MAX_SLOTS && d->slot_last[i] && InterlockedIncrement(&n) <= 8)
@@ -907,6 +917,8 @@ HLE(_ZN2nn5codec36SubmitEncryptedVp9DecoderInputBufferEPmPNS0_14Vp9DecoderTypeEP
 HLE(_ZN2nn5codec29AcquireVp9DecoderOutputBufferEPjPNS_2gs16NativeSyncHandleEPNS0_14Vp9DecoderTypeE) { dec_acquire(c); }
 HLE(_ZN2nn5codec29ReleaseVp9DecoderOutputBufferEPNS0_14Vp9DecoderTypeEjNS_2gs16NativeSyncHandleE) { dec_release(c); }
 HLE(_ZN2nn5codec35GetVp9DecoderOutputBufferPropertiesEPtS1_S1_S1_PNS_8TimeSpanEPbPNS0_14Vp9DecoderTypeEj) { dec_properties(c); }
+/* (hookshot) the older SDK's, with a ColorSpace pointer after the sizes (Mario Kart World 1.0.0; mkw-recomp's signature) */
+HLE(_ZN2nn5codec35GetVp9DecoderOutputBufferPropertiesEPtS1_S1_S1_PNS_5movie10ColorSpaceEPNS_8TimeSpanEPbPNS0_14Vp9DecoderTypeEj) { dec_properties_cs(c, 4); }
 
 /* (hookshot) AV1: OoT's movies. FFmpeg's AV1 decoder if the build has one, else dav1d (host/dav1d_av1.c) when the build has
    it, else Media Foundation (host/mf_av1.c).
@@ -932,6 +944,14 @@ HLE(_ZN2nn5codec35GetAv1DecoderOutputBufferPropertiesEPtS1_S1_S1_PNS_8TimeSpanEP
 /* VP8 */
 HLE(_ZN2nn5codec36InitializeVp8DecoderByTransferMemoryEPNS0_14Vp8DecoderTypeEPvmmttjNS0_23VideoDecoderInputFormatENS0_24VideoDecoderOutputFormatENS0_22VideoDecoderOutputModeE) { dec_init(c, AV_CODEC_ID_VP8, "VP8"); }
 HLE(_ZN2nn5codec34InitializeVp8DecoderByRemoteMemoryEPNS0_14Vp8DecoderTypeEmttjNS0_23VideoDecoderInputFormatENS0_24VideoDecoderOutputFormatENS0_22VideoDecoderOutputModeE) { dec_init(c, AV_CODEC_ID_VP8, "VP8"); }
+/* (hookshot) the older SDK's forms, as for VP9 above: with work memory (decoder, void*, size_t, size_t, u16 w, u16 h, ...)
+   or without (decoder, size_t, size_t, u16 w, u16 h, ...). Mario Kart World 1.0.0 imports both; mkw-recomp's signatures */
+HLE(_ZN2nn5codec20InitializeVp8DecoderEPNS0_14Vp8DecoderTypeEPvmmttjNS0_23VideoDecoderInputFormatENS0_24VideoDecoderOutputFormatE) {
+    dec_init_sized(c, AV_CODEC_ID_VP8, "VP8", (int)(uint16_t)ARG(4), (int)(uint16_t)ARG(5));
+}
+HLE(_ZN2nn5codec20InitializeVp8DecoderEPNS0_14Vp8DecoderTypeEmmttjNS0_23VideoDecoderInputFormatENS0_24VideoDecoderOutputFormatE) {
+    dec_init_sized(c, AV_CODEC_ID_VP8, "VP8", (int)(uint16_t)ARG(3), (int)(uint16_t)ARG(4));
+}
 HLE(_ZN2nn5codec18FinalizeVp8DecoderEPNS0_14Vp8DecoderTypeE) { dec_finalize(c); }
 HLE(_ZN2nn5codec24RegisterVp8DecoderBufferEPNS0_14Vp8DecoderTypeEjPNS0_25VideoDecoderImagePoolTypeEj) { dec_register(c); }
 HLE(_ZN2nn5codec26UnregisterVp8DecoderBufferEPNS0_14Vp8DecoderTypeEj) { dec_unregister(c); }
