@@ -61,9 +61,12 @@ Also fixed on the way, because they would have bitten any second game: saves in 
    Each is the pass's value word for word, so taking the pushed bytes would draw the same picture. The HLE now checks
    every push against what the pass gives and logs once when a game pushes something else
    (`HOS_NVN_PUSH_LOG=1`: the counts). The sizes are 80% of the game's 2880x1620: see 4.
-2. **Virtual-core waits** of 200-850 ms appeared once, with the PC loaded (load average 79). dkb-pc-recomp lists 23
-   recursive spin-lock loops in 3.2.0 main that stall heap and RomFS loads under virtual cores. Measure on an idle PC
-   before acting.
+2. **Virtual-core waits: not real on an idle PC.** Waits of 200-850 ms appeared once with the PC loaded (load average 79).
+   Measured again in a quiet window (2026-11-14, first start, the tunnel, the guide and about 8 minutes of play, the
+   load sampled every 10 s): at load 10 or less the longest wait in each 5-second window had a median of 3.0 ms, three
+   windows reached 50 ms or more (167.8 ms in the first start's load, 111.5 and 90.0 ms in play), none 200 ms. While a
+   test suite ran beside it (load 13-50) the median rose to 21 ms, with a worst of 117.6 ms. The 23 recursive spin-lock
+   loops dkb-pc-recomp lists in 3.2.0 main are not worth patching on this evidence.
 3. **Add-on content**: `aoc::CountAddOnContent` is the generic stub's 0, so the DLC (mounted as "EmeraldRush" on a
    console) is not offered. Not needed to play the base game.
 4. **`oe::GetCurrentGraphicsScale`: Bananza renders at 80%.** The host answers Ocarina's enum 1 (x0.8) unless an output
