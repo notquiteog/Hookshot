@@ -1783,14 +1783,19 @@ void maybe_split(VkCommandBuffer& cmd) {
     if (split_off || !rec_cur || every <= 0 || ++part_work < every || rec_parts + 1 >= kMaxParts || dump_on()) return;
     end_pass(cmd);
     // (a part's end does not write the stream's uniform updates recorded so far into guest memory, nor start a new window
-    // of them: the submission's last part writes them all, as an unsplit submission does (finish_recording). Written at
-    // each part's end, the draws of the later parts that read those ranges from guest memory saw a state an unsplit
-    // submission never shows: on Intel, white blocks and haze at Kokiri, and a whole-screen white flash every 8 frames on
-    // the Arc 140V (issue 999). Measured on Intel only, so the default there; RX_VK_SPLIT_UBFLUSH=1: written at each part's
-    // end, as before, =0: at the last part's on any GPU)
+    // of them: the submission's last part writes them all, as an unsplit submission does (finish_recording) and as the
+    // parallel replay does. A uniform binding is not what changes: one overlapping an update gets an overlay copy built
+    // from the whole list (ub_overlay), the same bytes either way. What changes is everything else that reads guest memory
+    // after a part's end: a later part's storage, vertex, index or texture reads of an updated range, and, on a GPU whose
+    // buffer pools have no VRAM mirror, the game's own CPU reads, since the GPU then writes the memory the game sees partway
+    // through its frame. Written at each part's end, on Intel without mirrors: white blocks and flashes at Kokiri, and
+    // a whole-screen white flash every 8 frames on the Arc 140V (https://github.com/NotRexed/Hookshot/issues/999).
+    // Measured on an Intel iGPU only (no mirrors), so the default there; with mirrors (Arc discrete) the write goes to the
+    // mirror, and it was not tested there: left as before. RX_VK_SPLIT_UBFLUSH=1: written at each part's end, as before,
+    // =0: at the last part's on any GPU)
     static const bool part_flush = [] {
         const char* e = getenv("RX_VK_SPLIT_UBFLUSH");
-        return e ? env_on("RX_VK_SPLIT_UBFLUSH") : dev.props.vendorID != 0x8086;
+        return e ? env_on("RX_VK_SPLIT_UBFLUSH") : dev.props.vendorID != 0x8086 || pools_mirrored();
     }();
     if (part_flush) flush_ub_updates(cmd);
     memory_end_submission(cmd, rec_cur->part);
