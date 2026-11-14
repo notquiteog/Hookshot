@@ -107,13 +107,30 @@ def check_dev_packs():
     spec.loader.exec_module(packs)
     with tempfile.TemporaryDirectory(prefix="longshot-vk-pgo-base-") as work:
         prof = os.path.join(work, make_game.VK_PROFILE)
+        shipped = os.path.join(work, make_game.VK_PROFILE_UNPACKED)
         check("a base with no profile: a renderer pack is built with none", packs.renderer_profile(work, {}) == {})
+        # (a base of main: make_game.py unpacked the committed profile and built with it)
+        with open(shipped, "wb") as f:
+            f.write(b"committed profile")
+        check("a base built with the committed profile: a renderer pack is built with it too, by the base's path",
+              packs.renderer_profile(work, {}) == {"RX_VK_PGO": shipped})
         with open(prof, "wb") as f:
             f.write(b"profile")
-        check("a renderer pack is built with its base's profile, by the base's path", packs.renderer_profile(work, {}) == {"RX_VK_PGO": prof})
+        check("a base whose checkout had its own profile: that one, as make_game.py chose it",
+              packs.renderer_profile(work, {}) == {"RX_VK_PGO": prof})
         check("a counting pack stays one", packs.renderer_profile(work, {"RX_VK_PGO": "gen"}) == {})
+    # (what a pack builds: a profile switch set for it builds, even with no file changed)
+    for how, env, want, why in ((None, {}, None, "no change, no switch: nothing to build"),
+                                (None, {"RX_VK_PGO": "gen"}, "renderer", "a counting renderer of an unchanged tree is built"),
+                                (None, {"RX_VK_PGO": "/other.profdata"}, "renderer", "another renderer profile is built"),
+                                ("game", {"RX_VK_PGO": "gen"}, "game", "a game change still builds both modules"),
+                                ("renderer", {}, "renderer", "a renderer change, as before"),
+                                (None, {"RX_PGO": "gen"}, "game", "the game's counting build of an unchanged tree is built"),
+                                ("renderer", {"RX_PGO": "/p.prof"}, "game", "a game profile builds the game")):
+        check("pack_route: " + why, packs.pack_route(how, env) == want)
     text = (ROOT / "scripts" / "dev_packs.py").read_text(encoding="utf-8")
     check("the renderer's own build takes it", '**renderer_profile(b["work"], os.environ)' in text)
+    check("cmd_pack routes through pack_route", "how = pack_route(route(changed, tree), os.environ)" in text)
 
 
 def check_writer():

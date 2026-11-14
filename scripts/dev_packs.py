@@ -308,12 +308,31 @@ def base_env(predict_s):
 
 
 def renderer_profile(base_work, environ):
-    """The renderer's play profile for a pack of the renderer alone: the one make_game.py gave the base's build
-    (<base work>/hookshot_vk.profdata, by the same path, so the base's objects are found again), since nx2/build.py run by
-    itself uses none and the pack's renderer would then differ from the base's by more than the change. Nothing when the base
-    had none, or when RX_VK_PGO is set (a counting pack, or another profile)"""
-    prof = os.path.join(base_work, "hookshot_vk.profdata")
-    return {"RX_VK_PGO": prof} if not environ.get("RX_VK_PGO") and os.path.isfile(prof) else {}
+    """The renderer's play profile for a pack of the renderer alone: the one make_game.py gave the base's build, by the same
+    path, so the base's objects are found again, since nx2/build.py run by itself uses none and the pack's renderer would then
+    differ from the base's by more than the change. That is <base work>/hookshot_vk.profdata when the base's checkout had its
+    own, else the committed one make_game.py unpacked there (hookshot_vk.shipped.profdata: every base of main since the
+    profile was committed; before this looked for the first name only, every renderer pack of such a base was built without
+    the profile its base had). Nothing when the base had none, or when RX_VK_PGO is set (a counting pack, or another profile)"""
+    if environ.get("RX_VK_PGO"):
+        return {}
+    for name in ("hookshot_vk.profdata", "hookshot_vk.shipped.profdata"):
+        prof = os.path.join(base_work, name)
+        if os.path.isfile(prof):
+            return {"RX_VK_PGO": prof}
+    return {}
+
+
+def pack_route(how, environ):
+    """What a pack builds: route()'s answer for the changed files, except that a profile switch set for this pack makes it build
+    even when no file changed. RX_VK_PGO (gen: a renderer that counts, for recording its profile; or another profile) builds
+    the renderer; RX_PGO (the game's hot pieces) the game. Before, `RX_VK_PGO=gen dev_packs.py pack` of an unchanged tree said
+    "nothing to build" and the pack held the base's ordinary renderer: a recording with it wrote nothing"""
+    if environ.get("RX_PGO"):
+        return "game"
+    if environ.get("RX_VK_PGO") and how is None:
+        return "renderer"
+    return how
 
 
 def prepare(game, b):
@@ -454,7 +473,7 @@ def cmd_pack(a):
     if subprocess.run(["git", "-C", tree, "merge-base", "--is-ancestor", b["commit"], "HEAD"]).returncode:
         sys.exit("%s is not built on the base %s: rebase it on the base, or make a new base" % (tree, b["commit"][:8]))
     changed = changed_files(tree, b["commit"])
-    how = route(changed, tree)
+    how = pack_route(route(changed, tree), os.environ)
     pack = os.path.join(d, "packs", a.name)
     if os.path.isdir(pack):   # (what an earlier build of this pack brought goes: this one says again what differs)
         shutil.rmtree(pack)
