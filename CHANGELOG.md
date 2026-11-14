@@ -1,5 +1,50 @@
 # Changelog
 
+## [2.3.0-rc.13](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.12...v2.3.0-rc.13) (2026-11-14)
+
+
+### Bug Fixes
+
+* **release:** a file with no digest yet is hashed, not a 404 that ends the upload ([#49](https://github.com/notquiteog/Hookshot/issues/49)) ([af05c99](https://github.com/notquiteog/Hookshot/commit/af05c99bf56178266fa829fe1d3a648417c65aed))
+
+
+### Documentation
+
+* **worklist:** where the memory row's 13.5 GB of RSS is ([#50](https://github.com/notquiteog/Hookshot/issues/50)) ([aa67a9f](https://github.com/notquiteog/Hookshot/commit/aa67a9fb2f4400edcff8901ddd6fb06e1bec8922))
+
+## [2.3.0-rc.12](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.11...v2.3.0-rc.12) (2026-11-14)
+
+
+### Bug Fixes
+
+* **runtime:** a moving floor carries Link above 100 fps as at 60 ([#25](https://github.com/notquiteog/Hookshot/issues/25)) ([f54dc31](https://github.com/notquiteog/Hookshot/commit/f54dc315ad50350b1a74ec34a55b14dcdc96594d))
+
+
+### Documentation
+
+* Donkey Kong Bananza plays from main alone, and its page moves here from the fork ([#46](https://github.com/notquiteog/Hookshot/issues/46)) ([0e63f92](https://github.com/notquiteog/Hookshot/commit/0e63f925694d8877962597abac2f92e08405e178))
+* **worklist:** the memory row measured over a 42-minute session on main ([#48](https://github.com/notquiteog/Hookshot/issues/48)) ([07d84c5](https://github.com/notquiteog/Hookshot/commit/07d84c551ce943165fe9e3cb74aae78877c2e00b))
+
+## [2.3.0-rc.11](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.10...v2.3.0-rc.11) (2026-11-14)
+
+
+### Bug Fixes
+
+* **control:** a bench run or a launch never leaves its game running ([#34](https://github.com/notquiteog/Hookshot/issues/34)) ([1766ce0](https://github.com/notquiteog/Hookshot/commit/1766ce0ab2def32a71d017089205da0a15a375ad))
+
+## [2.3.0-rc.10](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.9...v2.3.0-rc.10) (2026-11-14)
+
+
+### Features
+
+* **profile:** Donkey Kong Bananza 3.2.0, with the movie catch-up off for its guide player ([#42](https://github.com/notquiteog/Hookshot/issues/42)) ([b820af9](https://github.com/notquiteog/Hookshot/commit/b820af98bbfccd04debd455fcb336fd168a23906))
+
+
+### Bug Fixes
+
+* **fs:** answer EnsureSaveData, which crashed Donkey Kong Bananza at boot once null reads fault ([#40](https://github.com/notquiteog/Hookshot/issues/40)) ([1195b90](https://github.com/notquiteog/Hookshot/commit/1195b90ae31dec4a78e97a28bdf3559113c05ce3))
+* **video:** every submission fills one buffer: an early acquire is reserved, and the end has its own picture ([#41](https://github.com/notquiteog/Hookshot/issues/41)) ([2fcc3d0](https://github.com/notquiteog/Hookshot/commit/2fcc3d0b753d9ebd868a1a2b4374acba2e34eab5))
+
 ## [2.3.0-rc.9](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.8...v2.3.0-rc.9) (2026-11-14)
 
 

@@ -134,12 +134,21 @@ links() {   # tag [id] -> big links to the Windows setup and the Linux AppImage 
 
 sums() {   # release id -> SHA256SUMS of the release's other files, sorted by name
     local list name digest asset dir
-    list=$(assets "$1" | jq -r '.[] | select(.name != "SHA256SUMS") | "\(.name)\t\(.digest // "")\t\(.id)"' | LC_ALL=C sort)
+    # (fields split by the unit separator, not tabs: a tab is whitespace to read, so the two of a file with no digest
+    # yet were one, the id read as its digest and the id left empty, and the read of releases/assets/ was a 404 that
+    # ended the run with its files uploaded: CI runs 43619534643 and 43625307765, each a file just uploaded)
+    list=$(assets "$1" | jq -r '.[] | select(.name != "SHA256SUMS") | "\(.name)\u001f\(.digest // "")\u001f\(.id)"' |
+        LC_ALL=C sort)
     [[ -n $list ]] || return 0
-    while IFS=$'\t' read -r name digest asset; do
+    while IFS=$'\x1f' read -r name digest asset; do
         if [[ ! $digest =~ ^sha256:[0-9a-f]{64}$ ]]; then
             dir=$(mktemp -d)
-            gh api -H 'Accept: application/octet-stream' "repos/$GH_REPO/releases/assets/$asset" >"$dir/file"
+            # (left out when it is gone since the listing: the nightly's other platform's run replaces its files, under
+            # new ids, while this one lists them; finish's next round lists the new one)
+            if ! gh api -H 'Accept: application/octet-stream' "repos/$GH_REPO/releases/assets/$asset" >"$dir/file"; then
+                rm -rf "$dir"
+                continue
+            fi
             digest=sha256:$(sha256sum "$dir/file" | cut -d' ' -f1)
             rm -rf "$dir"
         fi

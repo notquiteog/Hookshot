@@ -53,8 +53,9 @@ def folder(base, key):
 
 
 def released():
-    """The profiles a release builds: every profile that names a build (the empty one, NONE, builds nothing)"""
-    return [p for p in game_profile.GAMES.values() if p.build_id]
+    """The profiles a release offers: every profile that names a build (the empty one, NONE, builds nothing) and is in
+    the release (a profile main builds but the release does not offer yet says released=False)"""
+    return [p for p in game_profile.GAMES.values() if p.build_id and getattr(p, "released", True)]
 
 
 def launcher_games(profiles=None, home="{home}/Games/Hookshot", local="{local}"):
