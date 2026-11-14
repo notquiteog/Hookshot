@@ -53,6 +53,10 @@ import win_manifest
 
 NX2_RT = os.path.join(kit.HERE, "rt")
 HOST = os.path.join(kit.HERE, "..", "host")
+# game/: the game profile's C view (game/game_profile.h, generated from nx2/game_profile.py; Ocarina's). A
+# standalone lift writes the dump's own profile to <work>/sa/game, which the runtime reads first: the runtime is compiled
+# for the game it runs. The renderer is built once for every game, with game/'s, and is handed the runtime's keys.
+GAME = os.path.join(kit.HERE, "..", "game")
 OPUS = os.path.join(kit.HERE, "..", "third_party", "opus")
 ZSTD = os.path.normpath(os.path.join(kit.HERE, "..", "third_party", "zstd", "lib"))
 ZSTD_HOST = ("prompts.c", "hos_zstd.c")   # (the host files that use it: a mod's size table; the game's stream decode)
@@ -1161,6 +1165,12 @@ def compile_one(job):
     return src, time.time() - t, None
 
 
+def game_profile_bytes(folder):
+    """a game profile header as a dependency: a profile change rebuilds what reads it, and nothing else"""
+    with open(os.path.join(folder, "game_profile.h"), "rb") as f:
+        return f.read()
+
+
 def main():
     kit.wait_for_quiet('the compile')
     p = argparse.ArgumentParser()
@@ -1178,6 +1188,10 @@ def main():
     out = os.path.join(sa if a.standalone else kit.WORK, "build")
     obj_dir = os.path.join(out, "obj")
     gen_dir = os.path.join(out, "gen")   # (the logo and the fonts the Vulkan back end compiles in: made with it, below)
+    game_dir = os.path.join(sa, "game") if a.standalone else GAME   # (the lift's game profile, else game/'s)
+    if not os.path.isfile(os.path.join(game_dir, "game_profile.h")):
+        game_dir = GAME
+    print("game profile: %s" % os.path.normpath(os.path.join(game_dir, "game_profile.h")), flush=True)
     os.makedirs(obj_dir, exist_ok=True)
     load_hashes(out)
     if kit.env_on("RX_VK_ONLY") or a.dry_run:   # (the Vulkan back end needs no game: built so with no lift, as the AppImage's is)
@@ -1268,9 +1282,10 @@ def main():
         sum(1 for x in srcs if os.path.basename(x).startswith("code_"))), flush=True)
     # the runtime: ordinary C at -O2, with its own headers (any host/*.h change rebuilds all of it)
     host_fl = target() + CPU + (["-I" + POSIX, "-D_GNU_SOURCE"] if LINUX else []) + \
-        ["-I" + HOST, "-I" + rt64, "-I" + gen, "-Wno-everything", "-O2", "-g0", "-mcx16", "-DA64_POLLING"] + WRITE_TRACK
+        ["-I" + HOST, "-I" + game_dir, "-I" + GAME, "-I" + rt64, "-I" + gen, "-Wno-everything", "-O2", "-g0", "-mcx16",
+         "-DA64_POLLING"] + WRITE_TRACK
     host_deps = deps + b"".join(open(os.path.join(HOST, f), "rb").read() for f in sorted(os.listdir(HOST))
-                                if f.endswith(".h"))
+                                if f.endswith(".h")) + game_profile_bytes(game_dir)
     if LINUX:
         host_deps += b"".join(open(os.path.join(POSIX, f), "rb").read() for f in sorted(os.listdir(POSIX)) if f.endswith(".h"))
     host_deps += open(os.path.join(GPU, "vk", "vk_api.h"), "rb").read()   # (the renderer ABI used by host/rx_backend.c)
@@ -1390,7 +1405,7 @@ def main():
             "-I" + os.path.join(vk, "sirit", "include"), "-I" + os.path.join(vk, "sirit", "src"),
             "-I" + os.path.join(spirv_headers, "include"), "-I" + os.path.join(spirv_headers, "include", "spirv", "unified1"),
             "-I" + os.path.join(vk_headers, "include"), "-I" + os.path.join(vma_headers, "include"),
-            "-I" + vk, "-I" + gen_dir,
+            "-I" + vk, "-I" + gen_dir, "-I" + os.path.join(kit.ROOT, "game"),   # (game/game_profile.h, GAME)
             "-I" + os.path.join(kit.ROOT, "third_party", "zbic")]
         # (NVIDIA DLSS, a local build's option: scripts/ngx_sdk.py. Only vk_dlss.cpp sees NVIDIA's headers; without them
         # it is the stubs that say DLSS is not there)
@@ -1411,7 +1426,7 @@ def main():
         vk_lib_deps = tree_headers(os.path.join(vk, "eden"), os.path.join(vk, "sirit"), os.path.join(vk, "compat"),
                                    os.path.join(GPU, "compat"))
         vdeps = tree_headers(vk, os.path.join(GPU, "render"), os.path.join(GPU, "compat"),
-                             os.path.join(GPU, "third_party", "suyu", "video_core", "textures"))
+                             os.path.join(GPU, "third_party", "suyu", "video_core", "textures"), os.path.join(kit.ROOT, "game"))
         opennr, opennr_ptx, opennr_count = opennr_jobs(cxx, vk, gen_dir, obj_dir, vflags, vdeps)
         print("vk: open neural rendering (OpenDLSS-NR): %s" % (("compiled in, %d PTX kernels" % opennr_count) if opennr
                                                                else "left out (no third_party/opendlss-nr)"))
