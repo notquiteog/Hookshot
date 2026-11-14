@@ -540,6 +540,22 @@ SOLVER_NEW = SOLVER_OLD.replace(
     "    recomp_store32(", "    c->x[1]=hos_oot_solver_steps((uint32_t)c->x[1], (uint32_t)c->vreg[0][0], (uint32_t)c->vreg[1][0]);"
     "   /* (nx2/oot_patches.py: solver steps rounded up above 60 fps) */\n    recomp_store32(", 1)
 SOLVER_DECL = "extern uint32_t hos_oot_solver_steps(uint32_t game, uint32_t scaled_bits, uint32_t per_frame_bits);\n"
+# Floors that carry Link (host/oot_high_fps.h oot_floor_cut has why): the character controller's three follow-surface updates,
+# f_8015d490 (CharacterUpdateFollowSurface), f_80159dc0 (CharacterUpdateFollowSurfaceExtension) and f_838baa40
+# (CharacterUpdateDynamicFollowSurface), each compare the physics' inverse step (s0) with 100.0 and, above it, keep a tenth of
+# the floor's velocity (the goto). The 100.0 they compare with becomes hos_oot_floor_cut's; x8 keeps the game's value. After
+# NX2navi (chrg6) commit c84724d, used with its author's permission. (A site's function and the label of its tenth.)
+FLOOR_SITES = (("void f_8015d490(Ctx *__restrict A64_NOESC c) {\n", "L_8015dad4"),
+               ("void f_80159dc0(Ctx *__restrict A64_NOESC c) {\n", "L_8015a39c"),
+               ("void f_838baa40(Ctx *__restrict A64_NOESC c) {\n", "L_838baf24"))
+FLOOR_OLD = ("    c->x[8] = 0x42c80000ULL;\n"
+             "    c->x[8] &= 0xFFFFFFFFULL;\n"
+             "    { a64_vset64(c->vreg[1],0); memcpy(&c->vreg[1][0],&c->x[8],4); }\n")
+FLOOR_NEW = ("    c->x[8] = 0x42c80000ULL;\n"
+             "    c->x[8] &= 0xFFFFFFFFULL;\n"
+             "    { a64_vset64(c->vreg[1],0); const uint32_t _cut = hos_oot_floor_cut((uint32_t)c->vreg[0][0]); "
+             "memcpy(&c->vreg[1][0],&_cut,4); }   /* (nx2/oot_patches.py: a moving floor carries Link above 100 fps) */\n")
+FLOOR_DECL = "extern uint32_t hos_oot_floor_cut(uint32_t inverse_step_bits);\n"
 
 
 def _function(s, head_text):
@@ -587,6 +603,32 @@ def patch_solver_steps(s):
             done += 1
     if done and SOLVER_DECL not in s:
         s = s.replace('#include "a64.h"\n', '#include "a64.h"\n' + SOLVER_DECL, 1)
+    return s, done
+
+
+def patch_floor_carry(s):
+    """The floor-carry gates of FLOOR_SITES: (s, how many of them are in s with the hook, made now or before). A site whose
+    function is not here, or whose code differs (another game version), is left as it is."""
+    done = 0
+    for head_text, label in FLOOR_SITES:
+        at = _function(s, head_text)
+        if at is None:
+            continue
+        head, end = at
+        body = s[head:end]
+        if body.count(FLOOR_NEW) == 1:
+            done += 1
+            continue
+        if body.count(FLOOR_OLD) != 1:
+            continue
+        i = body.index(FLOOR_OLD) + len(FLOOR_OLD)
+        after = body[i:body.find("\n", body.find("\n", i) + 1) + 1]   # (the fcmp, then the branch to the tenth)
+        if "a64_fcmp32(c,c->vreg[0],c->vreg[1])" not in after or "{ goto %s; }" % label not in after:
+            continue
+        s = s[:head] + body.replace(FLOOR_OLD, FLOOR_NEW, 1) + s[end:]
+        done += 1
+    if done and FLOOR_DECL not in s:
+        s = s.replace('#include "a64.h"\n', '#include "a64.h"\n' + FLOOR_DECL, 1)
     return s, done
 
 
@@ -939,6 +981,11 @@ def patch_file(s, name, protect_hearts=False):
     if solver != out:
         lines.append("oot_patches: the solver steps rounded up above 60 fps in " + name)
     out = solver
+    floor, found = patch_floor_carry(out)
+    counts["floor sites"] += found
+    if floor != out:
+        lines.append("oot_patches: %d floor-carry gate(s) follow the frame rate in %s" % (found, name))
+    out = floor
     return out, counts, lines
 
 
@@ -979,6 +1026,8 @@ def report(paths, counts, protect_hearts=False):
         print("oot_patches: WARNING: the sound job was found %d times, not once" % total["sound jobs"])
     if total["solver sites"] != len(SOLVER_HEADS):   # (without them, above 60 fps moving platforms can drop Link)
         print("oot_patches: WARNING: the solver step count was found at %d of %d places" % (total["solver sites"], len(SOLVER_HEADS)))
+    if total["floor sites"] != len(FLOOR_SITES):   # (without them, above 100 fps a moving floor leaves Link behind)
+        print("oot_patches: WARNING: the floor-carry gate was found at %d of %d places" % (total["floor sites"], len(FLOOR_SITES)))
     for what, n in done.items():
         if n != 1:
             print("oot_patches: WARNING: the %s was found %d times" % (what, n))
