@@ -1458,8 +1458,19 @@ void maybe_split(VkCommandBuffer& cmd) {
 // (hookshot) One cause of those is gone: the dry pass did not mark the targets of a clear (NOP_CLEAR_COLOR in replay()). With
 // that, Castle Town's market and eight other places showed no black frame on 3 to 8 threads; the Kakariko walk was not run
 // again, so it stays off. On a 9950X3D the replay's wall time in the market goes from 10.9 ms a frame to 7.75 on 3 threads.
+// (hookshot) The default is the game profile's (nx2/game_profile.py vk_parallel), which the runtime hands over as
+// HOOKSHOT_PROFILE_VK_PARALLEL ("-": none, the renderer's own default, off). Mario Kart World 1.0.0 records most of a frame
+// in one command buffer: on 4 threads its race went from 54-55 to 58-59 fps (median) and its replay thread from 0.64 to 0.35
+// of a core (RTX 5060 Ti, Linux). RX_VK_PARALLEL, when set, is the player's and wins
 int par_threads() {
-    static const int n = std::clamp(getenv("RX_VK_PARALLEL") ? atoi(getenv("RX_VK_PARALLEL")) : 0, 0, 8);
+    static const int n = [] {
+        const char* e = getenv("RX_VK_PARALLEL");
+        if (!e) {
+            const char* p = getenv("HOOKSHOT_PROFILE_VK_PARALLEL");
+            if (p && *p && *p != '-') e = p;
+        }
+        return std::clamp(e ? atoi(e) : 0, 0, 8);
+    }();
     return n;
 }
 struct ParPool {
@@ -5180,7 +5191,9 @@ void fill_replay_table(MkwVkRenderer& t) {
         if (id == HOS_OPT_CAMERA_SPEED) return opts.camera_speed;
         if (id == HOS_OPT_PROMPTS) return opts.prompts;
         if (id == HOS_OPT_FOV) return opts.fov;
+        if (id == HOS_OPT_DAMAGE_TAKEN) return menu_damage_taken();
         if (id == HOS_OPT_SKIP_OPENING) return opts.skip_opening;
+        if (id == HOS_OPT_FPS_CAP) return opts.fps_cap;
         return id == 0 ? opts.realtime : id == 1 ? menu_is_open() : id == 2 ? resolution_auto() && !temporal_full_scale() : id == 3 ? (temporal_full_scale() ? 10000 : resolution_scale()) : id == 4 ? opts.pad_background : id == 5 ? opts.text_speed : id == 6 ? opts.mouse_native :
                id == 7 ? opts.mouse_sens : id == 8 ? opts.mouse_invert : id == 9 ? opts.rumble : id == 16 ? opts.invert_cam_x : id == 17 ? opts.invert_cam_y : id == HOS_OPT_GYRO ? opts.gyro : id == HOS_OPT_GYRO_SENS_X ? opts.gyro_sens_x : id == HOS_OPT_GYRO_SENS_Y ? opts.gyro_sens_y : id == HOS_OPT_GYRO_INV_X ? opts.gyro_inv_x : id == HOS_OPT_GYRO_INV_Y ? opts.gyro_inv_y : id == HOS_OPT_GYRO_DEADZONE ? opts.gyro_deadzone :
                id == HOS_OPT_DLSS_JITTER_W || id == HOS_OPT_DLSS_JITTER_H || id == HOS_OPT_DLSS_JITTER_PHASES ? jitter_option(id) : 0;

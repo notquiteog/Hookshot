@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.3.0-rc.15](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.14...v2.3.0-rc.15) (2026-11-14)
+
+
+### Features
+
+* **vk:** the parallel replay's default is the game profile's, handed to the renderer at run time ([#55](https://github.com/notquiteog/Hookshot/issues/55)) ([2c46057](https://github.com/notquiteog/Hookshot/commit/2c4605773f5bab727a08497cce100aa19e386443))
+
+
+### Documentation
+
+* **longshot:** name each pick's author, which [#29](https://github.com/notquiteog/Hookshot/issues/29)'s squash kept for 3 of 12 ([#53](https://github.com/notquiteog/Hookshot/issues/53)) ([bb08123](https://github.com/notquiteog/Hookshot/commit/bb081232b89f6ffdfba9631365522d74a1c07d8d))
+
+## [2.3.0-rc.14](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.13...v2.3.0-rc.14) (2026-11-14)
+
+
+### Bug Fixes
+
+* Ocarina and engine fixes from Longshot, through its 514591a3 ([#29](https://github.com/notquiteog/Hookshot/issues/29)) ([44a8a29](https://github.com/notquiteog/Hookshot/commit/44a8a29a0b934a568853b41f0fcca8a8b66aea3f))
+
+## [2.3.0-rc.13](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.12...v2.3.0-rc.13) (2026-11-14)
+
+
+### Bug Fixes
+
+* **release:** a file with no digest yet is hashed, not a 404 that ends the upload ([#49](https://github.com/notquiteog/Hookshot/issues/49)) ([af05c99](https://github.com/notquiteog/Hookshot/commit/af05c99bf56178266fa829fe1d3a648417c65aed))
+
+
+### Documentation
+
+* **worklist:** where the memory row's 13.5 GB of RSS is ([#50](https://github.com/notquiteog/Hookshot/issues/50)) ([aa67a9f](https://github.com/notquiteog/Hookshot/commit/aa67a9fb2f4400edcff8901ddd6fb06e1bec8922))
+
 ## [2.3.0-rc.12](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.11...v2.3.0-rc.12) (2026-11-14)
 
 
