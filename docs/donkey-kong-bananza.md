@@ -60,7 +60,8 @@ Also fixed on the way, because they would have bitten any second game: saves in 
 
    Each is the pass's value word for word, so taking the pushed bytes would draw the same picture. The HLE now checks
    every push against what the pass gives and logs once when a game pushes something else
-   (`HOS_NVN_PUSH_LOG=1`: the counts). The sizes are 80% of the game's 2880x1620: see 4.
+   (`HOS_NVN_PUSH_LOG=1`: the counts). The sizes are from before #59, when the game drew at 80% of its 2880x1620
+   (see 4); at its full size the blocks are 2880x1620's and its scenes', and still the pass's.
 2. **Virtual-core waits: not real on an idle PC.** Waits of 200-850 ms appeared once with the PC loaded (load average 79).
    Measured again in a quiet window (2026-11-14, first start, the tunnel, the guide and about 8 minutes of play, the
    load sampled every 10 s): at load 10 or less the longest wait in each 5-second window had a median of 3.0 ms, three
@@ -69,12 +70,15 @@ Also fixed on the way, because they would have bitten any second game: saves in 
    loops dkb-pc-recomp lists in 3.2.0 main are not worth patching on this evidence.
 3. **Add-on content**: `aoc::CountAddOnContent` is the generic stub's 0, so the DLC (mounted as "EmeraldRush" on a
    console) is not offered. Not needed to play the base game.
-4. **`oe::GetCurrentGraphicsScale`: Bananza renders at 80%.** The host answers Ocarina's enum 1 (x0.8) unless an output
-   size is set. Bananza reads it as an enum: main 0x8033e9b4 and 0x80569324 keep a mode byte (1 → 1, 2 → 2, else 0),
-   and 0x803ad180 and 0x805695d0 index a float table `{3, 12, 16}` with it. With 0 (`HOS_OUTPUT_RES=2880x1620`, the
-   game's own window size) its targets are 1.25x larger: 2880x1620 instead of 2304x1296, 1920x1080 and 2095x1179
-   instead of 1536x864 and 1676x943. GPU time stayed about 2.2-2.4 ms a frame on an RTX 5060 Ti (not measured in a
-   quiet window yet). Next: a profile field for the enum, Bananza 0, with a measured cost.
+4. **`oe::GetCurrentGraphicsScale`: fixed, Bananza renders at its full size.** The host answered Ocarina's enum 1
+   (x0.8). Bananza reads it as an enum: main 0x8033e9b4 and 0x80569324 keep a mode byte, and 0x803ad180 and 0x805695d0
+   index a float table `{3, 12, 16}` with it. With 1 it drew at 80% of its 2880x1620 (2304x1296; scenes 1536x864). Its
+   profile now answers 0 (`graphics_scale`), so it draws at 2880x1620 (scenes 1920x1080). Measured in a quiet window on an
+   RTX 5060 Ti (2026-11-14, alternating 1, 0, 0, 1): GPU time 1.70 → 2.20 ms a frame (median; p90 2.40 → 2.90), 60.0 fps
+   either way. A card about 9 times slower would go from about 15 to about 20 ms, under 60 fps:
+   `HOS_GRAPHICS_SCALE_ENUM=1` gives the old answer.
+   **Open:** that variable is the only way back to 80% for a slow card. The scale wants to be a choice in the game's
+   menu (full size or 80%), not an environment variable.
 5. **`oe::GetDisplayVersion`** answers "1.8.0" (the game logs `ReleaseVersion : 320 (nmeta=1.8.0)`). The update's real
    string is not in the dump.
 6. **Not tried:** sound (every run had `HOS_AUDIO=0`), Windows, AMD, the add-on content, play past the tutorial.
