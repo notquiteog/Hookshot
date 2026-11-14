@@ -1155,6 +1155,31 @@ HLE(_ZN2nn3hid13GetNpadStatesEPNS0_17NpadHandheldStateEiRKj) { npad_states(c); }
 HLE(_ZN2nn3hid13GetNpadStatesEPNS0_16NpadJoyDualStateEiRKj) { npad_states(c); }
 HLE(_ZN2nn3hid13GetNpadStatesEPNS0_16NpadJoyLeftStateEiRKj) { npad_states(c); }
 HLE(_ZN2nn3hid13GetNpadStatesEPNS0_17NpadJoyRightStateEiRKj) { npad_states(c); }
+/* GetNpadState(State* out, unsigned int const& npadId): the latest state alone. Ocarina reads its pad with
+   GetNpadStates; a game that calls GetNpadState instead (Kirby Air Riders, for every style) got the SDK's own code,
+   which reads the shared memory this runtime does not map, and so no input at all. Only the full-key style is ever
+   reported (GetNpadStyleSet below), so only its state is the player's: GetNpadStates with a count of one. The other
+   styles' are a pad that is not there, as the console's are for a style the pad does not have: no buttons, centred
+   sticks, no attributes (not connected), and the sampling number the last reading had. They do not read the input:
+   a game that polls every style each frame would otherwise take each press, the menus' keys and the auto run's
+   state once for each style. (The GameCube controller's NpadGcState is another layout and is not answered: no Gc
+   style is ever reported either.) */
+static void npad_state_one(Ctx *c) {
+    const uint64_t id = ARG(1);
+    c->x[1] = 1;
+    c->x[2] = id;
+    npad_states(c);
+}
+static void npad_state_absent(Ctx *c) {
+    const uint64_t out = ARG(0);
+    memset(GP(out), 0, STATE_SIZE);
+    G64(out) = (uint64_t)sampling;
+}
+HLE(_ZN2nn3hid12GetNpadStateEPNS0_16NpadFullKeyStateERKj) { npad_state_one(c); }
+HLE(_ZN2nn3hid12GetNpadStateEPNS0_17NpadHandheldStateERKj) { npad_state_absent(c); }
+HLE(_ZN2nn3hid12GetNpadStateEPNS0_16NpadJoyDualStateERKj) { npad_state_absent(c); }
+HLE(_ZN2nn3hid12GetNpadStateEPNS0_16NpadJoyLeftStateERKj) { npad_state_absent(c); }
+HLE(_ZN2nn3hid12GetNpadStateEPNS0_17NpadJoyRightStateERKj) { npad_state_absent(c); }
 /* GetNpadStyleSet(unsigned int const&) -> BitFlagSet<32, NpadStyleTag> */
 HLE(_ZN2nn3hid15GetNpadStyleSetERKj) { RET(G32(ARG(0)) == NPAD_NO1 ? STYLE_FULLKEY : 0); }
 
@@ -1349,10 +1374,18 @@ HLE(_ZN2nn3hid6detail28FlushEnqueuedVibrationValuesEv) { RET(0); }
    states written: one, with no touches (the lifted SDK version read the touch screen's shared memory, which this
    runtime does not have). TouchScreenState<16>: {s64 sampling number, s32 count, s32 reserved, TouchState[16]}. */
 HLE(_ZN2nn3hid21InitializeTouchScreenEv) {}
+static volatile LONG64 touch_sampling;
 HLE(_ZN2nn3hid20GetTouchScreenStatesILm16EEEiPNS0_16TouchScreenStateIXT_EEEi) {
-    static volatile LONG64 sampling;
     if ((int)ARG(1) < 1) { RET(0); return; }
     memset(GP(ARG(0)), 0, 16 + 16 * 0x28);
-    G64(ARG(0)) = (uint64_t)InterlockedIncrement64(&sampling);
+    G64(ARG(0)) = (uint64_t)InterlockedIncrement64(&touch_sampling);
     RET(1);
+}
+/* (dkb) GetTouchScreenState<1>(TouchScreenState<1>*): the latest state alone, with no touch, as the plural above. The
+   lifted SDK's read aborted: Donkey Kong Bananza reads the touch screen this way on its first frames
+   (svcBreak, from nn::hid::GetTouchScreenState<1>, lr 0x82e7eee0 on its 3.2.0 sdk). TouchScreenState<1>:
+   {s64 sampling number, s32 count, s32 reserved, TouchState[1]}. */
+HLE(_ZN2nn3hid19GetTouchScreenStateILm1EEEvPNS0_16TouchScreenStateIXT_EEE) {
+    memset(GP(ARG(0)), 0, 16 + 1 * 0x28);
+    G64(ARG(0)) = (uint64_t)InterlockedIncrement64(&touch_sampling);
 }

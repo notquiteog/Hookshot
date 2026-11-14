@@ -6,8 +6,9 @@
    SDK's call failed and it aborted (svcBreak from nn::diag::detail::Abort). The call means one thing, fill this buffer
    with random bytes, so it is answered here from the system's own generator: getrandom on Linux, RtlGenRandom on
    Windows (advapi32, which the runtime links already), /dev/urandom where getrandom is missing (ENOSYS) or refused
-   (EPERM, a seccomp filter). Ocarina asks too (its main's std::random_device and the SDK's getentropy), so Ocarina's
-   answer changes from the generic stub's (nothing written) to random bytes. */
+   (EPERM, a seccomp filter). Ocarina imports the call too (its main's std::random_device and the SDK's getentropy), so
+   if it asks, its answer changes from the generic stub's (nothing written) to random bytes; two minutes in Kokiri Forest
+   from a save never asked. */
 #include "hos.h"
 #include <stdint.h>
 #include <string.h>

@@ -318,6 +318,15 @@ void hos_log(const char *fmt, ...) {
     fflush(stderr);
 }
 
+/* The resolver every R_AARCH64_TLSDESC descriptor is bound to (nx2/image.py: thread-local storage descriptors are not
+   implemented). x0 is the descriptor, whose second word nx2/image.py set to its own address. Called only when the game
+   first reaches that thread-local variable: the run stops there and says which one it was, rather than going on with an
+   offset nobody worked out. */
+HLE(hos_tlsdesc_unsupported) {
+    hos_fatal(c, "a thread-local variable reached through a TLS descriptor at %#llx (lr %#llx): TLS descriptors "
+              "(R_AARCH64_TLSDESC) are not implemented, see nx2/image.py", (unsigned long long)c->x[0],
+              (unsigned long long)c->x[30]);
+}
 void hos_fatal(Ctx *c, const char *fmt, ...) {
     char buf[1024];
     va_list ap;
