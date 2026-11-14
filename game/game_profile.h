@@ -71,4 +71,7 @@
    a game whose movie player counts every picture it submitted */
 #define GAME_VIDEO_CATCHUP 1
 
+/* what nn::oe::GetCurrentGraphicsScale answers in w0 (0 the full scale, 1 x0.8, 2 x0.667); -1: the host's own answer */
+#define GAME_GRAPHICS_SCALE -1
+
 #endif /* GAME_PROFILE_H */
