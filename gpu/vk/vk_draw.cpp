@@ -1087,8 +1087,13 @@ struct PipeEntry {
     std::atomic<bool> ready{false};
     std::atomic<VkPipeline> pipeline{VK_NULL_HANDLE};   // (a fast-linked one first, the worker's full build over it)
     std::atomic<uint8_t> how{0};   // (the census: how play made it, UseCounters::made_how; 0: before play, or not made)
+    // (hookshot) the release of idle pipelines while video memory is short (pipelines_release_tick): the second (of
+    // pipe_clock) a draw last used it, 0 never; and whether its pipeline was given back, so the next draw builds it again
+    std::atomic<uint32_t> drawn{0};
+    std::atomic<bool> released{false};
 };
 std::unordered_map<uint64_t, std::unique_ptr<PipeEntry>> pipelines;   // (the replay thread's)
+std::atomic<uint32_t> pipe_clock{1};   // (hookshot: seconds since the first present, from 1: PipeEntry::drawn, pipelines_release_tick)
 // (hookshot) Pipelines made ahead of their first draw by the load at a program's create call (vk_programs.cpp), by their keys.
 // `pipelines` is the replay's own and has no lock outside the parallel replay, so a background job puts what it made here and
 // the draw's lookup takes it the first time it asks for that key (graphics_pipeline)
@@ -2213,6 +2218,30 @@ uint64_t pipeline_key(const Program& p, const NvnState& s, const Targets& at, Vk
     return key;
 }
 
+/// (hookshot) an entry whose pipeline pipelines_release_tick gave back, looked up by a draw again: the same full build as at its
+/// first draw, from the pipeline cache, which still holds it. The draw then waits for it or is left out, as for any pipeline
+/// not made yet. Once: the flag goes with the first lookup
+std::atomic<int64_t> st_pipes_rebuilt{0};
+PipeEntry* rebuild_if_released(PipeEntry* e, const Program& p, const NvnState& s, const Targets& at, VkPrimitiveTopology topo) {
+    if (!e || !e->released.load(std::memory_order_acquire)) return e;
+    bool was = true;
+    if (!e->released.compare_exchange_strong(was, false)) return e;
+    st_pipes_rebuilt++;
+    struct Job {
+        PipeEntry* e;
+        const Program* p;
+        NvnState s;
+        Targets at;
+        VkPrimitiveTopology topo;
+    };
+    auto job = std::make_shared<Job>(Job{e, &p, s, at, topo});
+    jobs_push([job] {
+        if (const VkPipeline full = build_graphics(*job->p, job->s, job->at, job->topo)) job->e->pipeline.store(full);
+        job->e->ready.store(true, std::memory_order_release);
+    }, false, &e->ready, [job]() noexcept { job->e->ready.store(true, std::memory_order_release); });
+    return e;
+}
+
 /// (hookshot) Fast-linked pipelines the full build replaced. A draw's first pipeline is linked from stage libraries (RX_VK_GPL)
 /// and the worker's full build of the same state takes its place in the entry when it is done. The linked one was left alone
 /// until the process ended, so every pipeline a run drew held the driver memory of two: NX2navi (chrg6, commit bc28416) measured
@@ -2245,6 +2274,17 @@ void fast_reap() {
     for (const VkPipeline pl : go) vkDestroyPipeline(dev.device, pl, nullptr);
     st_fast_given_back += (int64_t)go.size();
 }
+/// (hookshot) a pipeline given back while video memory is short (pipelines_release_tick), destroyed as a replaced linked one
+/// is: once the timeline reaches the newest value handed out now
+std::atomic<int64_t> st_pipes_released{0};
+void pipeline_retire(VkPipeline old) {
+    const uint64_t at = vk_values_handed_out();
+    st_pipes_released++;
+    {
+        std::lock_guard lk(fast_retired_mu);
+        fast_retired.push_back({at, old});
+    }
+}
 /// old: the linked pipeline the full build just took the place of (the exchange is seq_cst, as the draws' loads)
 void fast_retire(VkPipeline old) {
     const uint64_t at = vk_values_handed_out();
@@ -2276,10 +2316,11 @@ PipeEntry* graphics_pipeline(const Program& p, const NvnState& s, const Targets&
                       f.samples, f.n, f.depth, f.formats, f.nvattr, f.vattr, f.div, f.blend_en, f.blend, f.chmask, f.poly,
                       f.clamp, f.a2c)) {
             FINE_N(FC_PIPE_FAST, 1);
-            return f.pe;
+            return rebuild_if_released(f.pe, p, s, at, topo);
         }
     auto remember = [&](PipeEntry* e) {
         if (!e) return e;
+        rebuild_if_released(e, p, s, at, topo);
         if (!(pipe_fast[0].on && pipe_fast[0].pe == e)) pipe_fast[1] = pipe_fast[0];
         PipeFast& f = pipe_fast[0];
         f.on = true, f.pe = e, f.prog = (uint64_t)(uintptr_t)&p, f.variant = p.variant, f.topo = topo_c;
@@ -2365,6 +2406,79 @@ PipeEntry* graphics_pipeline(const Program& p, const NvnState& s, const Targets&
         job->e->ready.store(true, std::memory_order_release);
     });   // (a draw that waits for it runs it at once if it is still queued: jobs_wait)
     return remember(e);
+}
+
+// ---- (hookshot) graphics pipelines no draw has used for a while, given back while video memory is short ----
+// Nothing lets a pipeline go: every pipeline a run has drawn, or the precompile and the program loads at create made for it
+// (kept_ready), holds the driver's memory for it until the process ends. Kokiri Forest after six other areas held 2089
+// pipelines more and some 660 MB more of the video memory that is neither textures nor mirrors (RTX 5060 Ti, Linux);
+// NX2navi (chrg6, commit 8a99af1, ported with its author's permission) measured 3589 of 6300 live pipelines never drawn in
+// a session. While the device-local memory in use is over RX_VK_PIPE_RELEASE_PCT percent of what the driver allows (85),
+// every 5 s at a present this gives back up to 256 graphics pipelines no draw has used for RX_VK_PIPE_RELEASE_IDLE_S
+// seconds (60), oldest first, and every one made ahead that no draw took (kept_ready). An entry stays in the table, with
+// its pipeline taken out and marked released: the next draw that looks it up builds it again from the pipeline cache
+// (rebuild_if_released) and waits for it or is left out, as for any pipeline not made yet. The pipeline is destroyed once
+// the timeline reaches the newest value handed out when it was taken (pipeline_retire, as #23's fast_retire): no recording
+// begun before can have a later value, and this runs at a present, under replay_mu, where no draw is being recorded.
+// kept_ready's never were in a recording: destroyed at once. Left alone: entries not ready (building), released already, or
+// with no pipeline (failed). RX_VK_PIPE_RELEASE=0 keeps them all. Each batch is logged with the video memory in use then,
+// and the next pass logs it again, so a log says what a batch gave back.
+/// now: the second of pipe_clock (pipelines_release_tick)
+void release_pass(uint32_t now) {
+    static const bool on = !getenv("RX_VK_PIPE_RELEASE") || atoi(getenv("RX_VK_PIPE_RELEASE")) != 0;
+    static const int pct = getenv("RX_VK_PIPE_RELEASE_PCT") ? std::clamp(atoi(getenv("RX_VK_PIPE_RELEASE_PCT")), 1, 100) : 85;
+    static const uint32_t idle = getenv("RX_VK_PIPE_RELEASE_IDLE_S") ? (uint32_t)std::max(1, atoi(getenv("RX_VK_PIPE_RELEASE_IDLE_S"))) : 60;
+    static uint32_t last = 0;
+    static uint64_t used_then = 0;   // (MB in use when the last batch went; 0: nothing to report)
+    static int64_t batches = 0, given = 0, kept_given = 0;
+    if (!on || now - last < 5) return;
+    last = now;
+    fast_reap();   // (what the GPU is past already)
+    uint64_t used = 0, budget = 0;
+    if (!vram_usage_now(&used, &budget) || !budget) return;
+    if (used_then) {
+        logf("vk: video memory in use %llu MB when the last batch of idle pipelines went, %llu MB now (%lld pipelines given back, "
+             "%lld built again when a draw came back to them)", (unsigned long long)used_then, (unsigned long long)(used >> 20),
+             (long long)st_pipes_released.load(), (long long)st_pipes_rebuilt.load());
+        used_then = 0;
+    }
+    if (used * 100 < budget * (uint64_t)pct) return;
+    constexpr size_t kBatch = 256;
+    std::vector<std::pair<uint32_t, PipeEntry*>> idle_ones;
+    {
+        ParLock lk;
+        for (auto& [key, e] : pipelines) {
+            if (!e->ready.load(std::memory_order_acquire) || e->released.load(std::memory_order_relaxed) || !e->pipeline.load())
+                continue;
+            const uint32_t d = e->drawn.load(std::memory_order_relaxed);
+            if (d + idle <= now) idle_ones.emplace_back(d, e.get());
+        }
+    }
+    const size_t n = std::min(kBatch, idle_ones.size());
+    std::partial_sort(idle_ones.begin(), idle_ones.begin() + (ptrdiff_t)n, idle_ones.end(),
+                      [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (size_t i = 0; i < n; i++) {
+        PipeEntry* e = idle_ones[i].second;
+        e->ready.store(false, std::memory_order_release);   // (before the flag: a lookup that sees it builds it, and waits for that)
+        e->released.store(true, std::memory_order_release);
+        if (const VkPipeline old = e->pipeline.exchange(VK_NULL_HANDLE)) pipeline_retire(old);
+    }
+    std::vector<VkPipeline> kept;   // (made ahead, never taken by a draw: never bound)
+    if (kept_ready_n.load(std::memory_order_acquire)) {
+        std::lock_guard kl(kept_ready_mu);
+        for (const auto& [key, pl] : kept_ready) kept.push_back(pl);
+        kept_ready.clear();
+        kept_ready_n.store(0, std::memory_order_release);
+    }
+    for (const VkPipeline pl : kept) vkDestroyPipeline(dev.device, pl, nullptr);
+    if (!n && kept.empty()) return;
+    batches++, given += (int64_t)n, kept_given += (int64_t)kept.size();
+    used_then = used >> 20;
+    if (batches <= 16 || !(batches & (batches - 1)))
+        logf("vk: video memory in use %llu of %llu MB (over %d%%): %zu graphics pipelines no draw used for %u s given back, and %zu made "
+             "ahead that no draw took; %lld and %lld in %lld batches so far. A draw that needs one builds it again from the pipeline "
+             "cache (RX_VK_PIPE_RELEASE=0 keeps them)", (unsigned long long)(used >> 20), (unsigned long long)(budget >> 20), pct, n,
+             idle, kept.size(), (long long)given, (long long)kept_given, (long long)batches);
 }
 
 /// part: -1 the whole pipeline, or the graphics pipeline library it stands for: 0 vertex input, 1 pre-rasterization, 2 fragment
@@ -7057,6 +7171,10 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         const int64_t pipes_new = use_counters.pipes_new;
         pe = graphics_pipeline(p, s, at, topo, types);
         if (use.on) use.pipeline(pe->ready.load(std::memory_order_acquire), use_counters.pipes_new != pipes_new);
+        {   // (when a draw last used it, in pipe_clock's seconds: a store only when the second changed)
+            const uint32_t now = pipe_clock.load(std::memory_order_relaxed);
+            if (pe->drawn.load(std::memory_order_relaxed) != now) pe->drawn.store(now, std::memory_order_relaxed);
+        }
     }
     if (!pe->ready.load(std::memory_order_acquire)) {
         const bool may_skip = !always_wait && targets_persistent(at) && !writes_memory(p);
@@ -9677,6 +9795,13 @@ void draw_stats2(int64_t* passes, int64_t* mesh, double* pipeline_ms) {
 }
 void draw_stats3(int64_t* pending_skips, int64_t* waits, double* wait_ms) {
     *pending_skips = st_pending_skips, *waits = st_waits, *wait_ms = st_wait_ms;
+}
+void pipelines_release_tick() {   // (vk_draw.h)
+    using clock = std::chrono::steady_clock;
+    static const clock::time_point t0 = clock::now();
+    const uint32_t now = 1 + (uint32_t)std::chrono::duration_cast<std::chrono::seconds>(clock::now() - t0).count();
+    pipe_clock.store(now, std::memory_order_relaxed);
+    release_pass(now);
 }
 bool draw_stats4(int64_t* links, double* link_ms, int64_t* lib_hits, int64_t* lib_cold, int64_t* lib_built, double* lib_build_ms,
                  int64_t* fast_replaced, int64_t* fast_given_back) {

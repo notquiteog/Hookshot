@@ -52,7 +52,9 @@ struct Program {
     int layout = 1, fallback_topology = 0;
     Stages stages{&ready, {}};
 };
-struct PipeEntry { std::atomic<bool> ready{false}; VkPipeline pipeline = 1; std::atomic<unsigned char> how{0}; };
+struct PipeEntry { std::atomic<bool> ready{false}; VkPipeline pipeline = 1; std::atomic<unsigned char> how{0};
+                   std::atomic<uint32_t> drawn{0}; };   // (drawn: the draw stamps the pipeline it uses, pipelines_release_tick)
+std::atomic<uint32_t> pipe_clock{1};
 // (the census's first-use report, gpu/vk/vk_programs.h: off here)
 struct { bool on = false; void skipped() {} void pipeline(bool, bool) {} void pipeline_made(unsigned char) {} } use;
 struct { long long pipes_new = 0; } use_counters;

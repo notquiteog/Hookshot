@@ -29,22 +29,25 @@ def resource_fixture():
     """Execute the production cleanup lambdas against small resource stand-ins."""
     shaders = recoveries("gpu/vk/vk_shader.cpp")
     draw = recoveries("gpu/vk/vk_draw.cpp")
-    if len(shaders) != 2 or len(draw) != 3:
+    # (vk_draw.cpp's, in file order: a released pipeline's rebuild (rebuild_if_released), a draw's first build
+    # (graphics_pipeline), then the two compute ones)
+    if len(shaders) != 2 or len(draw) != 4:
         raise SystemExit("a shader or pipeline resource recovery callback is missing")
     cases = []
     for callback in shaders:
         cases.append("{ Program p; auto job = std::make_shared<Job>(); job->p = &p; "
                      "auto recover = " + callback + "; recover(); "
                      "check(p.ready.load(std::memory_order_acquire) && p.failed); }")
-    for pipeline in (0, 123):
-        cases.append("{ PipeEntry e; e.pipeline = " + str(pipeline) + "; auto job = std::make_shared<Job>(); job->e = &e; "
-                     "auto recover = " + draw[0] + "; recover(); "
-                     "check(e.ready.load(std::memory_order_acquire) && e.pipeline == " + str(pipeline) + "); }")
+    for callback in draw[:2]:
+        for pipeline in (0, 123):
+            cases.append("{ PipeEntry e; e.pipeline = " + str(pipeline) + "; auto job = std::make_shared<Job>(); job->e = &e; "
+                         "auto recover = " + callback + "; recover(); "
+                         "check(e.ready.load(std::memory_order_acquire) && e.pipeline == " + str(pipeline) + "); }")
     # These two callbacks capture Program* directly rather than the translation/graphics Job.
-    cases.append("{ Program p; p.compute_state = 1; auto* job = &p; auto recover = " + draw[1] + "; recover(); "
+    cases.append("{ Program p; p.compute_state = 1; auto* job = &p; auto recover = " + draw[2] + "; recover(); "
                  "check(p.compute_state.load(std::memory_order_acquire) == 2 && p.fallback_compute.empty()); }")
     cases.append("{ Program p; p.compute_state = 1; p.compute_pipeline = 123; const auto* job = &p; "
-                 "auto recover = " + draw[2] + "; recover(); "
+                 "auto recover = " + draw[3] + "; recover(); "
                  "check(p.compute_state.load(std::memory_order_acquire) == 2 && p.failed && !p.compute_pipeline); }")
     return """#include <atomic>
 #include <cstdint>

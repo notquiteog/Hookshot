@@ -81,6 +81,8 @@ void draw_stats3(int64_t* pending_skips, int64_t* waits, double* wait_ms);
 bool draw_stats4(int64_t* links, double* link_ms, int64_t* lib_hits, int64_t* lib_cold, int64_t* lib_built, double* lib_build_ms,
                  int64_t* fast_replaced, int64_t* fast_given_back);
 void draw_skip_report(double frames);   // (hookshot) skips by the line that made them
+/// (hookshot) at each present, under replay_mu: idle graphics pipelines given back while video memory is short (vk_draw.cpp)
+void pipelines_release_tick();
 int64_t draw_desc_reused();
 /// (Descriptor reuse) Of those, the reuses the global registrations' generation check would have rebuilt for
 int64_t draw_slotgen_saves();

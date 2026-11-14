@@ -3913,6 +3913,7 @@ void do_present(const nvn_tex* t, const int crop[4], float cover) {
             pending = {true, value, presents, {}};
         }
         log_frame_stats();
+        pipelines_release_tick();   // (while video memory is short: the idle pipelines go)
     }
     // (hookshot fork: the model's picture in the game's place: the picture alone, so its own size and the whole of it)
     if (nr_image) src = nr_image, direct_view = nr_view, sw = nr_w, sh = nr_h, crop = nr_crop;
