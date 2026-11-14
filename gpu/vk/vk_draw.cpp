@@ -7,7 +7,7 @@
 //
 // Pipelines persist in a VkPipelineCache next to the executable (mkw_vk_pipelines.bin).
 #include <algorithm>
-#include "game_profile.h"   // (dragoon: the program keys this game's renderer treats specially)
+#include "game_profile.h"   // (the program keys this game's renderer treats specially)
 #include <filesystem>
 #include <iterator>
 #include <tuple>
@@ -7686,7 +7686,7 @@ bool movie_upscale(VkCommandBuffer cmd, uint32_t in_handle, uint32_t out_handle,
 // of GPU time (vk_replay.cpp), they are left out from then on, as on AMD: the linear upscale below, the same picture a little
 // softer. The gameplay networks are never left out. RX_VK_NETWORK_KEEP=all: never
 std::atomic<bool> movie_networks_slow{false};
-// (dragoon) The game profile's program keys: the runtime's (HOOKSHOT_PROFILE_*, set from the profile it is compiled
+// The game profile's program keys: the runtime's (HOOKSHOT_PROFILE_*, set from the profile it is compiled
 // for: host/hos_main.c game_profile_env), else game/game_profile.h's, which this renderer is built with (Ocarina's).
 const char* profile_keys(const char* runtime, const char* built) {
     const char* e = getenv(runtime);

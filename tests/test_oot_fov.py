@@ -46,7 +46,7 @@ class InstallTests(unittest.TestCase):
 
     def test_lift_and_menu_wiring(self):
         lift = (ROOT / "nx2/lift.py").read_text(encoding="utf-8")
-        # (dragoon) installed through Ocarina's game profile, which lift.py installs before it discovers functions
+        # installed through Ocarina's game profile, which lift.py installs before it discovers functions
         import game_profile
         self.assertIn("oot_fov", game_profile.GAMES["oot"].patch_modules)
         self.assertLess(lift.index("game_profile.install_patches("), lift.index("L.discover("))

@@ -1,4 +1,4 @@
-/* (dragoon) What the runtime requires of a game profile (game_profile.h, from nx2/game_profile.py) before it will be
+/* What the runtime requires of a game profile (game_profile.h, from nx2/game_profile.py) before it will be
    compiled against it. nx2/game_profile.py and tests/test_game_profile.py say the same in Python; this is the C side,
    so a header written by hand, or by a profile that slipped past the test, stops the build instead of a game.
 

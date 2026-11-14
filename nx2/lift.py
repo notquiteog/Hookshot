@@ -201,7 +201,7 @@ def main():
             a64_rtgen.write(gen)
             if a.standalone:
                 start, exit_ = standalone.write_image_c(gen, img, meta, a.exefs)
-                # (dragoon) the profile's C view beside the lifted C, for nx2/build.py to compile the runtime with
+                # the profile's C view beside the lifted C, for nx2/build.py to compile the runtime with
                 lines.append("standalone: %s" % game_profile.write_header(os.path.join(out_dir, "game"), profile))
                 lines.append("standalone: hos_image.c (thread hooks %#x, %#x), %d import stubs" % (
                     start, exit_, standalone.gen_stubs(gen, meta)))
@@ -213,7 +213,7 @@ def main():
         side = chunks.start_side(tables)
         patches = profile.code_patch_module   # (Ocarina's nx2/oot_patches.py; none for a game without them)
         supported = bool(patches) and a.standalone and \
-            main_build == getattr(game_profile.module(patches), "LIFE_BUILD_ID", None)
+            main_build == getattr(game_profile.load_module(patches), "LIFE_BUILD_ID", None)
         chunks.edit_c(gen, L.stats, supported, whole=not a.max_func, took=took, patches=patches)
         print("\n".join(chunks.end_side(side, tables)), flush=True)
         took("runtime tables and standalone files (beside the edits)" if side else "runtime tables and standalone files")

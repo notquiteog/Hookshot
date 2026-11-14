@@ -49,7 +49,7 @@ ROOT = os.path.dirname(HERE)
 PY = [sys.executable, "-I", "-u", "-X", "utf8"]   # (utf8: every step's output in UTF-8 whatever the console's code page: lift.py crashed on a letter, #180)   # (-u: the steps' output as it comes, not in 8 KB blocks minutes apart)
 STARTED = time.time()   # (the build's total time, kept in build_times.json and said as @@times)
 sys.path[:0] = [HERE, os.path.join(ROOT, "third_party", "a64-kit", "tools")]   # (python -I leaves the script folder off)
-import game_profile   # noqa: E402  (dragoon: which builds have a game profile, nx2/game_profile.py)
+import game_profile   # noqa: E402  (which builds have a game profile, nx2/game_profile.py)
 # The default game's build, as the docs quote it (Ocarina's e0f3ccfa: the version its patches, the hot list and the
 # profile were made from). Which builds are accepted is the game profiles' list (supported_build), not this one.
 BUILD_ID = game_profile.GAMES[game_profile.DEFAULT].build_id[:8]
@@ -627,9 +627,8 @@ def check(a, work):
         shutil.rmtree(probe, ignore_errors=True)
     else:
         bid = build_id(os.path.join(a.exefs, "main"))
-    known = supported_build(bid)
-    if known:
-        say("check", "ok", "This is a version Hookshot supports (%s, build %s)." % (known.game, bid[:8]))
+    if supported_build(bid):   # (a build some game profile knows: nx2/game_profile.py)
+        say("check", "ok", "This is the version Hookshot supports (build %s)." % bid[:8])
     else:
         say("check", "bad", "This is build %s. Hookshot supports build %s." % (bid[:8], supported_text()))
 
@@ -1612,6 +1611,12 @@ def lift_sources():
     kit_dir = os.path.join(ROOT, "third_party", "a64-kit")
     path = [os.path.join(kit_dir, d) for d in ("rt", "hos", "tools", "lift")] + [HERE]
     todo = [os.path.join(HERE, f) for f in LIFT_SCRIPTS]
+    # (the game profiles' patch modules: nx2/game_profile.py imports them by the names its profiles hold, which this walk
+    # cannot see, so every profile's are roots of it. All profiles', not the active one's: the key then does not depend
+    # on HOOKSHOT_GAME, and a change to any game's patches translates again, which is the safe direction. Lakitu fafd5cde)
+    for prof in game_profile.GAMES.values():
+        for name in prof.patch_modules + ((prof.code_patch_module,) if prof.code_patch_module else ()):
+            todo.append(os.path.join(HERE, name + ".py"))
     seen = set()
     while todo:
         f = todo.pop()

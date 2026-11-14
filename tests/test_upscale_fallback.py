@@ -261,7 +261,7 @@ def main():
     parser.add_argument('--cxx', default='clang++')
     args = parser.parse_args()
     text = args.source.read_text(encoding='utf-8')
-    # (dragoon) the game profile's keys, as production reads them: its helpers and the committed game/game_profile.h
+    # the game profile's keys, as production reads them: its helpers and the committed game/game_profile.h
     body = '\n'.join((block(text, 'const char* profile_keys('), block(text, 'static bool key_listed('),
                       block(text, 'bool upscale_stub(')))
     env = os.environ.copy()

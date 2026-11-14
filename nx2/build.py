@@ -53,7 +53,7 @@ import win_manifest
 
 NX2_RT = os.path.join(kit.HERE, "rt")
 HOST = os.path.join(kit.HERE, "..", "host")
-# (dragoon) game/: the game profile's C view (game/game_profile.h, generated from nx2/game_profile.py; Ocarina's). A
+# game/: the game profile's C view (game/game_profile.h, generated from nx2/game_profile.py; Ocarina's). A
 # standalone lift writes the dump's own profile to <work>/sa/game, which the runtime reads first: the runtime is compiled
 # for the game it runs. The renderer is built once for every game, with game/'s, and is handed the runtime's keys.
 GAME = os.path.join(kit.HERE, "..", "game")
@@ -1166,7 +1166,7 @@ def compile_one(job):
 
 
 def game_profile_bytes(folder):
-    """(dragoon) a game profile header as a dependency: a profile change rebuilds what reads it, and nothing else"""
+    """a game profile header as a dependency: a profile change rebuilds what reads it, and nothing else"""
     with open(os.path.join(folder, "game_profile.h"), "rb") as f:
         return f.read()
 
@@ -1188,7 +1188,7 @@ def main():
     out = os.path.join(sa if a.standalone else kit.WORK, "build")
     obj_dir = os.path.join(out, "obj")
     gen_dir = os.path.join(out, "gen")   # (the logo and the fonts the Vulkan back end compiles in: made with it, below)
-    game_dir = os.path.join(sa, "game") if a.standalone else GAME   # (dragoon: the lift's game profile, else game/'s)
+    game_dir = os.path.join(sa, "game") if a.standalone else GAME   # (the lift's game profile, else game/'s)
     if not os.path.isfile(os.path.join(game_dir, "game_profile.h")):
         game_dir = GAME
     print("game profile: %s" % os.path.normpath(os.path.join(game_dir, "game_profile.h")), flush=True)
@@ -1405,7 +1405,7 @@ def main():
             "-I" + os.path.join(vk, "sirit", "include"), "-I" + os.path.join(vk, "sirit", "src"),
             "-I" + os.path.join(spirv_headers, "include"), "-I" + os.path.join(spirv_headers, "include", "spirv", "unified1"),
             "-I" + os.path.join(vk_headers, "include"), "-I" + os.path.join(vma_headers, "include"),
-            "-I" + vk, "-I" + gen_dir, "-I" + os.path.join(kit.ROOT, "game"),   # (dragoon: game/game_profile.h, GAME)
+            "-I" + vk, "-I" + gen_dir, "-I" + os.path.join(kit.ROOT, "game"),   # (game/game_profile.h, GAME)
             "-I" + os.path.join(kit.ROOT, "third_party", "zbic")]
         # (NVIDIA DLSS, a local build's option: scripts/ngx_sdk.py. Only vk_dlss.cpp sees NVIDIA's headers; without them
         # it is the stubs that say DLSS is not there)

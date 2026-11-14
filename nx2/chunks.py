@@ -520,7 +520,7 @@ def _edit_patches(job):
     with open(path, encoding="utf-8", newline="") as f:
         s = f.read()
     import game_profile
-    out, counts, lines = game_profile.module(patches).patch_file(s, os.path.basename(path), supported)
+    out, counts, lines = game_profile.load_module(patches).patch_file(s, os.path.basename(path), supported)
     if out != s:
         whole_write.write_whole(path, out, newline="")
     return counts, lines
@@ -534,7 +534,7 @@ def _edit_marks(job):
         s = f.read()
     if patches:
         import game_profile
-        out, found, lines = game_profile.module(patches).output_size_file(s, os.path.basename(path))
+        out, found, lines = game_profile.load_module(patches).output_size_file(s, os.path.basename(path))
     else:
         out, found, lines = s, [], []
     st = collections.Counter()
@@ -628,13 +628,13 @@ def edit_c(gen, stats, supported, whole=True, took=None, jobs=None, patches="oot
     file (jobs: file_jobs(); new processes where there is no fork): the patches; then, after the counts' rules (oot_patches.report: the step
     divides both or neither), the output size and the groups. Five passes over the 1.5 GB of C on one core took a minute. The
     files and the lines printed are the one-process ones, byte for byte (tests/test_mark_groups.py).
-    patches: (dragoon) the game profile's code patch module by name (nx2/game_profile.py; Ocarina's oot_patches), or
+    patches: the game profile's code patch module by name (nx2/game_profile.py; Ocarina's oot_patches), or
     None for a game that has none: then only the page marks, which every game's C gets."""
     took = took or (lambda what: None)
     jobs = file_jobs() if jobs is None else jobs
     paths = sorted(glob.glob(os.path.join(glob.escape(gen), "code_*.c")))
     import game_profile
-    module = game_profile.module(patches) if patches else None
+    module = game_profile.load_module(patches) if patches else None
     if module:
         done = _each(_edit_patches, [(p, supported, patches) for p in paths], jobs)
         for _, lines in done:

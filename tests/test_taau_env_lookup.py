@@ -21,7 +21,7 @@ def block(source, marker):
 
 
 def fixture(source):
-    # (dragoon) the game profile's keys, as production reads them: its helper and the committed game/game_profile.h
+    # the game profile's keys, as production reads them: its helper and the committed game/game_profile.h
     return ('#include "game_profile.h"\n' + PREFIX + block(source, 'const char* profile_keys(') + '\n' +
             block(source, 'bool taau_key(uint64_t key) {') + '\n' +
             block(source, 'bool taau_stand_in(VkCommandBuffer cmd,') + '\n' + SUFFIX)

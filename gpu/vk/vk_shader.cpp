@@ -50,7 +50,7 @@
 #include "shader_recompiler/program_header.h"
 #include "shader_recompiler/runtime_info.h"
 
-// (dragoon) the cooperative-matrix programs this game keeps: the game profile's, not literals here
+// the cooperative-matrix programs this game keeps: the game profile's, not literals here
 #include "game_profile.h"
 
 #include "vk_paths.h"
@@ -1292,7 +1292,7 @@ void translate_into(Program& p, const NvnState& s, const Code* vsc, const Code* 
             // (issues 38, 43). Left out, the last pass becomes a linear upscale of the movie (upscale_stub in vk_draw.cpp): the same picture at 60
             // fps, a little softer. The gameplay TAAU network stays. RX_VK_NETWORK_KEEP=<key prefixes>, "all": every one runs
             if (t->program.info.uses_cooperative_matrix) {
-                // (dragoon) the game profile's keys (the runtime's, else game/game_profile.h's: Ocarina's fd029a317a9a4b94, and
+                // the game profile's keys (the runtime's, else game/game_profile.h's: Ocarina's fd029a317a9a4b94, and
                 // 9dc98871eb7fc101, which resolves the dynamic-resolution scene to 2048x1152 -- left out, the 3D picture is black
                 // under the HUD). A profile that names none keeps none, which is what an unlisted key already meant
                 static const std::string keep = getenv("RX_VK_NETWORK_KEEP") ? getenv("RX_VK_NETWORK_KEEP")

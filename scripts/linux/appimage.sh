@@ -18,6 +18,9 @@ APPDIR=$B/AppDir
 # (--long: a nightly built on a tagged commit is v2.1.0-rc.1-0-g1a2b3c4, so the updaters know it is the nightly:
 # builder/linux/linux_update.py track_of)
 VERSION=${HOOKSHOT_VERSION:-$(git describe --tags --long --always --match "v[0-9]*" 2>/dev/null || echo dev)}
+# The project's name, which names the AppImage: from the one place that holds it (nx2/game_profile.py, through
+# scripts/product_name.sh, which the checks and the release scripts that find the image read too)
+PRODUCT=$(scripts/product_name.sh)
 export EMSDK=$DEPS/emsdk RX_CPM=$DEPS/cpm
 PY=$DEPS/python/bin/python3
 
@@ -166,8 +169,8 @@ python3 scripts/linux/make_parts.py "$APPDIR" "$VERSION" "$B/parts" \
 # the release HOOKSHOT_UPDATE_RELEASE names). appimagetool writes it into the image and makes the .zsync beside it with
 # its bundled zsyncmake, which names the AppImage by its file name, next to the .zsync on the same release.
 UPDATE_REPO=${GITHUB_REPOSITORY:-notquiteog/Hookshot}
-UPDATE_INFO=${HOOKSHOT_UPDATE_INFO:-"gh-releases-zsync|${UPDATE_REPO%%/*}|${UPDATE_REPO#*/}|${HOOKSHOT_UPDATE_RELEASE:-latest}|Hookshot-*-x86_64.AppImage.zsync"}
-OUT=$B/Hookshot-$VERSION-x86_64.AppImage
+UPDATE_INFO=${HOOKSHOT_UPDATE_INFO:-"gh-releases-zsync|${UPDATE_REPO%%/*}|${UPDATE_REPO#*/}|${HOOKSHOT_UPDATE_RELEASE:-latest}|$PRODUCT-*-x86_64.AppImage.zsync"}
+OUT=$B/$PRODUCT-$VERSION-x86_64.AppImage
 rm -f "$OUT" "$OUT.zsync"
 # (from build-linux/: appimagetool writes the .zsync into the current folder)
 (cd "$B" && ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$DEPS/appimagetool" --runtime-file "$DEPS/runtime-x86_64" \

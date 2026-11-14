@@ -248,7 +248,7 @@ def main():
         c = Path(tmp) / "fixture.c"
         exe = Path(tmp) / "fixture.exe"
         c.write_text(fixture, encoding="utf-8")
-        # (dragoon: realtime_step reads the graphics module's offsets from the game profile, the committed one Ocarina's)
+        # (realtime_step reads the graphics module's offsets from the game profile, the committed one Ocarina's)
         subprocess.run([a.cc, "-std=c11", "-include", ENV_ON_H, "-include", str(ROOT / "game" / "game_profile.h"), "-Wall",
                         "-Wextra", "-Werror", str(c), "-o", str(exe)], check=True)
         for mode, cap, step, index in (("cap 120", "120", None, None), ("cap 60", None, None, None), ("step off", "120", "0", None),

@@ -2,7 +2,7 @@
    layer, and the display's vsync event, signaled at 60 Hz by a host thread. HDR and VRR are reported unsupported,
    so the game takes its SDR path. Frames are paced at the native NVN layer's window acquire (the end of this file). */
 #include "hos.h"
-#include "game_profile.h"   /* (dragoon: the graphics module's offsets, below) */
+#include "game_profile.h"   /* (the graphics module's offsets, below) */
 #include "../gpu/vk/vk_api.h"   /* (HOS_OPT_HDR_*, HOS_OPT_CAMERA_SPEED: the Insert menu's HDR and Camera speed, answered by the renderer) */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -392,7 +392,7 @@ static void realtime_step(int64_t now) {
     }
     const uint64_t mod = hos_gfx_module;
     if (!mod) return;
-    /* (dragoon) The offsets below are the game profile's (game/game_profile.h; Ocarina's +0xfc, +0x231, +0x232, +0x2c8
+    /* The offsets below are the game profile's (game/game_profile.h; Ocarina's +0xfc, +0x231, +0x232, +0x2c8
        and +0x270). A module is only captured for a profile that names them all (host/hos_thread.c, and
        host/game_profile_check.h stops a build that names the module and not its offsets), so they are used as they
        are. */
