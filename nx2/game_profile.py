@@ -81,7 +81,7 @@ class Profile(object):
 
     def __init__(self, key, game, program_id=None, version=None, build_id=None, main_base=None,
                  patch_modules=(), code_patch_module=None, gfx=EMPTY_GFX, upscale=EMPTY_UPSCALE, hooks=EMPTY_HOOKS,
-                 npad_players=1, account_users=1, video_catchup=True, notes=""):
+                 npad_players=1, account_users=1, video_catchup=True, released=True, notes=""):
         self.key = key                                # HOOKSHOT_GAME=<this>
         self.game = game                              # the game's name, for logs
         self.program_id = program_id                  # as nx2/dump.py reports it
@@ -100,6 +100,9 @@ class Profile(object):
         # a movie skips pictures behind its clock (host/nn_video.c's catch-up, for Ocarina's intro and its sound); off
         # for a game whose movie player counts every picture it submitted
         self.video_catchup = video_catchup
+        # in the release: recomplauncher.json's games[] (nx2/game_folders.py released()). A profile main builds but the
+        # release does not offer yet says False (docs/one-engine.md step 5: a game joins with its games[] row)
+        self.released = released
         self.notes = notes
 
     def __repr__(self):
@@ -160,6 +163,9 @@ DKB = Profile(
     # The guide movies' player counts every picture it submitted: one the catch-up skips is never handed back, and the
     # player aborts at its loop's flush (main+0xe1ada0 from 0x8189b900; with skips, after 1-2 loops).
     video_catchup=False,
+    # Built from main, not offered by the release yet: joining it (games[] in recomplauncher.json, and the builder
+    # checking each game's copy, which the launcher's schema cannot yet) is a decision of its own (one-engine.md step 5)
+    released=False,
     notes="Identity measured on the dump; movie catch-up off (the guide player counts every picture).",
 )
 
