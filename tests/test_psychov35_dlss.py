@@ -161,7 +161,7 @@ int main(int argc, char**) {
     with tempfile.TemporaryDirectory(prefix='psychov35-dlss-') as folder:
         cpp, exe = Path(folder)/'test.cpp', Path(folder)/'test.exe'
         cpp.write_text(fixture, encoding='utf-8')
-        subprocess.run([a.cxx, '-std=c++20', '-O2', '-Wall', '-Wextra', '-Werror', '-I'+str(ROOT), str(cpp), '-o', str(exe)], check=True)
+        subprocess.run([a.cxx, '-std=c++20', '-O2', '-Wall', '-Wextra', '-Werror', '-D_CRT_SECURE_NO_WARNINGS', '-I'+str(ROOT), str(cpp), '-o', str(exe)], check=True)
         for value in ('', '0', '1', '2'):
             env = os.environ.copy()
             env['RX_VK_PSYCHOV35_DLSS'] = value
