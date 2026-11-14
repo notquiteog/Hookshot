@@ -710,9 +710,16 @@ static int oldest_reserved(const Dec *d) {
         if (d->reserved[i] && (s < 0 || (d->reserved[i] & SYNC_RESERVED_MASK) < (d->reserved[s] & SYNC_RESERVED_MASK))) s = i;
     return s;
 }
-/* (under d->lock) pictures decoded into d's reserved buffers, oldest first, as far as the submissions go */
+/* (under d->lock) pictures decoded into d's reserved buffers, oldest first, as far as the submissions go. A reserved
+   buffer whose pool is gone (FinalizeDecoderImagePool with the buffer still registered) is given up, its sync reached:
+   the acquire checked the pool was alive, but a reservation is filled later, at a submission */
+static void drop_reserved(Dec *d, int slot);
 static void fill_reserved(Dec *d) {
     for (int s; (s = oldest_reserved(d)) >= 0;) {
+        if (!host_of(d->slots[s], POOL_MAGIC)) {
+            drop_reserved(d, s);
+            continue;
+        }
         decode_pending(d);
         if (!d->qn) break;
         put_picture(d, s, 1);
@@ -811,6 +818,7 @@ static void put_picture(Dec *d, int slot, int reserved) {
        pictures that were on time */
     if (reserved && (!d->clock_set || p->pts < d->clock_pts)) d->clock_set = 1, d->clock_ns = hos_now_ns(), d->clock_pts = p->pts;
     Pool *o = (Pool *)host_of(d->slots[slot], POOL_MAGIC);
+    if (!o) return;   /* (its pool gone: nothing to put the picture in; it stays queued for the next buffer) */
     /* (the picture at the pool's size: rows and columns past either are left out) */
     const int ok = o->nv12 != NULL && p->nv12 != NULL;   /* (an allocation that failed: nothing copied; issue 342) */
     const int w = !ok ? 0 : p->w < o->w ? p->w : o->w, h = !ok ? 0 : p->h < o->h ? p->h : o->h;
