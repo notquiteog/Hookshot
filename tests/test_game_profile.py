@@ -96,7 +96,18 @@ def check_choice():
     ids = [p.build_id for p in game_profile.GAMES.values() if p.build_id]
     check(len(ids) == len(set(ids)) and all(re.fullmatch(r"[0-9a-f]{40}", b) for b in ids),
           "a profile's build id is not main's whole 40-digit build id, or two profiles share one")
-    check([p.key for p, _ in game_profile.known_builds()] == ["oot"], "make_game.py's known builds are not Ocarina's alone")
+    check([p.key for p, _ in game_profile.known_builds()] == ["oot", "dkb"],
+          "make_game.py's known builds are not Ocarina's and Donkey Kong Bananza's")
+    dkb = game_profile.GAMES["dkb"]
+    check(game_profile.for_build(dkb.build_id) is dkb and dkb.main_base == 0x80020000,
+          "Donkey Kong Bananza's build id does not choose its profile")
+    # (its guide player counts every picture: the catch-up's skips abort it; Ocarina's intro keeps the catch-up)
+    check(dkb.video_catchup is False and oot.video_catchup is True and game_profile.GAMES["none"].video_catchup is True,
+          "the movie catch-up is not off for Bananza alone")
+    # (built from main, not in the release's launcher entry until it joins: one-engine.md step 5)
+    check(dkb.released is False and oot.released is True, "Bananza is offered by the release before it joins")
+    check("#define GAME_VIDEO_CATCHUP 0" in game_profile.emit_header(dkb) and
+          "#define GAME_VIDEO_CATCHUP 1" in game_profile.emit_header(oot), "the header does not carry GAME_VIDEO_CATCHUP")
 
 
 def check_wholeness():

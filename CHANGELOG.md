@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.3.0-rc.10](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.9...v2.3.0-rc.10) (2026-11-14)
+
+
+### Features
+
+* **profile:** Donkey Kong Bananza 3.2.0, with the movie catch-up off for its guide player ([#42](https://github.com/notquiteog/Hookshot/issues/42)) ([b820af9](https://github.com/notquiteog/Hookshot/commit/b820af98bbfccd04debd455fcb336fd168a23906))
+
+
+### Bug Fixes
+
+* **fs:** answer EnsureSaveData, which crashed Donkey Kong Bananza at boot once null reads fault ([#40](https://github.com/notquiteog/Hookshot/issues/40)) ([1195b90](https://github.com/notquiteog/Hookshot/commit/1195b90ae31dec4a78e97a28bdf3559113c05ce3))
+* **video:** every submission fills one buffer: an early acquire is reserved, and the end has its own picture ([#41](https://github.com/notquiteog/Hookshot/issues/41)) ([2fcc3d0](https://github.com/notquiteog/Hookshot/commit/2fcc3d0b753d9ebd868a1a2b4374acba2e34eab5))
+
+## [2.3.0-rc.9](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.8...v2.3.0-rc.9) (2026-11-14)
+
+
+### Features
+
+* **launcher:** each game its own game folder, work folder and saves; Play takes --game &lt;key&gt; ([#19](https://github.com/notquiteog/Hookshot/issues/19)) ([69e1445](https://github.com/notquiteog/Hookshot/commit/69e14459b15353dcfa9cb3dd41cac3685b550538))
+
+
+### Performance Improvements
+
+* **vk:** the ASTC upload's BC1/BC3 choice reads the blocks as they are copied, not back from staging ([#39](https://github.com/notquiteog/Hookshot/issues/39)) ([f33ca75](https://github.com/notquiteog/Hookshot/commit/f33ca75d7336c1ebaaffa4d4cbf66607a1cfb0f6))
+
 ## [2.3.0-rc.8](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.7...v2.3.0-rc.8) (2026-11-14)
 
 
