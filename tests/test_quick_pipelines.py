@@ -57,8 +57,9 @@ def check_source(draw):
     if "pcache_built_since_save += !driver_cache_only && !quick_build;" not in build:
         raise SystemExit("a quick build counts towards saving the pipeline cache")
     job = between(draw, "    jobs_push([job] {\n        // (over a linked one", "}, false, &e->ready,")
-    if "if (full) {\n            job->e->pipeline = full;" not in job:
-        raise SystemExit("the worker's full build no longer replaces the quick one")
+    # (hookshot: and gives the one it replaced, linked or quick, to fast_retire: destroyed once the GPU is past it)
+    if "if (full) {\n            if (const VkPipeline replaced = job->e->pipeline.exchange(full)) fast_retire(replaced);" not in job:
+        raise SystemExit("the worker's full build no longer replaces the quick one, or keeps what it replaced")
     raised = "const quick_pipe::Raise slow(slow_full_build);"
     if raised not in job or job.index(raised) > job.index("build_graphics(") or "slow_full_build = " in job:
         raise SystemExit("RX_VK_TEST_SLOW_MS does not hold the worker's full build, or a throw out of it would leave "
