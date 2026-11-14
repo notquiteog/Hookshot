@@ -59,6 +59,7 @@ typedef struct { uint64_t x[32]; } Ctx;
 #define G64(a) (*(uint64_t *)GP(a))
 #define G32(a) (*(uint32_t *)GP(a))
 #define HOS_WRITTEN(p, n) ((void)0)
+#define GAME_VIDEO_CATCHUP 1   /* (the game profile's, game_profile.h: Ocarina's catch-up on) */
 static LONG64 InterlockedCompareExchange64(volatile LONG64 *p, LONG64 x, LONG64 cmp) { (void)x, (void)cmp; return *p; }
 static int video_log(void) { return 0; }
 static void hos_log(const char *f, ...) { (void)f; }
