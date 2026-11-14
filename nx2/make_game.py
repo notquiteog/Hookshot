@@ -15,6 +15,7 @@ data ever comes with the tools. Lines the app reads, each on its own line of std
     @@progress <0..1>        how far that step is
     @@plan <changed> <total> how many files the compile rebuilds, of all of them
     @@file <name> <seconds> <new|cached|again>   one module's build
+    @@work <name> <MB> <worker>  one module's build begins (the worker is the thread compiling it)
     @@eta <seconds>          the compile's time left, from what the earlier builds measured on this PC
     @@times <total> <compile> <previous|-1>      finished: this build's times beside the last one's
     @@check <ok|bad> <text>  (--check) the answer

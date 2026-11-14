@@ -1146,6 +1146,8 @@ def compile_one(job):
         open(stamp, "w").write(key)
         return src, 0.0, None
     lease = GATE.enter(src) if GATE else None
+    print("@@work %s %d %s" % (os.path.basename(src), os.path.getsize(src) >> 20,
+                              threading.current_thread().name), flush=True)
     t = time.time()
     try:
         with subprocess.Popen([cc] + fl + ["-c", src, "-o", obj], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as p:
