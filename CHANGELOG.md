@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0-rc.11](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.10...v2.3.0-rc.11) (2026-11-14)
+
+
+### Bug Fixes
+
+* **control:** a bench run or a launch never leaves its game running ([#34](https://github.com/notquiteog/Hookshot/issues/34)) ([1766ce0](https://github.com/notquiteog/Hookshot/commit/1766ce0ab2def32a71d017089205da0a15a375ad))
+
 ## [2.3.0-rc.10](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.9...v2.3.0-rc.10) (2026-11-14)
 
 
