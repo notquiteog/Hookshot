@@ -378,6 +378,7 @@ def main():
                       through(src, "static SRWLOCK ready_lock", "static int nready_spare;"),
                       block(src, "static void ready_event_give_back(uint64_t event) {"),
                       block(src, "static uint64_t ready_event_new(void) {"),
+                      block(src, "static uint64_t ready_event_for(uint64_t decoder) {"),
                       block(src, "static uint64_t ready_event(Ctx *c) {")))
     # (the source's own checks: the refusal comes before a submission id is used, and all three codecs ask the decoder's event)
     submit = block(src, "static void dec_submit(Ctx *c) {")
@@ -385,6 +386,8 @@ def main():
         raise SystemExit("dec_submit uses a submission id before it refuses")
     if src.count("{ RET(ready_event(c)); }") != 3:
         raise SystemExit("a codec's submission-ready event is not its decoder's")
+    if "G64(ARG(0)) = ready_event_for(ARG(1));" not in src:   # (the older SDK's form: the event written out, the decoder second)
+        raise SystemExit("the older SDK's GetVp9DecoderSubmissionReadyEvent does not give its decoder's event")
     fixture = HARNESS.replace("@TYPES@", types).replace("@CODE@", code)
     compiler = shutil.which(args.cxx)
     if not compiler:

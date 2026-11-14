@@ -1112,8 +1112,10 @@ static uint64_t ready_event_new(void) {
     hos_system_event_signal(event);
     return event;
 }
-static uint64_t ready_event(Ctx *c) {
-    Dec *d = (Dec *)host_of(ARG(0), DEC_MAGIC);
+/* (hookshot) the decoder's submission-ready event, by the decoder's guest address: the SDK's form returns it (the decoder
+   the first argument, ready_event), the older SDK's writes it through a pointer (the decoder the second) */
+static uint64_t ready_event_for(uint64_t decoder) {
+    Dec *d = (Dec *)host_of(decoder, DEC_MAGIC);
     if (!d) {   /* (a decoder this file does not know: an event that is always ready, as before) */
         static uint64_t event;
         if (!event) event = ready_event_new();
@@ -1129,6 +1131,7 @@ static uint64_t ready_event(Ctx *c) {
     ReleaseSRWLockExclusive(&d->lock);
     return event;
 }
+static uint64_t ready_event(Ctx *c) { return ready_event_for(ARG(0)); }
 
 /* VP9 */
 HLE(_ZN2nn5codec36InitializeVp9DecoderByTransferMemoryEPNS0_14Vp9DecoderTypeEPvmmttjNS0_23VideoDecoderInputFormatENS0_24VideoDecoderOutputFormatENS0_22VideoDecoderOutputModeE) { dec_init(c, AV_CODEC_ID_VP9, "VP9"); }
@@ -1152,7 +1155,7 @@ HLE(_ZN2nn5codec29CalculateVp9DecoderWorkBufferEPmS1_mtt) {
     RET(0);
 }
 HLE(_ZN2nn5codec33GetVp9DecoderSubmissionReadyEventEPPNS_2os15SystemEventTypeEPNS0_14Vp9DecoderTypeE) {
-    if (ARG(0)) G64(ARG(0)) = ready_event();
+    if (ARG(0)) G64(ARG(0)) = ready_event_for(ARG(1));   /* (hookshot: the older SDK's form: the event out, the decoder second) */
     RET(0);
 }
 HLE(_ZN2nn5codec18FinalizeVp9DecoderEPNS0_14Vp9DecoderTypeE) { dec_finalize(c); }
