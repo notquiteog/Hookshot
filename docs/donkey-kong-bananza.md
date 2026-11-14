@@ -59,6 +59,8 @@ Also fixed on the way, because they would have bitten any second game: saves in 
    RTX 5060 Ti (2026-11-14, alternating 1, 0, 0, 1): GPU time 1.70 → 2.20 ms a frame (median; p90 2.40 → 2.90), 60.0 fps
    either way. A card about 9 times slower would go from about 15 to about 20 ms, under 60 fps:
    `HOS_GRAPHICS_SCALE_ENUM=1` gives the old answer.
+   **Open:** that variable is the only way back to 80% for a slow card. The scale wants to be a choice in the game's
+   menu (full size or 80%), not an environment variable.
 5. **`oe::GetDisplayVersion`** answers "1.8.0" (the game logs `ReleaseVersion : 320 (nmeta=1.8.0)`). The update's real
    string is not in the dump.
 6. **Not tried:** sound (every run had `HOS_AUDIO=0`), Windows, AMD, the add-on content, play past the tutorial.
