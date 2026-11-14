@@ -81,7 +81,7 @@ class Profile(object):
 
     def __init__(self, key, game, program_id=None, version=None, build_id=None, main_base=None,
                  patch_modules=(), code_patch_module=None, gfx=EMPTY_GFX, upscale=EMPTY_UPSCALE, hooks=EMPTY_HOOKS,
-                 npad_players=1, account_users=1, notes=""):
+                 npad_players=1, account_users=1, video_catchup=True, notes=""):
         self.key = key                                # HOOKSHOT_GAME=<this>
         self.game = game                              # the game's name, for logs
         self.program_id = program_id                  # as nx2/dump.py reports it
@@ -97,6 +97,9 @@ class Profile(object):
         # (Dragoon's HOS_NPAD_PLAYERS); nothing in this engine reads it yet, Ocarina's one pad being the only input here
         self.npad_players = npad_players
         self.account_users = account_users            # the console's users (nn::account), 1..8
+        # a movie skips pictures behind its clock (host/nn_video.c's catch-up, for Ocarina's intro and its sound); off
+        # for a game whose movie player counts every picture it submitted
+        self.video_catchup = video_catchup
         self.notes = notes
 
     def __repr__(self):
@@ -138,11 +141,33 @@ OOT = Profile(
     notes="The game this engine was retargeted to; every value here was measured on its dump.",
 )
 
+DKB = Profile(
+    key="dkb",
+    game="Donkey Kong Bananza",
+    # Measured on the dump (Donkey Kong Bananza.nup: base v0, update v458752 = 3.2.0, add-on content 040074a01bf13001):
+    # nx2/dump.py reported the program id and main's build id (sdk 18265dae..., SDK and NVN 20.5.19, no subsdk modules),
+    # nx2/nup.py the update's version, and nx2/lift.py's image line put main at 0x80020000. Its ExeFS is byte-identical
+    # to dkb-pc-recomp's dkb458752 target, whose 3.2.0 addresses therefore apply to this lift unchanged.
+    program_id="040074A01BF12000",
+    version=458752,
+    build_id="e25c90c1c136638885659fd55bf8a03b3403489d",
+    main_base=0x80020000,
+    # Empty on purpose until measured, as a number that looks right is worse than none: patch modules (none needed to
+    # play the tunnel), gfx (the frame limiter: HOS_FPS_LOG once its module is known), upscale (program keys, from
+    # RX_VK_SHADER_CENSUS), hooks (gfx_clock: HOS_TICK_LOG lists GetSystemTick's callers).
+    npad_players=1,
+    account_users=1,
+    # The guide movies' player counts every picture it submitted: one the catch-up skips is never handed back, and the
+    # player aborts at its loop's flush (main+0xe1ada0 from 0x8189b900; with skips, after 1-2 loops).
+    video_catchup=False,
+    notes="Identity measured on the dump; movie catch-up off (the guide player counts every picture).",
+)
+
 # The profile for a dump whose build no profile knows: nothing patched, nothing hooked, one player.
 NONE = Profile(key="none", game="an unknown game",
                notes="No profile knows this build: lifted without patches, and the runtime recognises nothing in it.")
 
-GAMES = collections.OrderedDict((p.key, p) for p in (OOT, NONE))
+GAMES = collections.OrderedDict((p.key, p) for p in (OOT, DKB, NONE))
 
 # Ocarina stays the default where there is no dump to go by (the committed header, the game-free checks), because it
 # is the only game whose values have been measured and checked by running it.
@@ -292,6 +317,10 @@ def emit_header(profile=None):
     w("")
     w("/* the console's users (nn::account) when HOS_ACCOUNT_USERS is unset: host/nn_applet.c */")
     w("#define GAME_ACCOUNT_USERS %d" % int(p.account_users))
+    w("")
+    w("/* 1: a movie skips pictures behind its clock (host/nn_video.c; HOS_VIDEO_NO_CATCHUP=1 turns it off); 0: never, for")
+    w("   a game whose movie player counts every picture it submitted */")
+    w("#define GAME_VIDEO_CATCHUP %d" % (1 if p.video_catchup else 0))
     w("")
     w("#endif /* GAME_PROFILE_H */")
     return "\n".join(out) + "\n"
