@@ -8,7 +8,7 @@ four games**, and a general improvement made for one game reaches the other thre
 | The Legend of Zelda: Ocarina of Time | `notquiteog/Hookshot` (this one) | `oot` | released (v2.3.0-rc.1) |
 | Mario Kart World | `notquiteog/Lakitu`, branch `fork/mario-kart-world` | `mkw` | 1.0.0 boots to its title screen |
 | Kirby Air Riders | `notquiteog/Dragoon`, branch `fork/kirby-air-riders` | `kar` | lifts, boots to NVN, crashes in a PhysX worker |
-| Donkey Kong Bananza | profile in this repository (`~/Projects/hookshot-dkb`, branch `fork/donkey-kong-bananza`, for what is not merged yet) | `dkb` | 3.2.0 plays the opening and the mining tunnel; its guide movies need the video fix |
+| Donkey Kong Bananza | this one ([its page](donkey-kong-bananza.md)); `~/Projects/hookshot-dkb` keeps only what is in review | `dkb` | 3.2.0 plays from `main`: the opening, the mining tunnel, the guide movies; not released yet |
 
 This page has the target, the rules that keep it reachable, and the order of the work. It is for the people and the
 agents who work on any of the four.
