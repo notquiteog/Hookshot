@@ -11,11 +11,11 @@ this repository: the dump is read where it lies, and the extraction, the lift an
 |---|---|
 | The dump | `Donkey Kong Bananza.nup`: base v0, update **v458752 (3.2.0)**, add-on content `040074a01bf13001` (romfs only, 7,270 files) |
 | Identity | program `040074A01BF12000`, main build `e25c90c1c136638885659fd55bf8a03b3403489d`, sdk `18265dae...`, SDK and NVN 20.5.19, no subsdk modules |
-| Game profile | `dkb` in `nx2/game_profile.py`, chosen by main's build id (Dragoon's seam); identity only, nothing patched or hooked |
+| Game profile | `dkb` in `nx2/game_profile.py` on Hookshot's seam (#10), chosen by main's build id; identity, saves in `hookshot-dkb`, the movie catch-up off (`video_catchup`); proposed to main as notquiteog/Hookshot#42 |
 | Lift | 188,678 functions, 9,102,462 instructions, **100.0000 %** translated, 2,175 jump tables, no TLS descriptors |
 | Build | 24 min cold with 6 jobs on a loaded i5-13600K, under 2 min after a host change |
 | Boot | **reaches gameplay**: the first-start menu (Normal / Assist Mode), the opening cutscene, the mining tunnel with the HUD, punching, walking, climbing, gold, NPC lines; 60 fps at 700-4,400 draws a frame on an RTX 5060 Ti (Linux, NVIDIA 615.71.09) |
-| Where it stops | the guide movies (VP9) play, but the movie player aborts after ~16 loops of the first one (section 3). `HOS_NO_MOVIES=1` leaves them out and the tutorial goes on |
+| Where it stops | not found yet past the tunnel's guide movies: with the video buffer reservations (#41) the guide looped 52 times in 5 minutes without an abort (2026-11-14). Since #20, the boot needs the `EnsureSaveData` answer (#40) |
 
 ## 2. What stopped it, in boot order, and what fixed it
 
@@ -44,7 +44,7 @@ Also fixed on the way, because they would have bitten any second game:
 
 ## 3. Open, roughly in the order they stop play
 
-1. **The movie player's abort** after many loops of a guide movie: `FATAL: the game aborted (nn::diag::detail::AbortImpl)
+1. **Fixed (notquiteog/Hookshot#41, #42): the movie player's abort.** The player counts what it submits; the runtime finished more buffers than that (an acquire before any submission was reached at the next one while its picture went elsewhere, and the end filled no buffer while acquires after it got one again) and the catch-up skipped pictures. Now an early acquire is reserved for the next picture, the end has its own picture, and Bananza's profile turns the catch-up off. The rest of this item is the history: **The movie player's abort** after many loops of a guide movie: `FATAL: the game aborted (nn::diag::detail::AbortImpl)
    (lr 0x80e3ae94)` on MovieOperateThread. The function at main+0xe1ada0 takes the first entry of a list at
    object+0xc30 under a lock and aborts when it is empty. Hookshot's decoder signals a buffer's sync point at once (or
    marks it idle); dkb-pc-recomp found the player needs it signalled only when a picture has been decoded into that
