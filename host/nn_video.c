@@ -774,6 +774,10 @@ static void dec_unregister(Ctx *c) {
    (reserved: from fill_reserved, for the log) */
 static void put_picture(Dec *d, int slot, int reserved) {
     Picture *p = &d->queue[d->qhead];
+    /* (hookshot) a reserved buffer's picture starts the movie's clock as an acquired one does (dec_acquire's catch-up):
+       a clock started at the first acquired picture instead ran late by the reserved ones, and the catch-up dropped
+       pictures that were on time */
+    if (reserved && (!d->clock_set || p->pts < d->clock_pts)) d->clock_set = 1, d->clock_ns = hos_now_ns(), d->clock_pts = p->pts;
     Pool *o = (Pool *)host_of(d->slots[slot], POOL_MAGIC);
     /* (the picture at the pool's size: rows and columns past either are left out) */
     const int ok = o->nv12 != NULL && p->nv12 != NULL;   /* (an allocation that failed: nothing copied; issue 342) */
