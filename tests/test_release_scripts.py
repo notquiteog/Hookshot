@@ -359,6 +359,36 @@ class ReleaseScripts(unittest.TestCase):
         self.assertEqual(self.state()["race"], {"SHA256SUMS": 0})
         self.assertFalse([c for c in self.state()["calls"] if any("name=SHA256SUMS" in a for a in c)])
 
+    def finish_without_a_digest(self, race):
+        """finish, with hookshot-linux.txt on the release but no digest for it yet (a file just uploaded), read `race`
+        times as replaced under a new id first; its returncode and the SHA256SUMS line it should have"""
+        self.given([], tags={"v2.1.0": COMMIT})
+        r = self.upload()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        state = self.state()
+        (rel_,) = [x for x in state["releases"] if x["tag_name"] == "v2.1.0"]
+        (linux,) = [a for a in rel_["assets"] if a["name"] == "hookshot-linux.txt"]
+        linux.pop("digest", None)
+        state.update(race={"hookshot-linux.txt": race}, calls=[])
+        self.state_file.write_text(json.dumps(state), encoding="utf-8")
+        r = self.run_script("release_files.sh", "finish", "v2.1.0")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        (made,) = [x for x in self.state()["releases"] if x["tag_name"] == "v2.1.0"]
+        sums = next(a["content"] for a in made["assets"] if a["name"] == "SHA256SUMS")
+        self.assertIn(hashlib.sha256(linux["content"].encode()).hexdigest() + "  hookshot-linux.txt", sums.splitlines())
+
+    def test_a_file_with_no_digest_yet_is_read_and_hashed(self):
+        # (CI runs 43619534643 and 43625307765: the fields were split on tabs, so a file with no digest yet had its id read
+        # as its digest and an empty id; the read of releases/assets/ was a 404, which ended the run, its files uploaded)
+        self.finish_without_a_digest(0)
+        reads = [c for c in self.state()["calls"] if any("releases/assets/" in a and "-H" in c for a in c)]
+        self.assertFalse([c for c in reads if c[-1].endswith("releases/assets/")], reads)
+
+    def test_a_file_replaced_while_its_sum_is_read_is_left_for_the_next_round(self):
+        # (the nightly's other platform's run replaced it, under a new id, after this run listed it)
+        self.finish_without_a_digest(1)
+        self.assertEqual(self.state()["race"], {"hookshot-linux.txt": 0})
+
     # the nightly (scripts/release_upload.sh nightly): main's history Z, A, B, the newest last
 
     Z, A, B = ("1" * 40, "a" * 40, "b" * 40)
