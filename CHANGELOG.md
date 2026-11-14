@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.3.0-rc.11](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.10...v2.3.0-rc.11) (2026-11-14)
+
+
+### Bug Fixes
+
+* **control:** a bench run or a launch never leaves its game running ([#34](https://github.com/notquiteog/Hookshot/issues/34)) ([1766ce0](https://github.com/notquiteog/Hookshot/commit/1766ce0ab2def32a71d017089205da0a15a375ad))
+
+## [2.3.0-rc.10](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.9...v2.3.0-rc.10) (2026-11-14)
+
+
+### Features
+
+* **profile:** Donkey Kong Bananza 3.2.0, with the movie catch-up off for its guide player ([#42](https://github.com/notquiteog/Hookshot/issues/42)) ([b820af9](https://github.com/notquiteog/Hookshot/commit/b820af98bbfccd04debd455fcb336fd168a23906))
+
+
+### Bug Fixes
+
+* **fs:** answer EnsureSaveData, which crashed Donkey Kong Bananza at boot once null reads fault ([#40](https://github.com/notquiteog/Hookshot/issues/40)) ([1195b90](https://github.com/notquiteog/Hookshot/commit/1195b90ae31dec4a78e97a28bdf3559113c05ce3))
+* **video:** every submission fills one buffer: an early acquire is reserved, and the end has its own picture ([#41](https://github.com/notquiteog/Hookshot/issues/41)) ([2fcc3d0](https://github.com/notquiteog/Hookshot/commit/2fcc3d0b753d9ebd868a1a2b4374acba2e34eab5))
+
 ## [2.3.0-rc.9](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.8...v2.3.0-rc.9) (2026-11-14)
 
 
