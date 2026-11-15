@@ -404,6 +404,8 @@ void destroy_sparse_buffer(VkBuffer buffer);
 /// Device-local memory this process uses and what the driver allows it now (VK_EXT_memory_budget), summed over the
 /// device-local heaps; false when unknown
 bool vram_usage(uint64_t* used, uint64_t* budget, uint64_t* block_free = nullptr);
+/// (vk_memory.cpp) the largest device-local heap's size: the card's video memory (0: none)
+uint64_t device_vram_bytes();
 /// vram_usage asked of the driver now (VMA asks again for a new frame index), for the status line; false when the driver
 /// gives no budget (VK_EXT_memory_budget): used is then the game's own allocations
 bool vram_usage_now(uint64_t* used, uint64_t* budget);

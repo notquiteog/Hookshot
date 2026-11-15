@@ -33,7 +33,7 @@
 #include "vk_gprof.h"      // (RX_VK_PASS_TIMING)
 #include "import_hold.h"
 #include "import_fence.h"
-#include "mirror_budget.h"   // (mirror_budget's rules: Auto's, and a preset's cap)
+#include "mirror_budget.h"   // (mirror_budget's rule, by the card)
 #include "mirror_trim.h"
 #include "wb_learn.h"
 #include "mirror_inherit.h"
@@ -3198,13 +3198,6 @@ uint64_t device_vram_bytes() {
         if (dev.memory.memoryHeaps[h].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) vram = std::max(vram, (uint64_t)dev.memory.memoryHeaps[h].size);
     return vram;
 }
-bool preset_caps_memory() {
-    static const uint64_t nominal_gb[] = {0, 4, 6, 8, 12, 16};
-    // (by the budgets' preset, which Custom keeps: a smaller preset on a bigger card stays the card's own after a row is tuned too)
-    if (opts.budget <= 0 || opts.budget > 5) return true;   // (none: what the file says)
-    const uint64_t vram = device_vram_bytes();
-    return !vram || vram <= ((nominal_gb[opts.budget] << 30) + (768ull << 20));
-}
 // (RX_VK_MSYNC_PASS: defined after memory_end_submission)
 bool msync_pass_add(Pool& p, VkBuffer buf, const std::vector<VkBufferCopy>& rs);
 void msync_pass_flush();
@@ -3212,16 +3205,12 @@ void msync_pass_report();
 extern bool msync_batching;
 namespace {
 uint64_t mirror_budget() {
-    // (Auto: a quarter of the card, at most 3 GB, an eighth on cards of 4.5 GB or less: mirror_budget.h auto_bytes)
+    // (a quarter of the card, at most 2 GB under 15 GB, else 3 GB; at most 256 MB on cards of 4.5 GB or less: mirror_budget.h.
+    // No menu row or Quality preset sets it; RX_VK_MIRROR_MB=<MB> for a test)
     static const uint64_t b = [] {
         if (const char* e = getenv("RX_VK_MIRROR_MB")) return (uint64_t)atoi(e) << 20;
         return mirror_rule::auto_bytes(device_vram_bytes());
     }();
-    // (the Insert menu's quality preset sets one, 256 MB at Minimum (4GB): it was never read, and an 8 GB card kept ~2 GB of
-    // mirrors with the 4GB preset on, 2026-11-08)
-    // (only on a card the preset is for: preset_caps_memory; a preset's never past Auto's on this card: mirror_budget.h budget_bytes)
-    if (opts.mirror_mb > 0 && !getenv("RX_VK_MIRROR_MB") && preset_caps_memory())
-        return mirror_rule::budget_bytes((uint64_t)opts.mirror_mb << 20, opts.budget > 0, device_vram_bytes());
     return b;
 }
 uint64_t mirror_bytes = 0, mirror_epoch = 0;

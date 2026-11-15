@@ -130,15 +130,12 @@ void restart() {
     auto_tuning = {};
     auto_output = {};
     // The hardware stand-ins (auto_choice and auto_fp) describe the same PC after a restart.
-    bool has_options = false, has_output = false, has_vram_budget = false, has_memory_budget = false;
+    bool has_options = false, has_output = false, has_memory_budget = false;
     /* LOAD */
-    CHECK(has_options && !has_output && has_memory_budget && !has_vram_budget);
+    CHECK(has_options && !has_output && has_memory_budget);
 }
 void apply_pad_layout(int) {}
 int detect_pad_layout() { return opts.pad_layout; }
-void sync_preset_budgets(int) {}
-void vram_budget_sync() {}
-constexpr int kVramMinimumOnly = 1;
 namespace mr { constexpr int kMax = 8; struct State { void note(const int*) {} }; }
 mr::State restart_state;
 void restart_values(int*) {}
@@ -148,7 +145,7 @@ void samplers_changed() {}
 void temporal_reset_failure() {}
 void prompts_at_once(const Row&) {}
 /* STOPS */
-void apply_auto(bool keep_own);
+void apply_auto();
 void logf(const char*, ...) {}
 /* PRESET */
 /* APPLY_AUTO */
