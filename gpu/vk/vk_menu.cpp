@@ -4256,6 +4256,7 @@ static void probe_upscalers_soon() {
             (void)fsr3::supported();
             logf("menu: the upscalers asked in the background while the start-up screen shows (%.0f ms)",
                  std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+            dlss_status_log();   // (one block: DLSS, its frame generation and DLSS 5, on or off and why)
         }).detach();
     });
 }
