@@ -61,14 +61,24 @@ def read_list(path):
     """(the list's bytes as read, once, and its records): the bytes checked as nx2/pipeline_states.py --check checks a list
     (strict: whole records), so the zip holds exactly what was checked. ShareError with the reason when it is missing, not a list
     this build reads, cut short or empty"""
+    most = pipeline_states.SENT_MOST   # (packed or unpacked: a small xz file can unpack to gigabytes)
     try:
         with open(path, "rb") as f:
-            data = f.read()
+            data = f.read(most + 1)
     except FileNotFoundError:
         raise ShareError("No pipeline list yet: %s is not in the game folder. The game writes it as you play: play a while, then "
                          "save it again." % LIST)
+    if len(data) > most:
+        raise ShareError("%s cannot be shared: it is larger than a pipeline list holds (%d MB)." % (LIST, most >> 20))
     try:
-        body = lzma.decompress(data) if data[:6] == pipeline_states.XZ_MAGIC else data
+        body = data
+        if data[:6] == pipeline_states.XZ_MAGIC:
+            un = lzma.LZMADecompressor(format=lzma.FORMAT_XZ)
+            body = un.decompress(data, max_length=most + 1)
+            if len(body) > most:
+                raise ShareError("%s cannot be shared: it unpacks to more than a pipeline list holds (%d MB)." % (LIST, most >> 20))
+            if not un.eof or un.unused_data:
+                raise lzma.LZMAError("cut short, or with more after its end")
         recs = pipeline_states.parse(body, path, strict=True)
     except lzma.LZMAError as e:
         raise ShareError("%s cannot be shared: a damaged xz file (%s)." % (LIST, e))
