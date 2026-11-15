@@ -10129,19 +10129,31 @@ void predicted_keys_write(std::vector<uint64_t> keys) {
         if (fclose(f) != 0 || !ok) remove(path.c_str());
     }
 }
+/// Read the keys and retain whether the record was valid: a completed prediction can have zero keys.
+bool predicted_keys_read(std::vector<uint64_t>& keys) {
+    bool ok = false;
+    if (FILE* f = fopen(predicted_keys_path().c_str(), "rb")) {
+        uint64_t head[2]{};
+        if (fread(head, 8, 2, f) == 2 && head[0] == program_cache_stamp() && head[1] <= (64u << 20) &&
+            fseek(f, 0, SEEK_END) == 0 && ftell(f) == 16 + (long)head[1] * 8 && fseek(f, 16, SEEK_SET) == 0) {
+            keys.resize((size_t)head[1]);
+            ok = fread(keys.data(), 8, keys.size(), f) == keys.size();
+        }
+        fclose(f);
+    }
+    if (!ok) keys.clear();
+    return ok;
+}
+bool predicted_complete() {
+    std::vector<uint64_t> keys;
+    return predicted_keys_read(keys);   // Read again: a preparation in this process may have just written it.
+}
 namespace {   // (declared in the anonymous namespace of graphics_pipeline and the play caches)
 /// (read once, at the first pipeline play makes: a few hundred KB)
 const std::vector<uint64_t>& predicted_keys() {
     static const std::vector<uint64_t> keys = [] {
         std::vector<uint64_t> k;
-        if (FILE* f = fopen(predicted_keys_path().c_str(), "rb")) {
-            uint64_t head[2]{};
-            if (fread(head, 8, 2, f) == 2 && head[0] == program_cache_stamp() && head[1] <= (64u << 20)) {
-                k.resize((size_t)head[1]);
-                if (fread(k.data(), 8, k.size(), f) != k.size()) k.clear();
-            }
-            fclose(f);
-        }
+        predicted_keys_read(k);
         return k;
     }();
     return keys;

@@ -88,6 +88,8 @@ void load_device(VkDevice device) {
 
 namespace mkwvk {
 
+bool predicted_complete();   // vk_draw.cpp: completion of explicit All preparation, including zero keys
+
 int display_refresh_mhz();   // (below, outside the unnamed namespace)
 
 std::vector<std::string> gpu_device_names;
@@ -1467,7 +1469,8 @@ bool started_up() {
         part = 0;
         const bool prepared = prepare_run(progress, false, true);
         // (or the last run did not finish the prediction; Compile shaders on Most: never, compile_all)
-        const bool predict = (prepared || predict_pending()) && compile_all();
+        // An explicit All request also upgrades a folder prepared on Most. Completed All work stays skipped.
+        const bool predict = compile_all() && (prepared || predict_pending() || !predicted_complete());
         if (!prepared && !bar.counted[0]) bar.skip(0);   // (an already prepared seed can still import pipeline states)
         // (no prediction: its part of the bar goes. On Most after a preparation too: left in, the step to the noted pipelines
         // counted it done at its guess, and the bar jumped by the prediction's share, about half of it)
