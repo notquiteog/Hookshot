@@ -3117,8 +3117,9 @@ int memory_guest_contained(uint64_t lo, uint64_t hi) {
     return it->second.lo <= lo && it->second.hi >= hi ? 1 : 0;
 }
 int memory_guest_imported(uint64_t lo, uint64_t hi) {
+    if (hi <= lo) return 0;
     std::lock_guard lk(pools_mu);
-    auto it = imported.upper_bound(hi);   // (pools by lo: those starting below hi, the last ones checked first)
+    auto it = imported.lower_bound(hi);   // (pools by lo: those starting below hi, the last ones checked first)
     while (it != imported.begin()) {
         --it;
         if (it->second.hi > lo) return 1;
