@@ -5363,7 +5363,8 @@ void draw_flush_recording(int slot) {
     ParLock lk;
     const RecordingRes& r = res[slot];
     // Earlier descriptors still name streams we outgrew; later retained streams were not used this recording.
-    for (size_t i = 0; i <= r.si; i++) {
+    // (none when the slot's first stream could not be made: draw_begin_recording)
+    for (size_t i = 0; i <= r.si && i < r.streams.size(); i++) {
         const RecordingRes::Stream& s = r.streams[i];
         if (s.alloc) flush_mapped(s.alloc, i < r.si ? s.size : r.used);
     }
