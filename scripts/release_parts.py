@@ -228,8 +228,11 @@ def package(a):
             if f.lower().startswith("amd_fidelityfx_") and f.lower().endswith("_vk.dll"):
                 copy(os.path.join(amd_fsr, f), os.path.join(tools, "amd-fsr", f))
                 n += 1
-        if os.path.isfile(os.path.join(amd_fsr, "LICENSE.txt")):
-            copy(os.path.join(amd_fsr, "LICENSE.txt"), os.path.join(tools, "amd-fsr", "LICENSE.txt"))
+        # (LICENSE-AMD-FSR-SDK.md: AMD's license for the DLLs, the file scripts/ffx_sdk.py pins beside them, so that the
+        # Builder's AMD FSR 4 tick takes all three from here and downloads nothing: nx2/make_game.py seed_fsr_runtime)
+        for name in ("LICENSE.txt", "LICENSE-AMD-FSR-SDK.md"):
+            if os.path.isfile(os.path.join(amd_fsr, name)):
+                copy(os.path.join(amd_fsr, name), os.path.join(tools, "amd-fsr", name))
         print("AMD FSR runtime: %d DLLs from %s" % (n, amd_fsr))
     # (hookshot) the repository the release is from, for the Builder's updater and the game's update check (nx2/version.py)
     if repository:
@@ -284,9 +287,21 @@ def python_packages(list_path, requirements, tools):
     py = os.path.join(tools, "python")
     n = extract(part, "HookshotBuilder/tools/python/", py)
     print("%d files of %s (Python %s) into %s, with %s" % (n, os.path.basename(part), version, py, ", ".join(missing)))
-    subprocess.run([sys.executable, "-m", "pip", "install", "--no-deps", "--only-binary", ":all:", "--no-compile", "--no-cache-dir",
-                    "--disable-pip-version-check", "-q", "--platform", "win_amd64", "--python-version", version,
-                    "--implementation", "cp", "--target", os.path.join(py, "Lib", "site-packages")] + missing, check=True)
+    # (each file checked against its SHA-256: requirements-hashes.txt, scripts/lock_requirements.py; a pin alone takes
+    # whatever file the index serves)
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import lock_requirements
+    import tempfile
+    fd, locked = tempfile.mkstemp(suffix=".txt", prefix="requirements-hashes-")
+    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+        f.write(lock_requirements.subset(missing))
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "--no-deps", "--only-binary", ":all:", "--no-compile", "--no-cache-dir",
+                        "--disable-pip-version-check", "-q", "--platform", "win_amd64", "--python-version", version,
+                        "--implementation", "cp", "--require-hashes", "-r", locked,
+                        "--target", os.path.join(py, "Lib", "site-packages")], check=True)
+    finally:
+        os.unlink(locked)
     return 0
 
 
