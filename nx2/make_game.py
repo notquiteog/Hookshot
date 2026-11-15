@@ -50,6 +50,7 @@ PY = [sys.executable, "-I", "-u", "-X", "utf8"]   # (utf8: every step's output i
 STARTED = time.time()   # (the build's total time, kept in build_times.json and said as @@times)
 sys.path[:0] = [HERE, os.path.join(ROOT, "third_party", "a64-kit", "tools")]   # (python -I leaves the script folder off)
 import game_profile   # noqa: E402  (which builds have a game profile, nx2/game_profile.py)
+import game_folders   # noqa: E402  (each game's own folders beside the default game's, nx2/game_folders.py)
 # The default game's build, as the docs quote it (Ocarina's e0f3ccfa: the version its patches, the hot list and the
 # profile were made from). Which builds are accepted is the game profiles' list (supported_build), not this one.
 BUILD_ID = game_profile.GAMES[game_profile.DEFAULT].build_id[:8]
@@ -615,9 +616,9 @@ def check_cpu():
              "instead (see the readme): a source build follows your processor." % m)
 
 
-def check(a, work):
-    check_windows_sdk(work)   # (first: said in plain words when the game is chosen, not after it has been read)
-    check_cpu()
+def dump_build_id(a, work):
+    """main's build id of the copy a names (a .nup: only its exefs unpacked, to work/probe and gone again; a folder: read
+    where it lies)"""
     if a.nup:
         probe = os.path.join(work, "probe")
         shutil.rmtree(probe, ignore_errors=True)
@@ -625,8 +626,30 @@ def check(a, work):
         check_modules(os.path.join(probe, "exefs"))
         bid = build_id(os.path.join(probe, "exefs", "main"))
         shutil.rmtree(probe, ignore_errors=True)
-    else:
-        bid = build_id(os.path.join(a.exefs, "main"))
+        return bid
+    return build_id(os.path.join(a.exefs, "main"))
+
+
+def game_folders_for_dump(a):
+    """(--prepare with no --out) The game folder and the work folder of the game the copy is: the dump decides the game
+    (game_profile.for_build), and a game other than the default one builds beside it in <folder>-<key>, with a work
+    folder <work>-<key> when the work folder is the builder's own (nx2/game_folders.py). The default game's are the ones
+    it always had. A copy no profile knows is left to check_supported_build, which refuses it as before."""
+    profile = supported_build(dump_build_id(a, a.work))
+    if profile is None:
+        return
+    a.out = game_folders.folder(a.out, profile.key)
+    if os.path.abspath(a.work) == os.path.abspath(a.default_work):
+        a.work = game_folders.folder(a.work, profile.key)
+        os.makedirs(a.work, exist_ok=True)
+    if profile.key != game_profile.DEFAULT:
+        print("%s: its own game folder %s" % (profile.game, a.out), file=sys.stderr if PREPARE else sys.stdout, flush=True)
+
+
+def check(a, work):
+    check_windows_sdk(work)   # (first: said in plain words when the game is chosen, not after it has been read)
+    check_cpu()
+    bid = dump_build_id(a, work)
     if supported_build(bid):   # (a build some game profile knows: nx2/game_profile.py)
         say("check", "ok", "This is the version Hookshot supports (build %s)." % bid[:8])
     else:
@@ -1347,6 +1370,52 @@ def not_prepared(why, then=FIRST_START):
     print("%s (%s): %s" % (NOT_PREPARED, why, then), flush=True)
 
 
+# (Compile shaders, the builders' and the launcher's choice: compile_shaders= in the game folder's hookshot_options.ini, the
+# number the game reads (gpu/vk/vk_draw.cpp compile_all). All, the default (as before the choice): every shader program, the pipelines the lists name and the predicted
+# ones. Most: without the predicted pipelines, 20-30 % less time; on one measured route it cost nothing in play)
+COMPILE_LEVELS = {"most": 0, "all": 1}
+COMPILE_KEY = "compile_shaders"
+
+
+def options_path(out):
+    return os.path.join(out, "hookshot_options.ini")
+
+
+def folder_compile_level(out):
+    """The Compile shaders choice the folder's hookshot_options.ini holds ("most" or "all"), or None when it holds none"""
+    try:
+        with open(options_path(out), encoding="utf-8", errors="replace") as f:
+            for line in f:
+                key, eq, value = line.strip().partition("=")
+                if eq and key == COMPILE_KEY:
+                    n = int(value) if value.strip().lstrip("-").isdigit() else 0
+                    return next((name for name, v in COMPILE_LEVELS.items() if v == n), "all")
+    except OSError:
+        pass
+    return None
+
+
+def write_compile_level(out, level):
+    """compile_shaders=<n> into the folder's hookshot_options.ini, the file's other lines as they are (the game's menu keeps the
+    line too). A file with only this line still makes the game's first start a first start (gpu/vk/vk_menu.cpp menu_init)"""
+    path = options_path(out)
+    lines = []
+    try:
+        with open(path, encoding="utf-8", errors="replace", newline="") as f:
+            lines = [l for l in f.read().splitlines() if l.partition("=")[0].strip() != COMPILE_KEY]
+    except OSError:
+        pass
+    lines.append("%s=%d" % (COMPILE_KEY, COMPILE_LEVELS[level]))
+    with open(path + ".new", "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines) + "\n")
+    os.replace(path + ".new", path)
+
+
+def compile_level(a, out):
+    """This build's Compile shaders: --compile-shaders, else the folder's own choice, else Most"""
+    return getattr(a, "compile_shaders", None) or (folder_compile_level(out) if out else None) or "all"
+
+
 def prepare_skipped(a, environ=None):
     """Why the build leaves the shaders to the first start, or None: it prepares them"""
     environ = os.environ if environ is None else environ
@@ -2049,6 +2118,10 @@ def parse_args():
     p.add_argument("--update", help="a game folder built before: built again from the game files it keeps (the game's update offer)")
     p.add_argument("--no-prepare-shaders", action="store_true",
                    help="leave the shaders' preparation to the game's first start (the builder's \"Prepare shaders now\" unticked)")
+    p.add_argument("--compile-shaders", choices=tuple(COMPILE_LEVELS),
+                   help="what the shaders' preparation builds: most (the default) every shader and the pipelines the lists name; "
+                        "all the predicted pipelines too (about 40%% longer). Kept in the folder's hookshot_options.ini "
+                        "(compile_shaders=), which the game's own preparations follow; not given: the folder's")
     p.add_argument("--log", metavar="FILE", help="also save build output to a UTF-8 file (replaces the file if it exists)")
     # (NVIDIA DLSS, off unless asked: NVIDIA's SDK into HOOKSHOT_NGX_SDK first, under NVIDIA's license. scripts/ngx_sdk.py)
     p.add_argument("--fetch-ngx-sdk", action="store_true", help="download NVIDIA's DLSS SDK into HOOKSHOT_NGX_SDK before the build")
@@ -2060,6 +2133,8 @@ def parse_args():
                    help="with --fsr (Windows): download AMD's FSR runtime (scripts/ffx_sdk.py) and put it in the game folder")
     p.add_argument("--accept-amd-license", action="store_true", help="AMD's FSR SDK license, accepted (with --fetch-fsr-runtime)")
     a = p.parse_args()
+    # (--prepare with no --out: the default game's folder below, and main makes it the copy's game's: game_folders_for_dump)
+    a.out_from_game = bool(a.prepare and not a.out)
     if a.prepare:   # (first: a bad --game below is said as RecompLauncher's "error" line)
         global PREPARE
         PREPARE = True
@@ -2182,6 +2257,8 @@ def main(a=None):
         a.out = a.update
     if not a.out or not (a.update or a.nup or (a.romfs and a.exefs)):
         fail("needs --out, and --nup or --romfs with --exefs")
+    if getattr(a, "out_from_game", False) and not a.update:   # (--prepare, no --out: the game's own folder)
+        game_folders_for_dump(a)
     out = os.path.abspath(a.out)
     work = os.path.abspath(a.work)
     a.language = build_language(a, out)   # (now: the folder's own language.txt is still the one the player left)
@@ -2589,11 +2666,14 @@ def main(a=None):
                                                     "" if previous is None else " (the last one %s)" % clock(previous)), flush=True)
     say("times", "%.0f" % total_seconds, "%.0f" % compile_seconds, "-1" if previous is None else "%.0f" % previous)
     # (after the times: they stay comparable from build to build, without a GPU's minutes that can be switched off)
+    if getattr(a, "compile_shaders", None):   # (the choice kept in the folder: the game's own preparations at a start follow it)
+        write_compile_level(out, a.compile_shaders)
+    level = compile_level(a, out)
     skipped = prepare_skipped(a)
     if skipped:
         not_prepared(skipped)
     else:
-        prepare_shaders([os.path.join(game_dir, BESIDE[0]), "--prepare-shaders"], out)
+        prepare_shaders([os.path.join(game_dir, BESIDE[0]), "--prepare-shaders", "--compile-shaders", level], out)
     say("done", out)
 
 
