@@ -52,7 +52,7 @@ class BakeDs(unittest.TestCase):
     def test_built_in_the_users_cache_and_run_only_when_theirs(self):
         import bake_all
         with mock.patch.dict(os.environ, {"XDG_CACHE_HOME": "/home/u/.cache"}):
-            self.assertEqual(bake_all.default_build_dir(), "/home/u/.cache/hookshot-ds")
+            self.assertEqual(bake_all.default_build_dir(), os.path.join("/home/u/.cache", "hookshot-ds"))
         script = (ROOT / "nx2" / "bake_ds" / "build.sh").read_text(encoding="utf-8")
         self.assertIn("OUT=${OUT:-${XDG_CACHE_HOME:-$HOME/.cache}/hookshot-ds}", script)
         self.assertNotIn("/tmp}/hookshot-ds", script)
