@@ -1730,21 +1730,27 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(a.jobs) as ex:
         # (as each ends, not in order: the builder app shows progress from these lines, and the biggest file comes first)
         submitted = {ex.submit(compile_one, job): job for job in jobs}
-        for future in concurrent.futures.as_completed(submitted):
-            src, secs, err = future.result()
-            size = src_size(src) >> 20
-            if err:
-                failed.append(submitted[future])
-                print("not compiled yet: %s (%d MB, %.0fs), tried again alone at the end:\n%s"
-                      % (os.path.basename(src), size, secs, err[-1500:]), flush=True)
-            else:
-                print("  %-16s %4d MB  %6.0fs  (%.0fs)" % (os.path.basename(src), size, secs, time.time() - t0), flush=True)
-            if counted:
-                print("@@file %s %.1f %s" % (os.path.basename(src), secs,
-                                             "failed" if err else "cached" if secs <= 0 else "new"), flush=True)
-                if not err and expected.get(src):
-                    pending.remove(expected[src].pop())
-                    print("@@eta %d" % eta_left(pending, eta_jobs), flush=True)
+        try:
+            for future in concurrent.futures.as_completed(submitted):
+                src, secs, err = future.result()
+                size = src_size(src) >> 20
+                if err:
+                    failed.append(submitted[future])
+                    print("not compiled yet: %s (%d MB, %.0fs), tried again alone at the end:\n%s"
+                          % (os.path.basename(src), size, secs, err[-1500:]), flush=True)
+                else:
+                    print("  %-16s %4d MB  %6.0fs  (%.0fs)" % (os.path.basename(src), size, secs, time.time() - t0), flush=True)
+                if counted:
+                    print("@@file %s %.1f %s" % (os.path.basename(src), secs,
+                                                 "failed" if err else "cached" if secs <= 0 else "new"), flush=True)
+                    if not err and expected.get(src):
+                        pending.remove(expected[src].pop())
+                        print("@@eta %d" % eta_left(pending, eta_jobs), flush=True)
+        except BaseException:
+            # (a compile that raised (its compiler gone, an object or its stamp not writable) or Ctrl-C: the pool's exit would
+            # start every compile still queued first, the whole compile with nothing said, before the build stopped)
+            ex.shutdown(wait=False, cancel_futures=True)
+            raise
     # (a compiler that ran out of memory beside the others dies "due to signal": a player's 24 MB code_021.c, 2026-11-08. The
     # files that failed are compiled again one at a time, with all the memory, before the build gives up)
     still = 0
@@ -1894,4 +1900,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
