@@ -2022,6 +2022,22 @@ def ffx_folder():
     return os.environ.get("HOOKSHOT_FFX_SDK") or os.path.join(ROOT, "work", "ffx-sdk")
 
 
+def seed_fsr_runtime(ffx, folder):
+    """AMD's FSR runtime the builder carries (tools/amd-fsr, the release's amd-fsr part: the same pinned files, AMD's license
+    beside them) into folder, each file only when its SHA-256 is the pinned one, so that --fetch-fsr-runtime then downloads
+    nothing. True when folder then holds every file it pins, whether copied now or there before"""
+    src = os.path.join(ROOT, "amd-fsr")
+    for _, digest, name in ffx.FILES:
+        have, dst = os.path.join(src, name), os.path.join(folder, name)
+        if os.path.isfile(dst) and ffx.sha256(dst) == digest:
+            continue
+        if os.path.isfile(have) and ffx.sha256(have) == digest:
+            os.makedirs(folder, exist_ok=True)
+            shutil.copyfile(have, dst + ".part")
+            os.replace(dst + ".part", dst)
+    return ffx.complete(folder)
+
+
 def fetch_fsr_runtime(a):
     """--fetch-fsr-runtime (with --fsr, Windows; the Hookshot Builder's AMD FSR 4 tick): AMD's signed FSR SDK 2.4 Vulkan
     runtime (scripts/ffx_sdk.py) into ffx_folder() before the build, once AMD's license was accepted (--accept-amd-license:
@@ -2031,6 +2047,10 @@ def fetch_fsr_runtime(a):
         fail("AMD FSR 4 needs AMD's license accepted first (--accept-amd-license).")
     ffx = ffx_script()
     print(ffx.NOTICE, flush=True)
+    if seed_fsr_runtime(ffx, ffx_folder()) and ffx.complete(ffx_folder()):
+        print("AMD's license accepted: AMD's FSR runtime from the builder's own copy (%s), nothing to download"
+              % os.path.join(ROOT, "amd-fsr"), flush=True)
+        return
     print("AMD's license accepted: getting AMD's FSR runtime into %s" % ffx_folder(), flush=True)
     try:
         ffx.fetch(ffx_folder(), say=lambda line: print(line, flush=True))
@@ -2053,24 +2073,35 @@ def place_fsr_runtime(out):
     return dst
 
 
-def place_ngx_runtime(out):
+def place_ngx_runtime(out, drop=False):
     """(NVIDIA DLSS) a game built with NVIDIA's SDK (HOOKSHOT_NGX_SDK, as nx2/build.py takes it) gets DLSS's runtime in its ngx
     folder, where gpu/vk/vk_dlss.cpp looks first: nvngx_dlss.dll on Windows, libnvidia-ngx-dlss.so.<version> on Linux; and
     DLSS Frame Generation's beside it (nvngx_dlssg.dll, libnvidia-ngx-dlssg.so.<version>), without which NGX takes the
     driver's own, maybe older, copy. Never NGX's core (_nvngx.dll is the driver's) and nothing beside the exe. Returns DLSS's
-    runtime placed, or None"""
+    runtime placed, or None.
+    A build without the SDK keeps the runtimes the folder has: Windows' release renderer has DLSS in it, and RecompLauncher's
+    prepare (HookshotBuilder --cli) builds without the SDK, so taking them out there took DLSS from every game it prepared,
+    a player's own copies too. drop (--no-dlss, the Builder's DLSS tick unticked) takes out the ones this builder placed:
+    those whose SHA-256 is the one scripts/ngx_sdk.py fetches; a copy of the player's own (another version) stays."""
     ngx = ngx_script()
     platform = ngx_platform()
     sdk = os.environ.get("HOOKSHOT_NGX_SDK", "")
     if not sdk or not (os.path.isfile(ngx.library(sdk, platform)) and os.path.isfile(ngx.runtime(sdk, platform))):
-        # (a folder built with DLSS before and rebuilt without it loses NVIDIA's runtimes too)
-        for kind in ngx.RUNTIMES:
-            stale = os.path.join(out, "ngx", ngx.runtime_name(platform, kind))
-            if os.path.isfile(stale):
-                with contextlib.suppress(OSError):
-                    os.remove(stale)
-        with contextlib.suppress(OSError):
-            os.rmdir(os.path.join(out, "ngx"))
+        folder = os.path.join(out, "ngx")
+        have = [(kind, os.path.join(folder, ngx.runtime_name(platform, kind))) for kind in ngx.RUNTIMES]
+        have = [(kind, f) for kind, f in have if os.path.isfile(f)]
+        if drop:
+            for kind, f in have:
+                if ngx.sha256(f) == ngx.PLATFORMS[platform][kind][1]:   # (the builder's: the file the DLSS tick fetched)
+                    with contextlib.suppress(OSError):
+                        os.remove(f)
+                        print("NVIDIA DLSS: %s taken out (the DLSS tick is off)" % f, flush=True)
+                else:
+                    print("NVIDIA DLSS: %s kept: not the one the builder fetched (the player's own)" % f, flush=True)
+            with contextlib.suppress(OSError):
+                os.rmdir(folder)
+        elif have:
+            print("NVIDIA DLSS: the folder's own kept (this build fetched none): %s" % ", ".join(f for _, f in have), flush=True)
         return None
     dst = ngx.install_runtime(sdk, platform, os.path.join(out, "ngx"))
     print("NVIDIA DLSS: %s (NVIDIA's, under NVIDIA's license: never share this game folder)" % dst, flush=True)
@@ -2160,6 +2191,9 @@ def parse_args():
     # (NVIDIA DLSS, off unless asked: NVIDIA's SDK into HOOKSHOT_NGX_SDK first, under NVIDIA's license. scripts/ngx_sdk.py)
     p.add_argument("--fetch-ngx-sdk", action="store_true", help="download NVIDIA's DLSS SDK into HOOKSHOT_NGX_SDK before the build")
     p.add_argument("--accept-nvidia-license", action="store_true", help="NVIDIA's DLSS SDK license, accepted (with --fetch-ngx-sdk)")
+    p.add_argument("--no-dlss", action="store_true",
+                   help="build without NVIDIA DLSS and take out the runtimes this builder put in the folder's ngx folder (the "
+                        "builder's DLSS tick, off). Without it a build that fetches no SDK keeps the ones the folder has")
     # (AMD FSR 4, off unless asked: nothing is downloaded. gpu/vk/vk_fsr4.cpp)
     p.add_argument("--fsr", action="store_true", help="build with AMD FSR 4 (AMD's DLLs are not included: see the readme)")
     p.add_argument("--no-fsr", action="store_true", help="with --update: build without AMD FSR 4 even if the folder had it")
@@ -2313,7 +2347,7 @@ def main(a=None):
     check_writable(out)
     check_cpu()   # (no game read yet: the AppImage on a CPU without AVX2 stops here)
     if getattr(a, "fetch_ngx_sdk", False):
-        fetch_ngx_sdk(a)   # (the SDK selects a source renderer instead of HOOKSHOT_VK_PREBUILT)
+        fetch_ngx_sdk(a)   # (NVIDIA's runtimes; on Linux the SDK also selects a source renderer: the AppImage's has no NGX)
     check_windows_sdk(work)
     stop_stray_compilers(work, a.default_work)
     drop_stale_objects(work)
@@ -2633,7 +2667,7 @@ def main(a=None):
                     os.remove(os.path.join(out, n))
             except OSError:
                 pass
-    place_ngx_runtime(out)
+    place_ngx_runtime(out, drop=getattr(a, "no_dlss", False))
     place_prebuilt_runtime(game_dir)
     if fsr_wanted(a, out) and getattr(a, "fetch_fsr_runtime", False):
         place_fsr_runtime(out)
@@ -2652,6 +2686,12 @@ def main(a=None):
     if importlib.util.find_spec("fontTools") is None:
         shutil.rmtree(prompts, ignore_errors=True)
         print("the button prompts of other controllers were not made (no fontTools): the game shows its own", flush=True)
+    elif not os.path.isfile(os.path.join(romfs, "Pack", "ZsDic.pack.zs")):
+        # (hookshot) the prompts are drawn from Ocarina's icon font, read with Ocarina's zstd dictionaries: a game without
+        # them (Mario Kart World, Donkey Kong Bananza) has neither, and prompt_assets.py stopped on a traceback there
+        shutil.rmtree(prompts, ignore_errors=True)
+        print("the button prompts of other controllers are made from Ocarina's icon font: this game has none, and shows its own",
+              flush=True)
     elif run(PY + [os.path.join(HERE, "prompt_assets.py"), "--romfs", romfs, "--out", prompts] +
              ([] if launcher else ["--incremental"]), check=False, output=sys.stderr):
         print("the button prompts of other controllers were not made: the game shows its own", flush=True)
