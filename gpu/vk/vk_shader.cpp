@@ -680,6 +680,13 @@ Shader::Profile make_profile() {
     p.support_scaled_attributes = false;   // (*_UI2F / *_I2F read as integers, converted in the shader: R32 has no scaled format)
     p.support_multi_viewport = true;
     p.support_sampled_image_array_nonuniform_indexing = true;
+    // (storage images, image buffers and texture buffers picked by an index that can differ between invocations: NonUniform on the
+    // index and what it reaches, as for sampled images, where the GPU indexes that kind of array nonuniformly (Vulkan 1.2's
+    // descriptor indexing; vk_main.cpp creates the device with every feature it reports). Without the feature the index is taken
+    // as the same in every invocation, as before: there an index that differs is undefined. In the cache's stamp)
+    p.support_storage_image_array_nonuniform_indexing = dev.vk12.shaderStorageImageArrayNonUniformIndexing;
+    p.support_uniform_texel_buffer_array_nonuniform_indexing = dev.vk12.shaderUniformTexelBufferArrayNonUniformIndexing;
+    p.support_storage_texel_buffer_array_nonuniform_indexing = dev.vk12.shaderStorageTexelBufferArrayNonUniformIndexing;
     // Unpinned SPIR-V 1.6 stages can use any supported subgroup size, even when the default is 32.
     // The stage-specific profiles below keep the short path only where pin_subgroup actually pins 32 lanes.
     p.warp_size_potentially_larger_than_guest = dev.subgroup_max > 32;
@@ -1365,6 +1372,15 @@ uint64_t translator_stamp() {
     // without it, nor one made with RX_VK_NATIVE_FADD=0's loop wanted back once it is native again)
     const uint32_t float_add = profile().support_float32_atomic_add ? 1u : 0u;
     add(&float_add, sizeof float_add);
+    // (and which descriptor arrays the GPU indexes nonuniformly (make_profile): a program made with NonUniform on a storage image,
+    // image buffer or texture buffer array and that kind's capability is no use to a GPU without the feature, nor one made
+    // without them to a GPU that has it. Only when one is missing, so the GPUs that have all three keep one cache)
+    if (const uint32_t missing = (profile().support_storage_image_array_nonuniform_indexing ? 0u : 1u) |
+                                 (profile().support_uniform_texel_buffer_array_nonuniform_indexing ? 0u : 2u) |
+                                 (profile().support_storage_texel_buffer_array_nonuniform_indexing ? 0u : 4u)) {
+        const uint32_t no_nonuniform[] = {0x6e6e7561u, missing};   // ("nnua", and which)
+        add(no_nonuniform, sizeof no_nonuniform);
+    }
     // (RX_VK_GP_, not RX_VK_GP: that took RX_VK_GPL with it, which changes no translation, and switching the stage libraries on
     // threw the whole program cache away. What the libraries are good for is the prepare's second stamp, vk_draw.cpp warmed_stamp)
     // (and every other switch the translation reads: the storage buffer pass's (RX_VK_NO_CBUF_LOAD_RULE, RX_VK_PTR_SPLIT_FALLBACK,
