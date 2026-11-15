@@ -158,7 +158,7 @@ class Release(unittest.TestCase):
             self.assertIn(check, job)
 
     def test_the_table_names_it_for_a_release_only(self):
-        env = dict(os.environ, GH_REPO="o/r")
+        env = dict(os.environ, GH_REPO="o/r", HOOKSHOT_PRODUCT="Hookshot")   # (product_name.sh: no python3 on Windows)
         run = lambda tag: subprocess.run(["bash", str(ROOT / "scripts" / "release_files.sh"), "table", tag], capture_output=True,
                                          text=True, env=env, check=True).stdout
         self.assertIn("`Hookshot-v9.9.9-Windows-x64-full-setup.zip`: unzip it and run `HookshotBuilder.exe`", run("v9.9.9"))
@@ -205,7 +205,7 @@ class AmdFsr(unittest.TestCase):
     def test_the_part_carries_amds_license_under_the_pinned_name(self):
         wb = (ROOT / ".github" / "workflows" / "windows-builder.yml").read_text(encoding="utf-8")
         self.assertIn("Kits/FidelityFX/docs\n", wb)
-        self.assertIn('cp _amd/Kits/FidelityFX/docs/license.md "$RUNNER_TEMP/amd-fsr/LICENSE-AMD-FSR-SDK.md"', wb)
+        self.assertIn('git -C _amd cat-file blob HEAD:Kits/FidelityFX/docs/license.md > "$RUNNER_TEMP/amd-fsr/LICENSE-AMD-FSR-SDK.md"', wb)
         self.assertIn("f.complete(sys.argv[1])", wb)   # (the three are the pinned ones, or the package stops)
         parts = (ROOT / "scripts" / "release_parts.py").read_text(encoding="utf-8")
         self.assertIn('for name in ("LICENSE.txt", "LICENSE-AMD-FSR-SDK.md"):', parts)

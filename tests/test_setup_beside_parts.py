@@ -102,7 +102,7 @@ def main():
         source.write_text(DRIVER % (str(args.source.resolve()).replace("\\", "/"), listed), encoding="utf-8")
         exe = root / "driver.exe"
         subprocess.run([args.cxx, "-x", "c", str(source), "-x", "none", "-O1", "-lwinhttp", "-lbcrypt", "-lcomctl32",
-                        "-lshell32", "-lole32", "-lgdi32", "-w", "-o", str(exe)], check=True)
+                        "-lshell32", "-lole32", "-lgdi32", "-luser32", "-ladvapi32", "-lkernel32", "-w", "-o", str(exe)], check=True)
         out = subprocess.run(([args.run] if args.run else []) + [str(exe), str(kit), str(versions)], check=True,
                              capture_output=True, text=True).stdout.split("\n")
         got = {tuple(l.split()[:2]): l.split()[2:] for l in out if l.strip()}
