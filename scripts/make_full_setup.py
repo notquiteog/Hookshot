@@ -41,9 +41,11 @@ def sha256(path):
 
 
 def read_list(path):
-    """(tag, [(sha, size, name, url)], text) of a hookshot-setup.txt, by setup.c's rules for a part line"""
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
+    """(tag, [(sha, size, name, url)], its bytes) of a hookshot-setup.txt, by setup.c's rules for a part line. Its bytes as
+    they are: the zip holds the very list the release has, whatever its line ends"""
+    with open(path, "rb") as f:
+        raw = f.read()
+    text = raw.decode("utf-8")
     tag, parts = None, []
     for line in text.splitlines():
         w = line.split()
@@ -60,7 +62,7 @@ def read_list(path):
         sys.exit("make_full_setup: %s names no tag or no part" % path)
     if len({p[2] for p in parts}) != len(parts):
         sys.exit("make_full_setup: two parts share a download name")
-    return tag, parts, text
+    return tag, parts, raw
 
 
 def checked(path, sha, size):
@@ -130,7 +132,7 @@ def make(dist, out=None, allow_fetch=False, opener=urllib.request.urlopen):
     out = out or os.path.join(dist, top + ".zip")
     with zipfile.ZipFile(out + ".new", "w", allowZip64=True) as z:
         entry(z, top + "/HookshotBuilder.exe", setup)
-        entry(z, top + "/hookshot-setup.txt", data=text.encode("utf-8"))
+        entry(z, top + "/hookshot-setup.txt", data=text)
         entry(z, top + "/README.txt", data=README.format(tag=tag).replace("\n", "\r\n").encode("utf-8"))
         for _, _, name, _ in sorted(parts, key=lambda p: p[2]):
             entry(z, top + "/parts/" + name, got[name])

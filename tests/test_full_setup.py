@@ -93,6 +93,16 @@ class Maker(unittest.TestCase):
         self.assertIn("setup", full_words)
         self.assertFalse({"setup", "installer", "install"} & set(own))
 
+    def test_the_list_goes_in_as_its_bytes(self):
+        # (Windows line ends too: the setup reads either, and the zip holds the release's very list)
+        parts = {"HookshotBuilder-app-aaaaaaaaaaaa.zip": b"app" * 50}
+        with tempfile.TemporaryDirectory() as d:
+            self.dist(d, parts, list(parts))
+            listed = Path(d, "hookshot-setup.txt")
+            listed.write_bytes(listed.read_bytes().replace(b"\n", b"\r\n"))
+            with zipfile.ZipFile(full.make(d)) as z:
+                self.assertEqual(z.read("Hookshot-v9.9.9-Windows-x64-full-setup/hookshot-setup.txt"), listed.read_bytes())
+
     def test_a_part_that_differs_or_is_missing_stops_it(self):
         parts = {"HookshotBuilder-app-aaaaaaaaaaaa.zip": b"app" * 50, "HookshotBuilder-cpm-cccccccccccc.zip": b"cpm" * 30}
         with tempfile.TemporaryDirectory() as d:
@@ -157,6 +167,7 @@ class Release(unittest.TestCase):
         for check in ("installed.txt", "no Visual Studio needed", "not a NUP package", "Could not reach GitHub"):
             self.assertIn(check, job)
 
+    @unittest.skipIf(os.name == "nt", "the release scripts are bash, run by Linux runners (tests/test_release_scripts.py too)")
     def test_the_table_names_it_for_a_release_only(self):
         env = dict(os.environ, GH_REPO="o/r", HOOKSHOT_PRODUCT="Hookshot")   # (product_name.sh: no python3 on Windows)
         run = lambda tag: subprocess.run(["bash", str(ROOT / "scripts" / "release_files.sh"), "table", tag], capture_output=True,
