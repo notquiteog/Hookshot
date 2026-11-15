@@ -1386,6 +1386,16 @@ HLE(_ZN2nn3hid20GetTouchScreenStatesILm16EEEiPNS0_16TouchScreenStateIXT_EEEi) {
    lifted SDK's read aborted: Donkey Kong Bananza reads the touch screen this way on its first frames
    (svcBreak, from nn::hid::GetTouchScreenState<1>, lr 0x82e7eee0 on its 3.2.0 sdk). TouchScreenState<1>:
    {s64 sampling number, s32 count, s32 reserved, TouchState[1]}. */
+/* GetTouchScreenStates<1>(TouchScreenState<1>* out, int count) -> states written: one, with no touch, as the <16> form
+   above. Left to the lifted SDK it read the touch screen's shared memory and aborted (svcBreak from
+   nn::hid::GetTouchScreenStates<1>): Kirby Air Riders (Dragoon) reads its touch screen this way once its controllers
+   are up. Each TouchScreenState<1> is 16 + 0x28 bytes; the game's buffer for the one written must be its own. */
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm1EEEiPNS0_16TouchScreenStateIXT_EEEi) {
+    if ((int)ARG(1) < 1 || !hos_guest_range(ARG(0), 16 + 1 * 0x28)) { RET(0); return; }
+    memset(GP(ARG(0)), 0, 16 + 1 * 0x28);
+    G64(ARG(0)) = (uint64_t)InterlockedIncrement64(&touch_sampling);
+    RET(1);
+}
 HLE(_ZN2nn3hid19GetTouchScreenStateILm1EEEvPNS0_16TouchScreenStateIXT_EEE) {
     memset(GP(ARG(0)), 0, 16 + 1 * 0x28);
     G64(ARG(0)) = (uint64_t)InterlockedIncrement64(&touch_sampling);
