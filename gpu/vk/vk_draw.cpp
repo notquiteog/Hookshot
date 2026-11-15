@@ -36,6 +36,7 @@
 #include "vk_paths.h"
 #include "pipeline_cache_file.h"
 #include "vk_draw.h"
+#include "flat_map.h"
 #include "vk_menu.h"          // (opts.anisotropy: the Anisotropic filtering row; resolution_scale)
 #include "upscaler_rows.h"    // (upscale_lod_bias: which upscalers draw the 3D smaller)
 #include "dlss_actor.h"
@@ -412,7 +413,8 @@ struct RecordingRes {
     size_t si = 0;                 // (the one in use)
     uint64_t before = 0;           // (what the recording used of the streams before this one)
     uint32_t idle = 0;             // (recordings of the slot that stayed in the first stream)
-    std::unordered_map<const void*, std::pair<VkBuffer, uint64_t>> c1_at;   // (c1 of a stage: uploaded once a recording)
+    // (flat (flat_map.h): an unordered_map put a malloc into every c1 upload kept, and a free into the next recording's clear)
+    FlatMap<uintptr_t, std::pair<VkBuffer, uint64_t>> c1_at;   // (c1 of a stage, by the stage's address: uploaded once a recording)
     // (hookshot-deck) a uniform buffer copied as submitted (RX_VK_UB_SNAPSHOT), by its address and size: the copy serves the
     // recording's later draws of it while the capture view is the same, as a read then would give the same bytes.
     // RX_VK_UB_SNAPSHOT_REUSE=0: a copy for every binding
@@ -2436,7 +2438,7 @@ PipeEntry* graphics_pipeline(const Program& p, const NvnState& s, const Targets&
         return e;
     };
     const uint64_t key = pipeline_key(p, s, at, topo);
-    static thread_local std::unordered_map<uint64_t, PipeEntry*> mine;   // (entries live as long as the cache)
+    static thread_local FlatMap<uint64_t, PipeEntry*> mine;   // (entries live as long as the cache)
     if (auto m = mine.find(key); m != mine.end()) return FINE_X(FC_PIPE_MAP, 1), remember(m->second);
     PROF_EXACT();   // (new to this thread, or new: rare, and a pipeline made can take milliseconds)
     ParLock lk;
@@ -3332,13 +3334,13 @@ bool handle_is_storage_pointer(const Shader::Info& info, const Shader::TextureDe
 struct HandleHit {
     VkImageView view;
     Texture* tex;
+    uint64_t destroy_gen;
     uint32_t level;   // (the image level the view starts at)
     uint32_t version; // (the slot's, when resolved)
-    uint64_t destroy_gen;
+    uint32_t tex_epoch;   // (the texture epoch it was last touched in)
     bool sampling;    // (its use reads the texture's contents)
-    uint64_t tex_epoch;   // (the texture epoch it was last touched in)
 };
-TLS_OBJECT(handle_hits, std::unordered_map<uint64_t, HandleHit>)
+TLS_OBJECT(handle_hits, FlatMap<uint64_t, HandleHit>)
 /* (hookshot) a direct-mapped front for handle_hits. The same texture bindings are resolved again and again (14.9 descriptors
    a draw, 725 draws, 10,600 a frame) and a hash map find for each was 0.9 ms a frame. The map stays the authority: this
    answers only a lookup whose key, slot version, destroy generation and texture epoch are all the ones it was filled with,
@@ -3463,7 +3465,7 @@ VkImageView texture_view_of(uint32_t handle, VkImageViewType want, ViewUse use, 
                      has_view && v.set_format ? v.format : 0, has_view && v.set_target ? v.target : -1, (int)want, (int)use);
         }
     }
-    handle_hits()[key] = {view, tex, level, version, dgen, use == ViewUse::Sample || use == ViewUse::Storage, texture_epoch()};
+    handle_hits()[key] = {view, tex, dgen, level, version, texture_epoch(), use == ViewUse::Sample || use == ViewUse::Storage};
     if (vf) vf->key = key, vf->view = view, vf->tex = tex, vf->level = level, vf->version = version, vf->destroy_gen = dgen,
             vf->tex_epoch = texture_epoch(), vf->sampling = use == ViewUse::Sample || use == ViewUse::Storage;
     if (tex_out) *tex_out = tex;
@@ -3559,7 +3561,7 @@ VkDescriptorBufferInfo uniform_range(const NvnState& s, const Stage& st, uint32_
     if (index == 1) {
         FINE_SCOPE(FT_C1);
         FINE_N(FC_C1_CALLS, 1);
-        const void* key = &st;
+        const uintptr_t key = (uintptr_t)&st;
         auto it = cur->c1_at.find(key);
         const uint64_t n = std::max<uint64_t>((st.c1.size() + 15) & ~15ull, 16);
         if (it != cur->c1_at.end()) return {it->second.first, it->second.second, n};
@@ -5720,12 +5722,16 @@ void draw_begin_recording(int slot, VkCommandBuffer cmd, uint64_t value) {
     }
     if (r.before + r.used > stream_peak.load(std::memory_order_relaxed)) stream_peak.store(r.before + r.used, std::memory_order_relaxed);
     static int64_t begun;
+    static std::atomic<size_t> c1_peak{0};   // (the most c1 stages a recording uploaded: c1_at's size before its reset)
+    if (r.c1_at.size() > c1_peak.load(std::memory_order_relaxed)) c1_peak.store(r.c1_at.size(), std::memory_order_relaxed);
     if (++begun % 3000 == 0)
-        logf("vk: the recording streams: %zu of %llu MB, the most one held %llu KB; %llu made on demand (%llu MB kept now)", res.size(),
+        logf("vk: the recording streams: %zu of %llu MB, the most one held %llu KB; %llu made on demand (%llu MB kept now); "
+             "c1 stages: at most %zu a recording", res.size(),
              (unsigned long long)(kStream >> 20), (unsigned long long)(stream_peak.load(std::memory_order_relaxed) >> 10),
-             (unsigned long long)stream_grown.load(), (unsigned long long)(stream_extra.load() >> 20));
+             (unsigned long long)stream_grown.load(), (unsigned long long)(stream_extra.load() >> 20),
+             c1_peak.load(std::memory_order_relaxed));
     r.used = 0, r.before = 0;
-    r.c1_at.clear();
+    r.c1_at.reset();   // (its array kept: emptied at every recording's start, it fills again to about the same size)
     r.ub_snap.clear();
     cur = &r;
     pass() = Pass{};
