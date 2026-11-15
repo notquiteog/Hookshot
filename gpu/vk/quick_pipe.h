@@ -2,7 +2,7 @@
 // pipeline build is not done (vk_draw.cpp, draw and quick_pipeline). Ported from Mako, by sharkiix (8292d363): AMD's
 // optimizer took 5-13 s a pipeline for Volvagia's intro, whose colour draws were left out (a black silhouette) or, waited
 // for, froze it. Only pipelines: a shader still translating is waited for as before
-// (https://github.com/NotRexed/Hookshot/pull/1573, RX_VK_TRANSLATE_WAIT_MS).
+// (upstream #1573, RX_VK_TRANSLATE_WAIT_MS).
 #pragma once
 #include <atomic>
 #include <cstdint>

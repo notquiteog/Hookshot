@@ -73,7 +73,7 @@ def check_source(draw):
     for name in ("quick_pipeline(", "pipe_wait_budget_ms(", "jobs_hurry("):
         if name in translation:
             raise SystemExit(f"{name} applies to a shader still translating: that wait stays as it is "
-                             "(https://github.com/NotRexed/Hookshot/pull/1573)")
+                             "(upstream #1573)")
     pipe = between(body, "    if (!pe->ready.load(std::memory_order_acquire)) {", "\n    if (use.on) use.pipeline_made(")
     for name in ("quick_pipeline(*pe, p, s, at, topo, !may_skip)", "pipe_wait_budget_ms()", "jobs_hurry(pe->ready)",
                  "wait_for(pe->ready)"):
