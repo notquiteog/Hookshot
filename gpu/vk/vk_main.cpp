@@ -1382,6 +1382,7 @@ void prepare_with_screen() {
             StartupState st;
             st.stage = stage, st.done = done, st.total = total, st.left = left, st.secs = secs;
             st.prepared = prepared, st.finished = finished, st.stopping = prepare_stopped();
+            st.saving = prepare_saving();
             st.whole = whole;
             const StartupView view = startup_view(st);
             startup_screen(&view);

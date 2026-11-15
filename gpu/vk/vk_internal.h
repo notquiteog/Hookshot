@@ -449,6 +449,9 @@ void prepare_stop();
 bool prepare_stopped();
 int driver_faults();   // (hookshot, vk_draw.cpp) the driver faults the pipeline compiles caught so far (guarded_graphics, guarded_compute)
 void prepare_left_workers_note();   // (hookshot, vk_draw.cpp) predict_run or precompile_run left workers inside the driver
+/// (hookshot, vk_draw.cpp) The pipeline cache is being written out before the game (precompile_warm, a GB and more): every
+/// pipeline is counted by then, and the start-up screen says what it waits on
+bool prepare_saving();
 bool prepare_left_workers();
 void fill_replay_table(MkwVkRenderer& t);     // vk_replay.cpp
 // the game profile's program keys: the runtime's (HOOKSHOT_PROFILE_*), else the built-in header's (vk_draw.cpp)

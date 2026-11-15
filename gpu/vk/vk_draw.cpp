@@ -8906,9 +8906,11 @@ bool precompile_wanted() {
 }
 namespace {
 std::atomic<bool> prepare_halt{false};
+std::atomic<bool> prepare_saving_now{false};   // (precompile_warm: the pipeline cache written out, prepare_saving)
 }
 void prepare_stop() { prepare_halt.store(true); }
 bool prepare_stopped() { return prepare_halt.load(std::memory_order_relaxed); }
+bool prepare_saving() { return prepare_saving_now.load(std::memory_order_relaxed); }
 std::string prepared_path() {
     char exe[MAX_PATH];
     const DWORD exe_n = game_module_path(exe, MAX_PATH);
@@ -9457,7 +9459,7 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
     const std::vector<uint64_t> computes = done == total && !prepare_stopped() ? compute_keys : std::vector<uint64_t>{};
     std::atomic<size_t> computes_done{0}, computes_built{0}, computes_failed{0};
     const auto c0 = std::chrono::steady_clock::now();
-    warm_bounded::run(computes.size(), threads, [&](size_t i) {
+    warm_bounded::run(done == total && !prepare_stopped() ? computes.size() : 0, threads, [&](size_t i) {
         static thread_local bool off = (ub_thread_off(), true);
         (void)off;
         program_cache_borrow(computes[i], [&](Program& p) {
@@ -9480,7 +9482,14 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
     const bool all = done == total && computes_done == computes.size();
     static const bool prepare_only = env_on("HOOKSHOT_PREPARE_ONLY");   // (a --prepare-shaders run: vk_main.cpp)
     if (all && !prepare_stopped()) {
+        // (the whole cache written, a GB and more, with every pipeline counted: the start-up screen says so, not "a few seconds
+        // left", #714)
+        const auto s0 = std::chrono::steady_clock::now();
+        prepare_saving_now.store(true, std::memory_order_relaxed);
         pipeline_cache_save(true);   // (in the file before the marker says they are there)
+        prepare_saving_now.store(false, std::memory_order_relaxed);
+        logf("vk: precompile: the pipeline cache written out in %.1f s",
+             std::chrono::duration<double>(std::chrono::steady_clock::now() - s0).count());
         // (not by the preparation's own process: warm_bounded.h leaves_marker)
         if (warm_bounded::leaves_marker(prepare_only, all, prepare_stopped())) precompile_built_write(total);
         driver_env_note();
