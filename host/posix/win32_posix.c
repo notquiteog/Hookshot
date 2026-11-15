@@ -299,7 +299,10 @@ BOOL SetThreadPriority(HANDLE h, int p) {
     if (!t) { last_error = ERROR_INVALID_HANDLE; return FALSE; }
     t->priority = p;
     const int nice = p <= THREAD_PRIORITY_IDLE ? 19 : p <= THREAD_PRIORITY_LOWEST ? 10 : p == THREAD_PRIORITY_BELOW_NORMAL ? 5 : 0;
-    if (nice && t->tid) setpriority(PRIO_PROCESS, (id_t)t->tid, nice);
+    if (!nice) return TRUE;
+    /* (a thread just made has no id until it runs: hos_thread_start lowers it right after CreateThread) */
+    while (!t->tid && !t->done) sched_yield();
+    if (t->tid) setpriority(PRIO_PROCESS, (id_t)t->tid, nice);
     return TRUE;
 }
 int GetThreadPriority(HANDLE h) {
