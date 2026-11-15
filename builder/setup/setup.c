@@ -126,6 +126,9 @@ static int http_get(const char *url8, Sink sink, void *user, unsigned long long 
     uc.lpszHostName = host, uc.dwHostNameLength = 256;
     uc.lpszUrlPath = path, uc.dwUrlPathLength = 1024;
     if (!WinHttpCrackUrl(url, 0, 0, &uc)) return 0;
+    /* (https only, whatever names the URL: HOOKSHOT_SETUP_LIST=http://... fetched a list in clear text, and the list names
+       every part's checksum, so whoever sat on the way chose what was installed) */
+    if (uc.nScheme != INTERNET_SCHEME_HTTPS) return 0;
     HINTERNET s = WinHttpOpen(L"HookshotBuilder-Setup/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, NULL, NULL, 0);
     if (!s) s = WinHttpOpen(L"HookshotBuilder-Setup/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, NULL, NULL, 0);
     if (!s) return 0;
@@ -525,7 +528,7 @@ static void prune(const wchar_t *versions, const wchar_t *downloads, const char 
 
 static void w(const char *s8, wchar_t *out, int n) { MultiByteToWideChar(CP_UTF8, 0, s8, -1, out, n); }
 
-/* (HOOKSHOT_SETUP_LIST=<url>: another list, for testing a release before it is the latest) */
+/* (HOOKSHOT_SETUP_LIST=<https url>: another list, for testing a release before it is the latest; http is refused, http_get) */
 /* ---- The GitHub API's link for a release file (after PR 546 by nicholasgower, issue 544). GitHub answered the release
    page's cached link (releases/latest/download/...) with 504 for hours on 2026-11-08 while its API still answered: the API
    gives the file's own asset link, which redirects to a fresh download. Used when the release link fails. ---- */
