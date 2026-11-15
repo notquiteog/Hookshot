@@ -654,7 +654,7 @@ HLE(_ZN2nn2fs13ReadDirectoryEPlPNS0_14DirectoryEntryENS0_15DirectoryHandleEl) {
         int want = (isdir && (dh->is_dir & 1)) || (!isdir && (dh->is_dir & 2));
         if (strcmp(fd->cFileName, ".") && strcmp(fd->cFileName, "..") && want) {
             uint64_t e = ARG(1) + 0x310 * n;
-            memset(GP(e), 0, 0x310);
+            memset(GR(e, 0x310), 0, 0x310);   /* (hookshot: max is the game's; each entry in its memory) */
             snprintf((char *)GP(e), 0x301, "%s", fd->cFileName);
             *(uint8_t *)GP(e + 0x304) = isdir ? 0 : 1;
             G64(e + 0x308) = ((uint64_t)fd->nFileSizeHigh << 32) | fd->nFileSizeLow;
@@ -666,7 +666,7 @@ HLE(_ZN2nn2fs13ReadDirectoryEPlPNS0_14DirectoryEntryENS0_15DirectoryHandleEl) {
         const ExtraEntry *x = &dh->extras[dh->extra_pos++];
         if (!((x->is_dir && (dh->is_dir & 1)) || (!x->is_dir && (dh->is_dir & 2)))) continue;
         uint64_t e = ARG(1) + 0x310 * n;
-        memset(GP(e), 0, 0x310);
+        memset(GR(e, 0x310), 0, 0x310);
         snprintf((char *)GP(e), 0x301, "%s", x->name);
         *(uint8_t *)GP(e + 0x304) = x->is_dir ? 0 : 1;
         G64(e + 0x308) = x->size;

@@ -1870,8 +1870,9 @@ static void add_aux(Ctx *c) {
     a->mix = m;
     a->order = ++effect_order;
     a->sample_count = (int)(((bytes - 128) / sizeof(int32_t)) & ~15ULL) / FRAME * FRAME;
-    memset(GP(ARG(3)), 0, (size_t)bytes);
-    memset(GP(ARG(4)), 0, (size_t)bytes);
+    /* (hookshot) both buffers wholly in the game's memory: the audio thread writes them for as long as the aux is on */
+    memset(GR(ARG(3), bytes), 0, (size_t)bytes);
+    memset(GR(ARG(4), bytes), 0, (size_t)bytes);
     a->send.data = (int32_t *)GP(ARG(3) + 128);
     a->ret.data = (int32_t *)GP(ARG(4) + 128);
     put_handle(ARG(1), K_AUX, e);
