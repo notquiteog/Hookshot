@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.3.0-rc.20](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.19...v2.3.0-rc.20) (2026-11-15)
+
+
+### Features
+
+* **prepare:** Compile shaders All or Most, All the default (from Longshot) ([#69](https://github.com/notquiteog/Hookshot/issues/69)) ([aacff92](https://github.com/notquiteog/Hookshot/commit/aacff9289a1ab26191d9937b5a104ab8d221d7d5))
+
+## [2.3.0-rc.19](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.18...v2.3.0-rc.19) (2026-11-15)
+
+
+### Features
+
+* **vk:** quick pipelines for draws whose full build is not done (from Longshot) ([#62](https://github.com/notquiteog/Hookshot/issues/62)) ([b806813](https://github.com/notquiteog/Hookshot/commit/b80681335cc70f9455384e13a3637f0aae26e5e8))
+
+
+### Documentation
+
+* **worklist:** adult Link near-black for a moment in Zora's Domain, under the shadow row ([#66](https://github.com/notquiteog/Hookshot/issues/66)) ([dadc389](https://github.com/notquiteog/Hookshot/commit/dadc389b7d44e6c419d6f347ee54a47c38b71d26))
+
+## [2.3.0-rc.18](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.17...v2.3.0-rc.18) (2026-11-14)
+
+
+### Features
+
+* **profile:** Mario Kart World 1.0.0 builds and plays from main (not released yet) ([#65](https://github.com/notquiteog/Hookshot/issues/65)) ([bdbf77d](https://github.com/notquiteog/Hookshot/commit/bdbf77da7b14c7559779c4d2ab3fdc744abde314))
+
+
+### Documentation
+
+* **worklist:** row 2.1's Castle Town and Hyrule Field frame profiled, and two cuts that gained nothing ([#63](https://github.com/notquiteog/Hookshot/issues/63)) ([816541c](https://github.com/notquiteog/Hookshot/commit/816541cc82a50386717b6e5ae04fe7f52dcfb6d0))
+
+
+### Tests
+
+* the pointer check's reader always takes once after the last publish ([#56](https://github.com/notquiteog/Hookshot/issues/56)) ([47825ea](https://github.com/notquiteog/Hookshot/commit/47825eaea1dacc43b2a7cb0fa412bb872d79499f))
+
 ## [2.3.0-rc.17](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.16...v2.3.0-rc.17) (2026-11-14)
 
 

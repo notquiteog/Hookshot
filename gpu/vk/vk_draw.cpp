@@ -56,6 +56,7 @@
 #include "driver_faults.h"
 #include "fallback_size_policy.h"
 #include "translate_wait.h"
+#include "quick_pipe.h"
 
 #include "shaders/clear_f_frag_spv.h"
 #include "shaders/clear_i_frag_spv.h"
@@ -852,6 +853,7 @@ void play_cache_begin() {
         logf("vk: pipeline cache: what play makes goes into play files (RX_VK_PLAY_CACHE=0: into the one cache)");
     }
 }
+void predicted_use_log();   // (below, with the predicted pipelines)
 /// (pipeline_cache_save's thread, or the window's close) play's generation taken away once nothing is being made with it, a new one
 /// in its place, and written alone. One not written is kept and tried again at the next save
 void play_cache_save() {
@@ -906,7 +908,11 @@ void play_cache_save() {
         PlayCache* old = *it;
         if (const size_t wrote = play_file_write(old->cache, play_path(play_seq + 1))) {
             play_seq++;
-            logf("vk: pipeline cache: play file %u saved (%zu KB): %lld pipelines", play_seq, wrote >> 10, (long long)old->built.load());
+            logf("vk: pipeline cache: play file %u saved (%zu KB): %lld pipelines, %lld from the driver's cache, %lld compiled; %lld "
+                 "more from the start's cache",
+                 play_seq, wrote >> 10, (long long)old->built.load(), (long long)old->from_driver.load(), (long long)old->compiled.load(),
+                 (long long)old->from_start.load());
+            predicted_use_log();
             vkDestroyPipelineCache(dev.device, old->cache, nullptr);
             old->cache = VK_NULL_HANDLE;
             it = unsaved.erase(it);
@@ -1088,6 +1094,7 @@ struct PipeEntry {
     std::atomic<bool> ready{false};
     std::atomic<VkPipeline> pipeline{VK_NULL_HANDLE};   // (a fast-linked one first, the worker's full build over it)
     std::atomic<uint8_t> how{0};   // (the census: how play made it, UseCounters::made_how; 0: before play, or not made)
+    std::atomic<uint8_t> quick{0};   // (hookshot: quick_pipeline's, before the full build: quick_pipe.h's kNone, kMaking, kTried)
 };
 std::unordered_map<uint64_t, std::unique_ptr<PipeEntry>> pipelines;   // (the replay thread's)
 // (hookshot) Pipelines made ahead of their first draw by the load at a program's create call (vk_programs.cpp), by their keys.
@@ -1289,6 +1296,22 @@ bool gpl_libs_cached() {
     return on;
 }
 thread_local bool driver_cache_only = false;   // (predict_run's: pipelines for the driver's own cache, not into ours)
+thread_local bool quick_build = false;   // (hookshot: quick_pipeline's, without the driver's optimizer and into no cache)
+thread_local bool gate_busy = false;   // (hookshot: set by build_graphics when the driver-fault gate answered kBusy: quick_pipeline's)
+thread_local bool slow_full_build = false;   // (hookshot: the worker's full build in graphics_pipeline's job: RX_VK_TEST_SLOW_MS's)
+/// (hookshot, a test from Mako) RX_VK_TEST_SLOW_MS=<ms> holds each full build that long, as AMD's optimizer on a cold cache, to
+/// see quick pipelines and the brief wait at work on any GPU. Off unless set; a value not a number is ignored. Read once
+int test_slow_ms() {
+    static const int slow_ms = [] {
+        const char* e = getenv("RX_VK_TEST_SLOW_MS");
+        bool bad = false;
+        const int ms = quick_pipe::slow_ms(e, &bad);
+        if (bad) logf("vk: RX_VK_TEST_SLOW_MS=%s is not a number of milliseconds: ignored", e);
+        if (ms > 0) logf("vk: every full pipeline build is held %d ms (RX_VK_TEST_SLOW_MS, a test)", ms);
+        return ms;
+    }();
+    return slow_ms;
+}
 // (with driver_cache_only: the cache handed to the driver instead of none, predicted_check's empty one, as play hands its generation's)
 thread_local VkPipelineCache driver_ask_cache = VK_NULL_HANDLE;
 /// (with the pipeline cache: from it, or in play into the play generation's, create_cached)
@@ -1492,10 +1515,11 @@ void notes_open_locked(const std::vector<std::unique_ptr<PipeNote>>* known) {
         fwrite(h, 8, 2, note_file);
     }
 }
-void pipeline_note(uint64_t key, const Program& p, const NvnState& s, const Targets& at, VkPrimitiveTopology topo,
+/// Whether key was new to the notes (play meets it for the first time on this install)
+bool pipeline_note(uint64_t key, const Program& p, const NvnState& s, const Targets& at, VkPrimitiveTopology topo,
                    const uint8_t* color_types = nullptr) {
     static const bool off = env_on("RX_VK_NO_PROGRAM_CACHE");
-    if (off) return;
+    if (off) return false;
     if (color_types) state_record(p, s, at, topo, color_types);
     auto rec = std::make_unique<PipeNote>();
     rec->key = key, rec->prog = p.key, rec->variant = p.variant, rec->topo = (uint32_t)topo, rec->n = (uint32_t)at.n;
@@ -1504,7 +1528,9 @@ void pipeline_note(uint64_t key, const Program& p, const NvnState& s, const Targ
     rec->s = s;
     std::lock_guard lk(note_mu);
     if (!note_file) notes_open_locked(nullptr);
-    if (note_file && noted.insert(key).second) fwrite(rec.get(), sizeof(PipeNote), 1, note_file), fflush(note_file);
+    if (!note_file || !noted.insert(key).second) return false;
+    fwrite(rec.get(), sizeof(PipeNote), 1, note_file), fflush(note_file);
+    return true;
 }
 
 // ---- (hookshot) The compute programs play dispatches, each key once, in hookshot_computes.bin beside the executable. The precompile
@@ -2215,6 +2241,8 @@ uint64_t pipeline_key(const Program& p, const NvnState& s, const Targets& at, Vk
     return key;
 }
 
+bool predicted_key(uint64_t key);   // (the predicted pipelines' keys, below)
+void predicted_use(int how);
 /// (hookshot) Fast-linked pipelines the full build replaced. A draw's first pipeline is linked from stage libraries (RX_VK_GPL)
 /// and the worker's full build of the same state takes its place in the entry when it is done. The linked one was left alone
 /// until the process ended, so every pipeline a run drew held the driver memory of two: NX2navi (chrg6, commit bc28416) measured
@@ -2320,7 +2348,9 @@ PipeEntry* graphics_pipeline(const Program& p, const NvnState& s, const Targets&
         }
     }
     use_counters.pipes_new++, census.play_pipes_new++;
-    pipeline_note(key, p, s, at, topo, color_types);
+    // (new to the notes and one the preparation predicted: only the prediction put it in a cache. Counted once made, by how)
+    const bool fresh = pipeline_note(key, p, s, at, topo, color_types);
+    const bool predicted = fresh && predicted_key(key);
     static const bool sync = env_on("RX_VK_SYNC_PIPELINES");
     if (sync) {
         e->pipeline = build_graphics(p, s, at, topo);
@@ -2347,15 +2377,33 @@ PipeEntry* graphics_pipeline(const Program& p, const NvnState& s, const Targets&
         Targets at;
         VkPrimitiveTopology topo;
         uint64_t cold[2];
+        bool predicted;
     };
     auto job = std::make_shared<Job>();
     job->e = e, job->p = &p, job->s = s, job->at = at, job->topo = topo, job->cold[0] = cold[0], job->cold[1] = cold[1];
+    job->predicted = predicted;
     jobs_push([job] {
-        // (over a linked one, which goes once the GPU is past every submission that may have bound it: fast_retire)
+        // (over a linked one or a quick one (quick_pipeline), which goes once the GPU is past every submission that may have
+        // bound it: fast_retire. Both are read by draws as they record, and a recording's value is handed out before it is
+        // replayed, so a quick pipeline is given back as a linked one is, not kept for the session)
         use_counters.made_how = 0;
-        if (const VkPipeline full = build_graphics(*job->p, job->s, job->at, job->topo))
-            if (const VkPipeline linked = job->e->pipeline.exchange(full)) fast_retire(linked);
+        VkPipeline full;
+        {   // (RX_VK_TEST_SLOW_MS: held inside the driver-fault gate, build_graphics)
+            const quick_pipe::Raise slow(slow_full_build);
+            full = build_graphics(*job->p, job->s, job->at, job->topo);
+        }
+        if (full) {
+            if (const VkPipeline replaced = job->e->pipeline.exchange(full)) fast_retire(replaced);
+        } else if (job->e->pipeline.load(std::memory_order_acquire)) {
+            // (hookshot, deliberate) a full build that failed, or that the driver faulted on, leaves a quick pipeline (no optimizer)
+            // the entry's for the session: its draws are drawn with it, where without one they would be left out (SKIP_HERE)
+            static std::atomic<int> told{0};
+            if (told++ < 10)
+                logf("vk: the full pipeline of %016llx was not made: the one made ahead of it is drawn with for the session",
+                     (unsigned long long)job->p->key);
+        }
         job->e->how.store(use_counters.made_how, std::memory_order_relaxed);
+        if (job->predicted) predicted_use(use_counters.made_how);
         job->e->ready.store(true, std::memory_order_release);
         // (the cold libraries after it and behind what is queued, with no flag: the draw waits for the pipeline above, and
         // jobs_wait runs one job)
@@ -2580,6 +2628,10 @@ VkPipeline build_graphics(const Program& p, const NvnState& s, const Targets& at
         if (driver.driverID == VK_DRIVER_ID_AMD_PROPRIETARY) ci.flags |= VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
     }
 #endif
+    if (quick_build) {   // (hookshot) quick_pipeline's: none when the full build is made without the optimizer already
+        if (part >= 0 || (ci.flags & VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT)) return VK_NULL_HANDLE;
+        ci.flags |= VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
+    }
     if (cold) ci.flags |= VK_PIPELINE_CREATE_FAIL_ON_PIPELINE_COMPILE_REQUIRED_BIT;
     // (the two shader libraries go into our cache, as whole pipelines do: asked for under the flag, the driver answers from a cache
     // it is handed and not from its own on disk, so a library the warm pass built and let go was cold again at its first draw
@@ -2588,11 +2640,12 @@ VkPipeline build_graphics(const Program& p, const NvnState& s, const Targets& at
     const bool lib_cached = (part == 1 || part == 2) && gpl_libs_cached();
     // (hookshot) a program the driver faulted on is not asked of it again, and on AMD one program's builds go to it one at a
     // time, so a second build waits here and not inside the driver behind a faulted one (driver_faults.h, issue 996). A cold
-    // probe does not wait: another build of its program under way is, for it, a compile that is required
+    // probe does not wait: another build of its program under way is, for it, a compile that is required. Nor does a quick
+    // build: behind the program's full build it would be no quicker; the draw goes on without it
     const bool gated = driver_faults_on();
     if (gated) {
-        const auto gate = fault_quarantine().begin(p.key, !cold);
-        if (gate == driver_faults::Quarantine::kBusy) return *cold = true, VK_NULL_HANDLE;
+        const auto gate = fault_quarantine().begin(p.key, !cold && !quick_build);
+        if (gate == driver_faults::Quarantine::kBusy) return gate_busy = true, cold ? (*cold = true, VK_NULL_HANDLE) : VK_NULL_HANDLE;
         if (gate == driver_faults::Quarantine::kFaulted) {
             static std::atomic<int> told{0};
             if (told++ < 10)
@@ -2601,7 +2654,12 @@ VkPipeline build_graphics(const Program& p, const NvnState& s, const Targets& at
             return VK_NULL_HANDLE;
         }
     }
-    const VkPipelineCache cache = lib_cached || (part < 0 && !driver_cache_only) ? pcache : driver_ask_cache;
+    // (hookshot, RX_VK_TEST_SLOW_MS) the worker's full build held here, inside the gate, where AMD's optimizer holds it: a quick
+    // build meets the gate busy as on AMD, where the gate is serial (RX_VK_DRIVER_FAULTS=2 makes it so on every driver)
+    if (slow_full_build && test_slow_ms() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(test_slow_ms()));
+    // (hookshot) a quick build into no cache: an unoptimized pipeline saved would be what a later run's full build is answered with
+    const VkPipelineCache cache = quick_build ? VK_NULL_HANDLE
+                                  : lib_cached || (part < 0 && !driver_cache_only) ? pcache : driver_ask_cache;
     VkResult r = graphics_with(cache, &ci, &pl);
     // The AMD Windows compiler can reject ordinary graphics pipelines with its optimizer on. (A fault caught in it is kDriverFault
     // now, VK_ERROR_UNKNOWN before: the retry stays for both, under the gate)
@@ -2633,10 +2691,95 @@ VkPipeline build_graphics(const Program& p, const NvnState& s, const Targets& at
         if (logged++ < 10) logf("vk: graphics pipeline for %016llx not made (%d)", (unsigned long long)p.key, (int)r);
         pl = VK_NULL_HANDLE;
     }
-    st_pipelines++;
-    pcache_built_since_save += !driver_cache_only;
-    st_pipeline_us += std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count();
+    pcache_built_since_save += !driver_cache_only && !quick_build;
+    if (!quick_build) {   // (hookshot: quick builds are counted apart, in quick_pipeline's log line)
+        st_pipelines++;
+        st_pipeline_us += std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - t0).count();
+    }
     return pl;
+}
+
+/// (hookshot) RX_VK_QUICK_MS, read once and logged: quick_pipe.h
+double quick_budget_ms() {
+    static const double ms = [] {
+        const char* e = getenv("RX_VK_QUICK_MS");
+        bool bad = false;
+        const double v = quick_pipe::quick_ms(e, &bad);
+        if (bad)
+            logf("vk: RX_VK_QUICK_MS=%s is not a number of milliseconds: ignored, quick pipelines off (%.0f is the suggested value)",
+                 e, quick_pipe::kQuickSuggestedMs);
+        if (v > 0)
+            logf("vk: a draw whose pipeline is still being built gets one from the caches or made without the driver's optimizer, "
+                 "%.0f ms of those a frame on each recording thread (RX_VK_QUICK_MS)", v);
+        return v;
+    }();
+    return ms;
+}
+/// (hookshot) RX_VK_PIPE_WAIT_MS, read once and logged: quick_pipe.h
+double pipe_wait_budget_ms() {
+    static const double ms = [] {
+        const char* e = getenv("RX_VK_PIPE_WAIT_MS");
+        bool bad = false;
+        const double v = quick_pipe::wait_ms(e, &bad);
+        if (bad) logf("vk: RX_VK_PIPE_WAIT_MS=%s is not a number of milliseconds: ignored", e);
+        if (v > 0)
+            logf("vk: a pipeline still being built, for a draw on earlier frames' targets, is moved to the queue's front and waited "
+                 "for at most %.0f ms a frame on each recording thread before the draw is left out (RX_VK_PIPE_WAIT_MS)", v);
+        return v;
+    }();
+    return ms;
+}
+/// (hookshot, ported from Mako, by sharkiix, 8292d363) A pipeline for a draw whose full build is not done (quick_pipe::take):
+/// the full one if a cache has it compiled, asked without compiling, else one made here without the driver's optimizer and
+/// into no cache, set as the entry's pipeline and not ready: the worker's full build replaces it. At most RX_VK_QUICK_MS a frame
+/// on each recording thread, but for a draw that cannot be left out (must). true: the entry has one to draw with
+bool quick_pipeline(PipeEntry& e, const Program& p, const NvnState& s, const Targets& at, VkPrimitiveTopology topo, bool must) {
+    const double budget_ms = quick_budget_ms();
+    if (budget_ms <= 0) return false;
+    static thread_local quick_pipe::FrameBudget budget;
+    const auto now_ms = [] {
+        return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    };
+    // (busy: the driver-fault gate had another build of the program in the driver (AMD): the entry is tried again later)
+    const auto ask = [&](bool& busy) -> VkPipeline {   // (needs pipelineCreationCacheControl, as pipeline_from_caches)
+        if (!dev.vk13.pipelineCreationCacheControl) return VK_NULL_HANDLE;
+        bool cold = false;
+        gate_busy = false;
+        const quick_pipe::Raise asking(ask_start_first);
+        const VkPipeline pl = build_graphics(p, s, at, topo, -1, &cold);
+        busy = gate_busy;
+        return pl;
+    };
+    double quick_took = 0;
+    const auto build = [&](bool& busy) -> VkPipeline {
+        const double t0 = now_ms();
+        gate_busy = false;
+        const quick_pipe::Raise quick(quick_build);
+        const VkPipeline pl = build_graphics(p, s, at, topo);
+        busy = gate_busy;
+        quick_took = now_ms() - t0;
+        return pl;
+    };
+    const auto destroy = [](VkPipeline pl) { vkDestroyPipeline(dev.device, pl, nullptr); };
+    const auto poll = [] { std::this_thread::sleep_for(std::chrono::milliseconds(1)); };
+    const quick_pipe::Got got = quick_pipe::take(e, must, budget_ms, budget, texture_frame_no(), ask, build, destroy, now_ms, poll);
+    // (each one made here is given back once the full build replaced it and the GPU is past every submission that may have
+    // bound it: graphics_pipeline's job, fast_retire; one the full build failed for stays the entry's for the session)
+    if (got == quick_pipe::Got::kCached) {
+        static std::atomic<int64_t> hits{0};
+        const int64_t h = ++hits;
+        if (h <= 5 || h % 200 == 0)
+            logf("vk: pipeline from the caches for a draw ahead of its build (%lld so far)", (long long)h);
+    } else if (got == quick_pipe::Got::kQuick) {
+        static std::atomic<int64_t> n{0}, total_us{0};
+        const int64_t k = ++n;
+        total_us += (int64_t)(quick_took * 1000);
+        if (k <= 20 || k % 50 == 0)
+            logf("vk: quick pipeline (no optimizer) for %016llx in %.1f ms, drawn with until its full build is done (%lld so far, "
+                 "%.0f ms in all)", (unsigned long long)p.key, quick_took, (long long)k,
+                 total_us.load() / 1000.0);
+    }
+    return got != quick_pipe::Got::kNothing;
 }
 
 // ---- samplers (by NVN sampler parameters) ----
@@ -7207,8 +7350,35 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     }
     if (!pe->ready.load(std::memory_order_acquire)) {
         const bool may_skip = !always_wait && targets_persistent(at) && !writes_memory(p);
-        if (may_skip) return use.skipped(), void(st_pending_skips++);
-        wait_for(pe->ready);
+        // (hookshot, from Mako) one to draw with until the full build is done: from the caches, or quick (quick_pipeline). Else a
+        // draw that may be left out first waits briefly for its build, moved to the queue's front (RX_VK_PIPE_WAIT_MS, off unless
+        // set), and one that may not waits for it, running it here if no worker has (jobs_wait). RX_VK_PIPE_SKIP=0 waits for
+        // every full pipeline, as it says: no quick one
+        if (always_wait) {
+            wait_for(pe->ready);
+        } else if (!pe->pipeline.load(std::memory_order_acquire) && !quick_pipeline(*pe, p, s, at, topo, !may_skip)) {
+            if (may_skip) {
+                static thread_local quick_pipe::FrameBudget wait_budget;
+                const auto now_ms = [] {
+                    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                };
+                double waited = -1;
+                const bool ready = quick_pipe::brief(
+                    pe->ready, pipe_wait_budget_ms(), wait_budget, texture_frame_no(), [&] { jobs_hurry(pe->ready); },
+                    [&](double ms) {
+                        PROF_EXACT();
+                        const double t0 = now_ms();
+                        const bool ok = jobs_wait_for(pe->ready, ms);
+                        waited = now_ms() - t0;
+                        return ok;
+                    },
+                    now_ms);
+                if (waited >= 0) st_waits++, st_wait_ms += waited;
+                if (!ready) return use.skipped(), void(st_pending_skips++);
+            } else {
+                wait_for(pe->ready);
+            }
+        }
     }
     if (use.on) use.pipeline_made(pe->how.load(std::memory_order_relaxed));
     const VkPipeline pl = pe->pipeline;
@@ -9179,6 +9349,7 @@ void note_color_types(const PipeNote& n, uint8_t types[8]) {
 }
 
 void predicted_sample_write(const std::vector<std::unique_ptr<PipeNote>>& predicted);
+void predicted_keys_write(std::vector<uint64_t> keys);
 // (hookshot) The prediction under way: hookshot_pipelines.bin.predicting from its start to its end. A start closed (or ended) in it
 // left the rest of the predicted pipelines unbuilt for good: the next start found the programs prepared, so it skipped the
 // prediction, and play compiled them as they were drawn. With the marker there, the next start runs it again; what the driver
@@ -9189,6 +9360,49 @@ bool predict_pending() {
     if (!f) return false;
     fclose(f);
     return true;
+}
+// (hookshot) Compile shaders, the Builder's, make_game.py's and the launcher's choice (compile_shaders= in hookshot_options.ini:
+// 1 All, the default, as before the choice; 0 Most; any other number is All). All builds the predicted pipelines too: about 50,000 for the driver's own cache, over 40 % more time (a full preparation on an RTX
+// 3090 with 24 threads: 415 and 413 s against 292 s without them), for pipelines Longshot found play rarely draws (the log counts them: "vk: predicted
+// pipelines met in play"; Most cost nothing in play on one measured route, but All stays the default until more is). RX_VK_COMPILE_SHADERS=all or most over the file (the game's --compile-shaders sets it, host/hos_main.c).
+// Asked only where a prediction would run: on Most it says so in the log, and takes away what an earlier preparation on All left
+// (the marker of one not finished, its sample and its keys), which would otherwise speak of pipelines this preparation did not
+// build
+bool compile_all() {
+    static const bool all = [] {
+        const char* why = "the default";
+        int v = 1;   // (hookshot: All, as before Compile shaders: Most is the choice until it is measured in play)
+        if (const char* e = getenv("RX_VK_COMPILE_SHADERS")) {
+            v = !strcmp(e, "most") || !strcmp(e, "0") ? 0 : 1;
+            why = "RX_VK_COMPILE_SHADERS";
+        } else {
+            char exe[MAX_PATH];
+            const DWORD n = game_module_path(exe, MAX_PATH);
+            std::string ini(exe, n);
+            ini = ini.substr(0, ini.find_last_of("\\/") + 1) + "hookshot_options.ini";
+            if (FILE* f = fopen(ini.c_str(), "r")) {
+                char line[80];
+                while (fgets(line, sizeof line, f))
+                    if (!strncmp(line, "compile_shaders=", 16)) {
+                        v = atoi(line + 16) == 0 ? 0 : 1;
+                        why = "compile_shaders in hookshot_options.ini";
+                        break;
+                    }
+                fclose(f);
+            }
+        }
+        if (v) {
+            logf("vk: Compile shaders: All (%s): the predicted pipelines are built too", why);
+        } else {
+            logf("vk: Compile shaders: Most (%s): the predicted pipelines are left out; a pipeline no list names is made when it "
+                 "is first drawn", why);
+            remove(predict_pending_path().c_str());
+            remove((pipe_notes_path() + ".predicted").c_str());
+            remove((pipe_notes_path() + ".predicted_keys").c_str());
+        }
+        return v != 0;
+    }();
+    return all;
 }
 void predict_run(void (*progress)(size_t done, size_t total)) {
     const auto t0 = std::chrono::steady_clock::now();
@@ -9230,7 +9444,8 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
         std::vector<uint64_t> keys;
         std::atomic<size_t> next{0}, done{0}, made{0}, same{0};
         std::atomic<bool> out_of_time{false}, abandoned{false}, graphics_begun{false};
-        std::mutex first_graphics;
+        std::mutex first_graphics, keys_mu;
+        std::vector<uint64_t> made_keys;   // (each made pipeline's key, as play looks it up: predicted_keys_write)
     };
     auto pre = std::make_shared<Pre>();
     pre->notes = std::move(notes), pre->predicted = std::move(predicted);
@@ -9265,6 +9480,7 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
             // layout at all, so several predictions can be the one pipeline. Over the whole key, not each record: a variant kept
             // twice is borrowed twice. The program's form (mesh, mesh fallback) goes with it: pipeline_key does not hold it)
             std::unordered_set<uint64_t> built;
+            std::vector<uint64_t> made_keys;
             program_cache_borrow(pre->keys[i], [&](Program& p) {
                 ensure_layout(p);
                 for (const PipeNote* n : list)
@@ -9287,10 +9503,14 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
                         const VkPipeline pl = build_graphics(p, n->s, at, topo);
                         pre->graphics_begun = true;
                         if (first.owns_lock()) first.unlock();
-                        if (pl) vkDestroyPipeline(dev.device, pl, nullptr), pre->made++;
+                        if (pl) vkDestroyPipeline(dev.device, pl, nullptr), pre->made++, made_keys.push_back(pipeline_key(p, n->s, at, topo));
                         pre->done++, counted++;   // (each pipeline as it finishes: the stall check below sees a slow program move)
                     }
             });
+            if (!made_keys.empty()) {
+                std::lock_guard lk(pre->keys_mu);
+                pre->made_keys.insert(pre->made_keys.end(), made_keys.begin(), made_keys.end());
+            }
             if (counted < list.size()) pre->done += list.size() - counted;   // (and the notes no kept variant answered)
         }
     };
@@ -9344,7 +9564,10 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
          gone_on ? " (gone on without the pipelines the driver did not finish)"
          : out_of_time.load() ? " (the time budget, RX_VK_PREDICT_S, ran out: the rest are built in play)"
          : prepare_stopped() ? " (stopped: the window was closed; the driver keeps what was built)" : "");
-    if (!prepare_stopped() && !out_of_time.load() && !gone_on) predicted_sample_write(pre->predicted);
+    if (!prepare_stopped() && !out_of_time.load() && !gone_on) {
+        predicted_sample_write(pre->predicted);
+        predicted_keys_write(pre->made_keys);
+    }
     // (gone on: what is stuck is left to play, as the stall guard says; a start that does it again would only stall again)
     if (!prepare_stopped()) remove(predict_pending_path().c_str());
     else if (FILE* f = fopen(predict_pending_path().c_str(), "wb")) fprintf(f, "%d\n", began), fclose(f);   // (closed: not counted)
@@ -9372,6 +9595,58 @@ void predicted_sample_write(const std::vector<std::unique_ptr<PipeNote>>& predic
         if (fclose(f) != 0 || !ok) remove(path.c_str());
     }
 }
+// ---- (hookshot) How often play meets a pipeline only the prediction made: hookshot_pipelines.bin.predicted_keys holds the keys of
+// the pipelines the last prediction built (sorted, as graphics_pipeline looks them up). A pipeline play makes that no note named and
+// whose key is there is counted once, by how it was made: from the driver's cache (the prediction saved its compile), compiled
+// (the driver did not keep it), or from the start's cache. The line "vk: predicted pipelines met in play" follows each play file
+// saved, for the session so far. What decides whether the prediction's minutes in the preparation are worth it ----
+namespace {
+std::string predicted_keys_path() { return pipe_notes_path() + ".predicted_keys"; }
+std::atomic<int64_t> predicted_met[4];   // (by UseCounters::made_how: 0 not made, 1 from the driver's cache, 2 the start's, 3 compiled)
+}
+void predicted_keys_write(std::vector<uint64_t> keys) {
+    std::sort(keys.begin(), keys.end());
+    keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+    const std::string path = predicted_keys_path();
+    if (FILE* f = fopen(path.c_str(), "wb")) {
+        const uint64_t head[2] = {program_cache_stamp(), keys.size()};
+        const bool ok = fwrite(head, 8, 2, f) == 2 && fwrite(keys.data(), 8, keys.size(), f) == keys.size();
+        if (fclose(f) != 0 || !ok) remove(path.c_str());
+    }
+}
+namespace {   // (declared in the anonymous namespace of graphics_pipeline and the play caches)
+/// (read once, at the first pipeline play makes: a few hundred KB)
+const std::vector<uint64_t>& predicted_keys() {
+    static const std::vector<uint64_t> keys = [] {
+        std::vector<uint64_t> k;
+        if (FILE* f = fopen(predicted_keys_path().c_str(), "rb")) {
+            uint64_t head[2]{};
+            if (fread(head, 8, 2, f) == 2 && head[0] == program_cache_stamp() && head[1] <= (64u << 20)) {
+                k.resize((size_t)head[1]);
+                if (fread(k.data(), 8, k.size(), f) != k.size()) k.clear();
+            }
+            fclose(f);
+        }
+        return k;
+    }();
+    return keys;
+}
+bool predicted_key(uint64_t key) {
+    const std::vector<uint64_t>& k = predicted_keys();
+    return std::binary_search(k.begin(), k.end(), key);
+}
+void predicted_use(int how) {
+    predicted_met[how >= 0 && how < 4 ? how : 0]++;
+}
+void predicted_use_log() {
+    const size_t known = predicted_keys().size();
+    if (!known) return;
+    logf("vk: predicted pipelines met in play (this session): %lld of the %zu the preparation predicted; %lld from the driver's cache, "
+         "%lld compiled, %lld from the start's cache, %lld not made",
+         (long long)(predicted_met[0] + predicted_met[1] + predicted_met[2] + predicted_met[3]), known, (long long)predicted_met[1].load(),
+         (long long)predicted_met[3].load(), (long long)predicted_met[2].load(), (long long)predicted_met[0].load());
+}
+}  // namespace
 /// The driver's shader cache folders this process uses (NVIDIA's, Mesa's; on Windows NVIDIA's, AMD's, Intel's), in bytes
 uint64_t driver_cache_bytes(std::string* where) {
     namespace fs = std::filesystem;
