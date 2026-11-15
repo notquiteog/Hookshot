@@ -1,4 +1,5 @@
-"""nn::fs::GetSaveDataSize (host/nn_fs.c): success with both sizes, and only into the game's memory.
+"""nn::fs::GetSaveDataSize (host/nn_fs.c): success with both sizes, and only into the game's memory; and
+MountCacheStorage(char const*) answered, as cache storage 0.
 
 The handler is cut out of production unmodified and run against fake guest memory: both sizes written (a generous
 1 GiB each: a host folder has no size of its own), the answer success; a null or out-of-range pointer is not written.
@@ -9,6 +10,7 @@ python -I -B tests/test_fs_save_data_size.py [--cc gcc]
 """
 import argparse
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -67,6 +69,9 @@ def main():
     a = p.parse_args()
     fs = (ROOT / "host" / "nn_fs.c").read_text(encoding="utf-8")
     handler = block(fs, "HLE(_ZN2nn2fs15GetSaveDataSizeEPlS1_RKNS_7account3UidE)")
+    plain = re.search(r'^HLE\(_ZN2nn2fs17MountCacheStorageEPKc\) \{ RET\(user_mount\(gstr\(ARG\(0\)\), "cache\\\\0"\)', fs, re.M)
+    if not plain:
+        raise SystemExit("FAIL: MountCacheStorage(char const*) is not answered as cache storage 0")
     with tempfile.TemporaryDirectory(prefix="fs-save-size-") as tmp:
         src, exe = Path(tmp, "f.c"), Path(tmp, "f")
         src.write_text(FIXTURE.replace("@HANDLER@", handler), encoding="utf-8")

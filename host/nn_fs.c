@@ -322,6 +322,10 @@ HLE(_ZN2nn2fs17MountCacheStorageEPKci) {
     snprintf(sub, sizeof sub, "cache\\%d", (int)ARG(1));
     RET(user_mount(gstr(ARG(0)), sub) ? 0 : R_NOT_MOUNTED);
 }
+/* MountCacheStorage(char const*): the cache storage of index 0, as the indexed form's. Left to the lifted SDK it asked
+   the fs service proxy through sm: (answered empty) and aborted: Kirby Air Riders (Dragoon) mounts its cache this way
+   right after its save. */
+HLE(_ZN2nn2fs17MountCacheStorageEPKc) { RET(user_mount(gstr(ARG(0)), "cache\\0") ? 0 : R_NOT_MOUNTED); }
 /* CreateCacheStorage(int index, long size, long journal) */
 HLE(_ZN2nn2fs18CreateCacheStorageEill) {
     char root[HOS_FS_PATH];
