@@ -114,6 +114,8 @@ inline uint64_t produced() { return 0; }
 struct OwnSlot { OwnSlot() {} ~OwnSlot() {} };   // (a scope, as the real one)
 }   // namespace rec
 uint64_t rec_end_pos[64];   // (vk_replay.cpp: each slot's end in the recorder's ring)
+uint64_t occ_part_lo = UINT64_MAX, occ_part_hi = 0;   // (vk_replay.cpp, RX_VK_OCC_COPY: no occlusion queries here)
+void occ_copy_part(VkCommandBuffer) {}
 // PRODUCTION
 void retire(uintptr_t id, uint64_t required) {
     bundles[id].required = required;

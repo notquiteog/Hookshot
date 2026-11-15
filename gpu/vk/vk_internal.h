@@ -312,6 +312,7 @@ bool create_buffer_cached(uint64_t size, VkBufferUsageFlags usage, VkBuffer& buf
                           void** mapped, bool dedicated = false);   // (vk_vma.cpp: cached host memory, mapped)
 void flush_mapped(VmaAllocation allocation, uint64_t size);
 bool host_cached(VmaAllocation allocation);   // (its memory type has VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
+bool host_coherent(VmaAllocation allocation);   // (its memory type has VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
 void flush_mapped_range(VmaAllocation allocation, uint64_t offset, uint64_t size);
 void invalidate_mapped(VmaAllocation allocation, uint64_t size);   // (the CPU is to read what the GPU wrote: a no-op in coherent memory)
 bool flush_mapped_checked(VmaAllocation allocation, uint64_t size);

@@ -475,10 +475,43 @@ std::vector<OccSlot> occ_slots(kOccSlots);
 uint64_t occ_seq = 0;
 OccSlot& occ_slot(uint64_t addr) { return occ_slots[(size_t)((addr >> 4) * 0x9E3779B97F4A7C15ull >> 50)]; }
 struct {
-    uint64_t real, zero, unknown, stale, lag, calls, polls, ns, sum, small, creal, czero, split, ahead, walks, walk_ns;
+    uint64_t real, zero, unknown, stale, lag, calls, polls, ns, sum, small, creal, czero, split, ahead, walks, walk_ns, copies, copied, fell_back;
 } occ_st;
 
 bool async_on();
+/// (hookshot) RX_VK_OCC_COPY: the queries' results copied by the GPU at the end of the recording that ran them
+/// (vkCmdCopyQueryPoolResults, after the recording's end barrier) into a buffer in host memory, which occ_collect reads as plain
+/// memory. Read from the pool (vkGetQueryPoolResults), each query cost ~3.4 us in the driver on an Arc B580 (101.9154; the time
+/// grew with the queries read, not with the calls): 7.4 ms of the render thread's 28.8 ms a frame in Castle Town's market,
+/// 34.8 fps there against 45.8 with the copy. A query the copy found not done (never begun: its draw did not draw), or one
+/// whose recording ended without the copy, is read from the pool once its submission is done, as before. A count reads
+/// kOccUnread until its copy has written it, whichever of its two words the GPU writes first. The copies cost GPU time (~2 ms
+/// a frame in the market on the B580, ~1,400 queries), so they are on by default only where they were measured: Intel's
+/// Windows driver on a discrete GPU (Arc). An iGPU, mostly held back by the GPU, or another driver whose pool reads cost
+/// less, may lose by them (RX_VK_OCC_COPY=1: on there too). Off with the parallel replay (its workers record the queries) and
+/// without coherent host memory. RX_VK_OCC_COPY=0: read from the pool
+int par_threads();
+bool occ_copy_wanted() {
+    static const bool on = [] {
+        if (par_threads() != 0) return false;
+        if (const char* e = getenv("RX_VK_OCC_COPY")) return atoi(e) != 0;
+        return dev.driver_id == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS &&
+               dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+    }();
+    return on;
+}
+VkBuffer occ_host_buf = VK_NULL_HANDLE;
+VmaAllocation occ_host_alloc = nullptr;
+volatile uint64_t* occ_host = nullptr;   // ((count, availability) for each query of the ring, at its place in the pool)
+constexpr uint64_t kOccUnread = ~0ull;   // (a count no copy has written since the query's reset)
+uint64_t occ_part_lo = UINT64_MAX, occ_part_hi = 0;   // (the queries the recording being made took: occ_copy_part)
+void occ_host_clear(uint64_t at, uint64_t k) {
+    for (uint64_t i = at; i < at + k; i++) {
+        occ_host[2 * i] = kOccUnread;
+        occ_host[2 * i + 1] = 0;
+    }
+}
+
 bool occ_queries_on() {
     static const bool on = [] {
         const char* e = getenv("RX_VK_OCC_QUERIES");
@@ -507,8 +540,22 @@ bool occ_queries_on() {
             return false;
         }
         vkResetQueryPool(dev.device, occ_pool, 0, (uint32_t)kOccPool);
-        logf("vk: occlusion queries on (RX_VK_OCC_QUERIES): the game's samples-passed reports get the GPU's counts%s",
-             dev.occlusion_precise ? "" : " (not precise: a count says only none or some)");
+        if (occ_copy_wanted()) {
+            void* m = nullptr;
+            if (create_buffer_cached(kOccPool * 16, VK_BUFFER_USAGE_TRANSFER_DST_BIT, occ_host_buf, occ_host_alloc, &m, true) && m &&
+                host_coherent(occ_host_alloc)) {
+                occ_host = (volatile uint64_t*)m;
+                occ_host_clear(0, kOccPool);
+            } else {
+                if (occ_host_buf) destroy_buffer(occ_host_buf, occ_host_alloc);
+                occ_host_buf = VK_NULL_HANDLE, occ_host_alloc = nullptr;
+            }
+        }
+        logf("vk: occlusion queries on (RX_VK_OCC_QUERIES): the game's samples-passed reports get the GPU's counts%s; %s",
+             dev.occlusion_precise ? "" : " (not precise: a count says only none or some)",
+             occ_host ? "copied into host memory at each recording's end (RX_VK_OCC_COPY)"
+                      : occ_copy_wanted() ? "read from the pool (RX_VK_OCC_COPY: no coherent host memory for the copies)"
+                                          : "read from the pool");
         return true;
     }();
     return on;
@@ -518,6 +565,7 @@ void occ_reset(uint64_t first, uint64_t n) {
     while (n) {
         const uint64_t at = first % kOccPool, k = std::min(n, kOccPool - at);
         vkResetQueryPool(dev.device, occ_pool, (uint32_t)at, (uint32_t)k);
+        if (occ_host) occ_host_clear(at, k);   // (the GPU is done with them, and with their copies: the same submissions)
         first += k, n -= k;
     }
 }
@@ -634,17 +682,34 @@ void occ_collect() {
     }
     static std::vector<uint64_t> got;   // (count, availability) for each query of [first, end)
     got.assign(2 * (end - first), 0);
-    for (uint64_t i = 0; i < end - first;) {
-        const uint64_t at = (first + i) % kOccPool, k = std::min(end - first - i, kOccPool - at);
-        vkGetQueryPoolResults(dev.device, occ_pool, (uint32_t)at, (uint32_t)k, k * 16, got.data() + 2 * i, 16,
-                              VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);   // (VK_NOT_READY: some not done)
-        i += k;
+    const auto pool_read = [&](uint64_t from, uint64_t to) {   // (the queries [first + from, first + to), from the pool)
+        for (uint64_t i = from; i < to;) {
+            const uint64_t at = (first + i) % kOccPool, k = std::min(to - i, kOccPool - at);
+            vkGetQueryPoolResults(dev.device, occ_pool, (uint32_t)at, (uint32_t)k, k * 16, got.data() + 2 * i, 16,
+                                  VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);   // (VK_NOT_READY: some not done)
+            i += k;
+        }
+    };
+    if (occ_host) {   // (RX_VK_OCC_COPY: their copies. One is there once its availability word is set and its count written)
+        for (uint64_t i = 0; i < end - first; i++) {
+            const uint64_t at = (first + i) % kOccPool;
+            const uint64_t a = occ_host[2 * at + 1], c = occ_host[2 * at];
+            got[2 * i] = c, got[2 * i + 1] = a && c != kOccUnread;
+        }
+    } else {
+        pool_read(0, end - first);
     }
     size_t ready = 0;
     for (size_t r = 0; r < span; r++) {
         const OccReport& o = occ_pending[r];
+        const uint64_t from = o.first - first, to = from + o.n;
         bool all = true;
-        for (uint64_t i = o.first - first; i < o.first - first + o.n && all; i++) all = got[2 * i + 1] != 0;
+        for (uint64_t i = from; i < to && all; i++) all = got[2 * i + 1] != 0;
+        if (!all && occ_host && o.value && done >= o.value) {   // (its submission done: what its copy did not have, from the pool)
+            std::fill(got.begin() + 2 * from, got.begin() + 2 * to, 0);
+            pool_read(from, to);
+            occ_st.fell_back += o.n;
+        }
         if (!all && !(o.value && done >= o.value)) break;   // (still on the GPU: it and those after it wait)
         ready++;
     }
@@ -705,7 +770,8 @@ void occ_collect() {
              "%llu reported again first; written %.1f recordings after the report; %zu waiting; %llu reads (%llu wrote), %.1f us each; "
              "the others: %.0f samples on average, %llu under 64; runs with colour draws %llu (%llu of them 0); "
              "queries not begun: %llu draws returned before drawing, %llu with vertex input not all bound, %llu task batches; "
-             "%llu runs split by another queue's queries; %llu slots made visible ahead of a stopped queue (%llu walks, %.1f us each)",
+             "%llu runs split by another queue's queries; %llu slots made visible ahead of a stopped queue (%llu walks, %.1f us each); "
+             "%llu copies, %.1f queries each, %llu queries read from the pool after their copy (RX_VK_OCC_COPY)",
              (unsigned long long)w, (unsigned long long)occ_st.zero, w ? 100.0 * occ_st.zero / w : 0.0,
              (unsigned long long)occ_st.unknown, (unsigned long long)occ_st.stale, w ? (double)occ_st.lag / w : 0.0,
              occ_pending.size(), (unsigned long long)occ_st.polls, (unsigned long long)occ_st.calls,
@@ -713,9 +779,32 @@ void occ_collect() {
              (unsigned long long)occ_st.small, (unsigned long long)(occ_st.creal + occ_st.czero), (unsigned long long)occ_st.czero,
              (unsigned long long)nd[0], (unsigned long long)nd[1], (unsigned long long)nd[2], (unsigned long long)occ_st.split,
              (unsigned long long)occ_st.ahead, (unsigned long long)occ_st.walks,
-             occ_st.walks ? occ_st.walk_ns / 1e3 / occ_st.walks : 0.0);
+             occ_st.walks ? occ_st.walk_ns / 1e3 / occ_st.walks : 0.0, (unsigned long long)occ_st.copies,
+             occ_st.copies ? (double)occ_st.copied / occ_st.copies : 0.0, (unsigned long long)occ_st.fell_back);
         occ_st = {};
     }
+}
+
+/// (RX_VK_OCC_COPY) The queries the recording took, copied into the host buffer after its last draws (the recording's end
+/// barrier is before this: a query not done by then is copied as not available), then made the host's. Every recording's end
+/// forgets them (submit_recording): the queries of one that ended without this are read from the pool
+void occ_copy_part(VkCommandBuffer cmd) {
+    if (occ_host && occ_part_hi > occ_part_lo) {
+        for (uint64_t q = occ_part_lo; q < occ_part_hi;) {
+            const uint64_t at = q % kOccPool, k = std::min(occ_part_hi - q, kOccPool - at);
+            vkCmdCopyQueryPoolResults(cmd, occ_pool, (uint32_t)at, (uint32_t)k, occ_host_buf, at * 16, 16,
+                                      VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
+            q += k;
+        }
+        VkMemoryBarrier2 mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};
+        mb.srcStageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT, mb.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        mb.dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT, mb.dstAccessMask = VK_ACCESS_2_HOST_READ_BIT;
+        VkDependencyInfo di{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+        di.memoryBarrierCount = 1, di.pMemoryBarriers = &mb;
+        vkCmdPipelineBarrier2(cmd, &di);
+        occ_st.copies++, occ_st.copied += occ_part_hi - occ_part_lo;
+    }
+    occ_part_lo = UINT64_MAX, occ_part_hi = 0;
 }
 
 /// RX_VK_OCC_QUERIES=2: the runs with colour draws counted too (occ_take)
@@ -737,7 +826,10 @@ void occ_take(NvnState& s, DrawArgs& da, bool dry) {
         return;
     }
     const uint64_t q = s.occ_next++;
-    if (!dry) da.occ_pool = occ_pool, da.occ_query = (uint32_t)(q % kOccPool);
+    if (!dry) {
+        da.occ_pool = occ_pool, da.occ_query = (uint32_t)(q % kOccPool);
+        if (occ_host) occ_part_lo = std::min(occ_part_lo, q), occ_part_hi = std::max(occ_part_hi, q + 1);
+    }
 }
 
 /// The next recording slot, begun, for the submission that will signal value
@@ -775,6 +867,7 @@ Recording& begin_recording(uint64_t value) {
     return r;
 }
 void submit_recording(Recording& r, bool signal_value = true, uint64_t signal_at = 0) {
+    occ_part_lo = UINT64_MAX, occ_part_hi = 0;   // (RX_VK_OCC_COPY: copied only if occ_copy_part did, else read from the pool)
     draw_flush_recording(r.slot);
     const bool uploads = texture_uploads_recorded();
     gprof_submitted(r.slot, uploads);
@@ -1935,6 +2028,7 @@ void split_part(VkCommandBuffer& cmd) {
     if (part_flush) flush_ub_updates(cmd);
     memory_end_submission(cmd, rec_cur->part);
     full_barrier(cmd, "barrier (recording end)");
+    occ_copy_part(cmd);
     submit_recording(*rec_cur, false);
     if (part_flush) ub_first_of_recording = ub_updates.size();
     Recording& r = begin_recording(rec_cur_value);
@@ -2622,6 +2716,7 @@ void finish_recording(uint64_t value) {
     flush_ub_updates(r.cmd);
     memory_end_submission(r.cmd, r.part);
     full_barrier(r.cmd, "barrier (recording end)");
+    occ_copy_part(r.cmd);
     const uint64_t oldest = oldest_unfinished();
     const uint64_t at = oldest == UINT64_MAX ? done_max : std::min(done_max, oldest - 1);
     const bool signal = at > signaled;

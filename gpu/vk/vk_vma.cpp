@@ -299,6 +299,11 @@ bool host_cached(VmaAllocation allocation) {
     if (allocation) vmaGetAllocationMemoryProperties(vma, allocation, &f);
     return (f & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) != 0;
 }
+bool host_coherent(VmaAllocation allocation) {
+    VkMemoryPropertyFlags f = 0;
+    if (allocation) vmaGetAllocationMemoryProperties(vma, allocation, &f);
+    return (f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0;
+}
 void flush_mapped(VmaAllocation allocation, uint64_t size) {
     if (size) vmaFlushAllocation(vma, allocation, 0, size);
 }

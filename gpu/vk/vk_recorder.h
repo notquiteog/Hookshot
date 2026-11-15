@@ -88,7 +88,7 @@ extern std::atomic<bool> par_active;   // (vk_replay.cpp: a parallel replay's se
     V(vkCmdSetDepthCompareOp) V(vkCmdSetStencilTestEnable) V(vkCmdSetRasterizerDiscardEnable) V(vkCmdSetPolygonModeEXT)             \
     V(vkCmdSetDepthClampEnableEXT) V(vkCmdSetAlphaToCoverageEnableEXT)                                                             \
     A(vkCmdSetColorBlendEnableEXT) A(vkCmdSetColorBlendEquationEXT) A(vkCmdSetColorWriteMaskEXT)                                   \
-    V(vkCmdWriteBufferMarkerAMD) A(vkCmdSetCheckpointNV) V(vkCmdWriteTimestamp2) V(vkCmdResetQueryPool)
+    V(vkCmdWriteBufferMarkerAMD) A(vkCmdSetCheckpointNV) V(vkCmdWriteTimestamp2) V(vkCmdResetQueryPool) V(vkCmdCopyQueryPoolResults)
 
 // (DEFER) The calls that drain the thread's held packets first (vk_work.h has a macro for each: the test checks the two lists agree,
 // and that every file making one of these calls includes vk_work.h or is on its list of known exceptions). K: a ::vkx function,
