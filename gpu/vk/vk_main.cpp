@@ -1619,9 +1619,11 @@ void auto_profile() {
     hw.rdna4 = hw.vendor == ::auto_settings::AMD &&
                (p.deviceID == 0x7550 || p.deviceID == 0x7551 || p.deviceID == 0x7590 || strstr(p.deviceName, "RX 9") ||
                 strstr(p.deviceName, "GFX12"));
-    // (the Steam Deck's APU, LCD and OLED, or SteamOS's own flag)
+    // (the Steam Deck's APU, LCD and OLED, or Steam's flag on an integrated GPU: Steam sets SteamDeck=1 wherever it runs as on a
+    // Deck, Gaming Mode sessions on desktops with a discrete card too, which are no handheld)
     const char* deck = getenv("SteamDeck");
-    hw.handheld = (deck && atoi(deck) == 1) || strstr(p.deviceName, "Custom GPU 0405") || strstr(p.deviceName, "Custom GPU 0932");
+    hw.handheld = (deck && atoi(deck) == 1 && hw.integrated) || strstr(p.deviceName, "Custom GPU 0405") ||
+                  strstr(p.deviceName, "Custom GPU 0932");
     hw.dlss_built = dlss_built();
     hw.fsr4_built = fsr4_built();
     hw.threads = (int)std::thread::hardware_concurrency();
