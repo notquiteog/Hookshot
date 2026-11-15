@@ -80,7 +80,7 @@ static char sel_name[128];
 static int sel_index = -1;
 static int log_on = -1;
 
-/* ---- the devices, for the menu (gpu/vk/vk_api.h: MkwVkHost mic_count, mic_name) ---- */
+/* ---- the devices, for the menu (gpu/vk/vk_api.h: NX2VkHost mic_count, mic_name) ---- */
 int hos_mic_count(void) {   /* (lists them again: a microphone plugged in since shows; SDL asked without a lock held) */
     uint32_t ids[MAX_DEVICES];
     char names[MAX_DEVICES][128];

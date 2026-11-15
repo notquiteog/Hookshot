@@ -1,6 +1,6 @@
 /* (mkw-recomp) Included first in every source of the WebGPU renderer (nx2/build.py, -include): the functions the
    game executable calls are renamed rx_* -> wgr_*, and host/rx_backend.c defines the rx_* names, sending each call
-   to this renderer or to the Vulkan one (mkw_vk.dll, RX_BACKEND=vulkan). */
+   to this renderer or to the Vulkan one (hookshot_vk.dll, RX_BACKEND=vulkan). */
 #pragma once
 #define rx_start wgr_start
 #define rx_resize wgr_resize

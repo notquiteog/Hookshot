@@ -45,7 +45,7 @@ def main():
 #include <cstdint>
 #include <string>
 #include "gpu/vk/upscaler_rows.h"
-namespace ur = mkwvk::upscaler_rows;
+namespace ur = nx2vk::upscaler_rows;
 using VkFormat = int;
 constexpr int VK_FORMAT_B10G11R11_UFLOAT_PACK32=122, VK_FORMAT_R16G16B16A16_SFLOAT=97;
 int mode=ur::DLSS;

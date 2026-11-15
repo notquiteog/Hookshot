@@ -7,7 +7,7 @@
 #include "shaders/nr_detail_comp_spv.h"
 #include "vk_work.h"   // (after the others: its commands through the recorder, counted as work for full_barrier)
 
-namespace mkwvk::nr_scale {
+namespace nx2vk::nr_scale {
 namespace {
 
 constexpr VkFormat kFormat = VK_FORMAT_R8G8B8A8_UNORM;   // (the backends' own working format: vk_dlssnr_ngx.cpp)
@@ -285,4 +285,4 @@ void shutdown() {
     s = State{};
 }
 
-} // namespace mkwvk::nr_scale
+} // namespace nx2vk::nr_scale

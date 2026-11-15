@@ -11,7 +11,7 @@
 #include "vk_loader.h"
 #include "vk_work.h"   // (after the others: NGX records into the command buffer itself, which the recorder is told, vk_recorder.h)
 
-namespace mkwvk::ngx {
+namespace nx2vk::ngx {
 namespace {
 
 /// The session's own state. The NGX entry points are not resolved by name here: on Linux the
@@ -113,7 +113,7 @@ void destroy_params(NVSDK_NGX_Parameter* params) {
 // (vk_dlss.cpp does the same around super resolution's).
 NVSDK_NGX_Result create_feature(VkCommandBuffer cmd, NVSDK_NGX_Feature feature,
                                 NVSDK_NGX_Parameter* params, NVSDK_NGX_Handle** out_handle) {
-    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);
+    ::nx2vk::rec::boundary(::nx2vk::rec::B_DIRECT);
     const NVSDK_NGX_Result r = NVSDK_NGX_VULKAN_CreateFeature(cmd, feature, params, out_handle);
     note_work();
     return r;
@@ -121,7 +121,7 @@ NVSDK_NGX_Result create_feature(VkCommandBuffer cmd, NVSDK_NGX_Feature feature,
 
 NVSDK_NGX_Result evaluate_feature(VkCommandBuffer cmd, NVSDK_NGX_Handle* handle,
                                   NVSDK_NGX_Parameter* params) {
-    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);
+    ::nx2vk::rec::boundary(::nx2vk::rec::B_DIRECT);
     const NVSDK_NGX_Result r = NVSDK_NGX_VULKAN_EvaluateFeature(cmd, handle, params, nullptr);
     note_work();
     return r;
@@ -187,6 +187,6 @@ void shutdown() {
     s.started = false;
 }
 
-} // namespace mkwvk::ngx
+} // namespace nx2vk::ngx
 
 #endif // HOOKSHOT_NGX

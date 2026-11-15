@@ -7,7 +7,7 @@
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
 int main() {
-    using mkwvk::target_overlap::DrawnOver;
+    using nx2vk::target_overlap::DrawnOver;
     // (OoT's 768 x 432 RGBA16F transient targets: 2.6 MB each, made ~1.2 MB apart in a scratch heap)
     const uint64_t size = 768ull * 432 * 8, step = 0x128200;
     const uint64_t a = 0x10005db1600, b = a + step;

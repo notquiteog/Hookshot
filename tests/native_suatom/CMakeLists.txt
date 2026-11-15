@@ -18,7 +18,7 @@ target_include_directories(native_suatom PRIVATE
     "${REPO_ROOT}/gpu/vk/eden" "${REPO_ROOT}/gpu/third_party/suyu"
     "${REPO_ROOT}/gpu/vk/sirit/include" "${REPO_ROOT}/gpu/vk/sirit/src"
     "${SPIRV_HEADERS_ROOT}/include")
-target_compile_definitions(native_suatom PRIVATE NDEBUG MKWVK_INCLUDES=2 VK_NO_PROTOTYPES)
+target_compile_definitions(native_suatom PRIVATE NDEBUG NX2VK_INCLUDES=2 VK_NO_PROTOTYPES)
 if(MSVC)
     target_compile_options(native_suatom PRIVATE /W0 /O1 /EHsc)
 else()

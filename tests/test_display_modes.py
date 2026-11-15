@@ -20,7 +20,7 @@ DRIVER = r"""
 #include <cstdio>
 #include <string>
 #include "gpu/vk/display_modes.h"
-using namespace mkwvk::display_modes;
+using namespace nx2vk::display_modes;
 
 static std::string sizes(const std::vector<Size>& v) {
     std::string s;

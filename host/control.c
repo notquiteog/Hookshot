@@ -2283,7 +2283,7 @@ extern volatile int64_t hos_present_count;   /* (display.c, posix/display_sdl.c:
 const char *rx_describe(void);
 int rx_control_frame_info(int64_t *presents, int64_t *draws, int *width, int *height);
 int rx_control_shot(const char *path, int64_t after, void (*done)(void *ctx, int64_t present, int ok), void *ctx);
-int rx_control_setting(int index, HosControlSetting *out);   /* (rx_backend.c: MkwVkSetting's fields) */
+int rx_control_setting(int index, HosControlSetting *out);   /* (rx_backend.c: NX2VkSetting's fields) */
 int rx_control_setting_set(const char *key, int value, HosControlSetting *out);
 int hos_mem_region(uint64_t addr, uint64_t size);           /* (hos_mem.c) */
 uint8_t *hos_guest_base(void);                              /* (rx_backend.c) */

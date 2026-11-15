@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace mkwvk::upscaler_rows {
+namespace nx2vk::upscaler_rows {
 
 /// The Upscaler row (opts.dlss, RX_VK_DLSS): the game's own network, NVIDIA DLSS, NVIDIA DLAA, AMD FSR 3.1 (built from AMD's
 /// shader sources: gpu/vk/vk_fsr3.cpp), AMD FSR 4 and its native anti-aliasing (AMD's library, a build with FSR 4:
@@ -274,4 +274,4 @@ inline bool filter_needed(unsigned picture_w, unsigned picture_h, unsigned windo
     return !picture_w || !window_w || picture_w != window_w || picture_h != window_h;
 }
 
-} // namespace mkwvk::upscaler_rows
+} // namespace nx2vk::upscaler_rows

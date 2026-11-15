@@ -16,7 +16,7 @@
 
 #include <vulkan/vulkan.h>
 
-namespace mkwvk::opennr_net {
+namespace nx2vk::opennr_net {
 
 /// A model directory checked the way upstream's nr::Model and nr::Graph check it, before any GPU work: the manifest
 /// parses; every stage file is under model/, has the packed length the manifest says and the SHA-256 it says; every
@@ -82,4 +82,4 @@ void fall_back_to_barriers(Network* network);
 /// Releases everything. The device must be idle and every queue's lock held (upstream's context waits for the device).
 void destroy(Network* network);
 
-} // namespace mkwvk::opennr_net
+} // namespace nx2vk::opennr_net

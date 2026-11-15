@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include "../gpu/vk/nr_plan.h"
 
-namespace np = mkwvk::nr_plan;
+namespace np = nx2vk::nr_plan;
 static int failures;
 #define CHECK(name, c) do { if (!(c)) { std::printf("FAIL: %s\n", name); ++failures; } } while (0)
 

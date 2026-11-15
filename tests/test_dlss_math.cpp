@@ -6,7 +6,7 @@
 
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
-namespace dm = mkwvk::dlss_math;
+namespace dm = nx2vk::dlss_math;
 
 static bool near(float a, float b, float eps = 1e-5f) { return std::fabs(a - b) <= eps; }
 static void mul(const float* a, const float* b, float* out) {   // (row major 4x4: out = a * b)

@@ -8,7 +8,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2vk {
 
 struct TemporalEngine;
 
@@ -85,7 +85,7 @@ int dlss_fg_frames(VkCommandBuffer cmd, VkImage color, VkImageView color_view, u
 /// Frame generation at Off or Auto (no fixed multiplier: dlss_fg_frames is not asked): its feature, if made, let go and its
 /// memory back, as when the Frame generation by row changes. Each such present (vk_replay.cpp); nothing to do is one load
 void dlss_fg_idle();
-/// Before the process exits (mkwvk_close_asked): its feature let go with the queue idle
+/// Before the process exits (nx2vk_close_asked): its feature let go with the queue idle
 void dlss_fg_close();
 
-} // namespace mkwvk
+} // namespace nx2vk

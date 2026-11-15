@@ -13,7 +13,7 @@
 #include <thread>
 #include <vector>
 
-using namespace mkwvk;
+using namespace nx2vk;
 
 namespace {
 

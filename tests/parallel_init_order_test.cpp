@@ -154,7 +154,7 @@ void vkDestroyCommandPool(VkDevice, VkCommandPool p, const VkAllocationCallbacks
     CHECK(p && live_pools.erase(reinterpret_cast<uintptr_t>(p)));   // (only a live one, once)
 }
 
-namespace mkwvk {
+namespace nx2vk {
 std::mutex log_mu;
 std::string log_text;
 std::function<void(const std::string&)> on_log;   // (init_end_fail: looks at the state when the replay stops)
@@ -372,7 +372,7 @@ void submit_segments(std::vector<Segment> seg, std::vector<int> order) {
     for (auto& w : workers) w.join();
 }
 #include "init_pools.inc"
-}  // namespace mkwvk
+}  // namespace nx2vk
 
 std::string ops_text(const VkCommandBuffer_T* cb) {
     std::string s;
@@ -424,7 +424,7 @@ std::string init_of(VkImage i) {
 }
 
 int main(int argc, char** argv) {
-    using namespace mkwvk;
+    using namespace nx2vk;
     const std::string c = argc > 1 ? argv[1] : "";
     if (c == "later_makes") {   // (segment 1's worker makes the texture, then segment 0's uploads it again and draws with it)
         submit_segments({{"t"}, {"t"}}, {1, 0});

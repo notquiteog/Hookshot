@@ -11,7 +11,7 @@
 #include <iostream>
 #include <limits>
 
-namespace dlss_math = mkwvk::dlss_math;
+namespace dlss_math = nx2vk::dlss_math;
 static void logf(const char*, ...) {}   // (the camera cut's log line)
 struct State {
     uint64_t last_frame = 99;

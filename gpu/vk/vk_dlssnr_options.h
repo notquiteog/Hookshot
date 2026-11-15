@@ -27,7 +27,7 @@
 
 #include <sl.h>
 
-namespace mkwvk::dlssnr {
+namespace nx2vk::dlssnr {
 
 enum class DlssNrMode : uint32_t {
     eOff = 0,
@@ -103,6 +103,6 @@ static_assert(offsetof(DlssNrOptions, performanceMode) == 0x44);
 using PFun_slDLSSNRSetOptions = sl::Result(const sl::ViewportHandle& viewport,
                                            const DlssNrOptions& options);
 
-} // namespace mkwvk::dlssnr
+} // namespace nx2vk::dlssnr
 
 #endif

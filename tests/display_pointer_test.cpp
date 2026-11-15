@@ -156,7 +156,7 @@ int main() {
     adapter::hos_sdl_mouse_position(&x, &y); CHECK(x == 101 && y == -1);
     // No foreign-thread SDL calls, including the Vulkan window-size callback.
     sdl::pointer_update(HOS_MOUSE_LEFT, 60);
-    MkwVkPointer out{};
+    NX2VkPointer out{};
     std::thread first([&] {
         CHECK(sdl::hos_mouse_pointer(&out));
         CHECK(out.x == 100 && out.y == 200 && out.width == 1280 && out.height == 720);
@@ -216,7 +216,7 @@ int main() {
     win::menu_open=0;win::game_menu_open=1;win::width=1280;
     win::game_menu_press(MAKELPARAM(41,52),HOS_MOUSE_RIGHT);
     win::width=1720;win::pointer_update(win::hwnd,0,60);win::pointer_update(win::hwnd,0,60);
-    MkwVkPointer insert{};insert.width=640;insert.height=480;insert.pressed=HOS_MOUSE_LEFT;insert.wheel=120;
+    NX2VkPointer insert{};insert.width=640;insert.height=480;insert.pressed=HOS_MOUSE_LEFT;insert.wheel=120;
     hos_pointer_publish(&win::pointer,insert,1);
     int gx,gy,gw,gh,wheel;uint32_t pressed;
     std::thread game([&] {
@@ -308,7 +308,7 @@ int main() {
     // (done is read before each take, so the last take is always after the last publish: read after the take, a reader
     // descheduled between a take before the first publish and that read saw done and left with no read, CI run 43635055883)
     std::thread reader([&] {
-        MkwVkPointer p{};
+        NX2VkPointer p{};
         for (;;) {
             const bool last = done.load(std::memory_order_acquire);
             if (hos_pointer_take(&state, &p)) {
@@ -319,11 +319,11 @@ int main() {
         }
     });
     for (int i = 1; i <= 100000; ++i) {
-        MkwVkPointer p{}; p.x = i, p.y = i * 2, p.width = i * 3, p.height = i * 4;
+        NX2VkPointer p{}; p.x = i, p.y = i * 2, p.width = i * 3, p.height = i * 4;
         hos_pointer_publish(&state, p, 1);
     }
     done.store(true, std::memory_order_release); reader.join(); CHECK(reads > 0);
-    MkwVkPointer p{}; p.width = 3440, p.height = 1440, p.pressed = HOS_MOUSE_LEFT, p.wheel = 60;
+    NX2VkPointer p{}; p.width = 3440, p.height = 1440, p.pressed = HOS_MOUSE_LEFT, p.wheel = 60;
     hos_pointer_publish(&state, p, 1); p.pressed = HOS_MOUSE_RIGHT; hos_pointer_publish(&state, p, 1);
     CHECK(hos_pointer_take(&state, &out) && out.pressed == (HOS_MOUSE_LEFT | HOS_MOUSE_RIGHT) && out.wheel == 1);
     CHECK(hos_pointer_take(&state, &out) && !out.pressed && !out.wheel);

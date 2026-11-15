@@ -33,7 +33,7 @@
 #pragma GCC diagnostic pop
 #endif
 
-namespace mkwvk::game_font {
+namespace nx2vk::game_font {
 
 inline bool read_file(const std::string& path, std::vector<unsigned char>& out) {
     FILE* f = fopen(path.c_str(), "rb");
@@ -139,4 +139,4 @@ struct Reader {
     }
 };
 
-} // namespace mkwvk::game_font
+} // namespace nx2vk::game_font

@@ -2,7 +2,7 @@
 #include <cstdio>
 #include "../gpu/vk/framegen_methods.h"
 
-namespace fgm = mkwvk::framegen_methods;
+namespace fgm = nx2vk::framegen_methods;
 static int failures;
 #define CHECK(name, c) do { if (!(c)) { std::printf("FAIL: %s\n", name); ++failures; } } while (0)
 

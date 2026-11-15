@@ -38,7 +38,7 @@ extern "C" __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned in
 extern "C" __declspec(dllimport) int __stdcall GetThreadTimes(void*, void*, void*, void*, void*);   // (--idle: the recorder's CPU)
 #endif
 
-namespace mkwvk {
+namespace nx2vk {
 std::atomic<uint64_t> work_epoch{0};
 std::atomic<bool> par_active{false};
 void logf(const char* fmt, ...) {   // (the renderer's log: printed, for test_recorder_sync.py to count)
@@ -49,7 +49,7 @@ void logf(const char* fmt, ...) {   // (the renderer's log: printed, for test_re
     va_end(a);
     std::printf("LOG: %s\n", b);
 }
-} // namespace mkwvk
+} // namespace nx2vk
 
 // ---- the arena's aligned blocks: counted (a block lost is a leak), and the Nth one made to fail (g_fail_nth: an allocation failure;
 // the throwing form throws std::bad_alloc as the system's does)
@@ -88,7 +88,7 @@ void operator delete(void* p, size_t, std::align_val_t) noexcept { aligned_put(p
 void operator delete[](void* p, size_t, std::align_val_t) noexcept { aligned_put(p); }
 void operator delete(void* p, std::align_val_t, const std::nothrow_t&) noexcept { aligned_put(p); }
 void operator delete[](void* p, std::align_val_t, const std::nothrow_t&) noexcept { aligned_put(p); }
-using namespace mkwvk;
+using namespace nx2vk;
 
 // ---- the fake driver's log (RX_VK_RECORDER=thread: the recorder thread and the producer both call the fake: one lock for the log,
 // and a command buffer's in-use flag held across each call, so two calls on one command buffer at once are seen, not serialized)

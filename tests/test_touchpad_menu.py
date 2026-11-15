@@ -101,7 +101,7 @@ int main(void) {
 #include <cstring>
 #define CHECK(x) do { if (!(x)) { std::printf("FAIL:%d %s\n", __LINE__, #x); fails++; } } while (0)
 static int fails;
-static const MkwVkHost* host;
+static const NX2VkHost* host;
 static struct { int prompts; } opts;
 static int bound[HOS_KEY_N][2];
 static int binding(int set, int button, int slot) { return set == HOS_BIND_PAD ? bound[button][slot] : 0; }
@@ -120,7 +120,7 @@ static int listened(uint32_t pad_press) {   // (the input a listening binding ta
     return -1;
 }
 int main() {
-    MkwVkHost h{};
+    NX2VkHost h{};
     h.binding = binding;
     host = &h;
     for (auto& b : bound) b[0] = b[1] = -1;

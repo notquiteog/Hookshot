@@ -339,7 +339,7 @@ def fake_base(d, predict_s=0):
     write(game / packs.GAME, b"base game")
     write(game / packs.RENDERER, b"base renderer")
     write(game / "hookshot_programs.bin", b"programs")
-    write(game / "mkw_vk_pipelines.bin", b"pipelines")
+    write(game / "hookshot_pipeline_cache.bin", b"pipelines")
     packs.write_base(str(base_dir), {"commit": "c" * 40, "work": str(base_dir / "work"), "game": str(game), "romfs": "r",
                                      "exefs": "e", "predict_s": predict_s})
     return base_dir, game
@@ -407,20 +407,20 @@ def test_warm(d):
     play.write_text("import sys, os\n"
                     "rt = sys.argv[1]\n"
                     "open(os.path.join(rt, 'hookshot_programs.bin'), 'ab').write(b' and more')\n"
-                    "open(os.path.join(rt, 'mkw_vk_pipelines_play_1.bin'), 'wb').write(b'played')\n"
+                    "open(os.path.join(rt, 'hookshot_pipeline_cache_play_1.bin'), 'wb').write(b'played')\n"
                     "open(os.path.join(rt, 'hookshot_log.txt'), 'w').write('a log')\n"
                     "open(os.path.join(rt, %r), 'wb').write(b'not a cache')\n" % packs.GAME)
     cmd = '"%s" -I "%s" "{runtime}"' % (sys.executable.replace("\\", "/"), str(play).replace("\\", "/"))
     packs.main(["warm", str(base_dir), "--run", cmd])
     check("a grown cache comes back", (game / "hookshot_programs.bin").read_bytes() == b"programs and more")
-    check("a new play file comes back", (game / "mkw_vk_pipelines_play_1.bin").read_bytes() == b"played")
-    check("an unchanged cache stays", (game / "mkw_vk_pipelines.bin").read_bytes() == b"pipelines")
+    check("a new play file comes back", (game / "hookshot_pipeline_cache_play_1.bin").read_bytes() == b"played")
+    check("an unchanged cache stays", (game / "hookshot_pipeline_cache.bin").read_bytes() == b"pipelines")
     check("a log is not a cache", not (game / "hookshot_log.txt").exists())
     check("a module is never copied back", (game / packs.GAME).read_bytes() == b"base game")
     check("the warm-up's runtime is gone", not (base_dir / "warm-runtime").exists())
     b = json.loads((base_dir / "base.json").read_text())
     check("base.json records the warm-up (%s)" % b.get("warmed"),
-          b.get("warmed", {}).get("files") == ["hookshot_programs.bin", "mkw_vk_pipelines_play_1.bin"])
+          b.get("warmed", {}).get("files") == ["hookshot_programs.bin", "hookshot_pipeline_cache_play_1.bin"])
     check("the busy marker is gone after the job", not (base_dir / packs.BUSY).exists())
     packs.main(["rt", str(base_dir), str(base_dir / "warm-runtime")])
     packs.main(["warm", str(base_dir), "--run", cmd])
@@ -437,7 +437,7 @@ def test_warm(d):
     outside = d / "outside.bin"
     outside.write_bytes(b"not a cache of this runtime")
     packs.main(["rt", str(base_dir), str(base_dir / "warm-runtime")])
-    lnk = base_dir / "warm-runtime" / "mkw_vk_pipelines_play_7.bin"
+    lnk = base_dir / "warm-runtime" / "hookshot_pipeline_cache_play_7.bin"
     try:
         os.symlink(outside, lnk)
     except OSError:
@@ -447,7 +447,7 @@ def test_warm(d):
         shutil.rmtree(base_dir / "warm-runtime")
     else:
         packs.main(["warm", str(base_dir), "--run", '"%s" -c "pass"' % sys.executable.replace("\\", "/")])
-        check("a linked cache file is not copied back", not (game / "mkw_vk_pipelines_play_7.bin").exists())
+        check("a linked cache file is not copied back", not (game / "hookshot_pipeline_cache_play_7.bin").exists())
 
 
 def test_busy(d):

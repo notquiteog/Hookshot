@@ -22,7 +22,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk::opennr {
+namespace nx2vk::opennr {
 
 /// Whether the device is made for this backend this run: the Backend row's Open (opts.nr_backend 3), RX_VK_NR_BACKEND=open,
 /// or a model folder in place at the start (so the row's Auto can fall to it). Fixed at device creation.
@@ -59,4 +59,4 @@ void history_gap();
 /// Releases everything. Before the device goes.
 void shutdown();
 
-} // namespace mkwvk::opennr
+} // namespace nx2vk::opennr

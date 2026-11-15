@@ -34,7 +34,7 @@
 #include "vk_texture.h"   // (texture_frame_no)
 #include "vk_work.h"      // (after the others: the commands here go through the recorder, vk_recorder.h)
 
-namespace mkwvk::opennr {
+namespace nx2vk::opennr {
 namespace {
 
 constexpr VkImageSubresourceRange kOneLevel{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
@@ -785,7 +785,7 @@ VkImage apply(VkCommandBuffer cmd, VkImage src, uint32_t sw, uint32_t sh, VkImag
     // (the network is foreign work -- dispatches and CUDA launches -- so whole-pipeline barriers on both sides)
     barrier(cmd, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT,
             VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT);
-    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (the network records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
+    ::nx2vk::rec::boundary(::nx2vk::rec::B_DIRECT);   // (the network records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
     opennr_net::record(s.net, cmd);
     note_work();   // (commands vk_work.h did not see: the barrier after them is recorded)
     barrier(cmd, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT,
@@ -830,4 +830,4 @@ void shutdown() {
     s.phase = kIdle;
 }
 
-} // namespace mkwvk::opennr
+} // namespace nx2vk::opennr

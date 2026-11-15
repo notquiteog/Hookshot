@@ -6,14 +6,14 @@
 
 typedef struct HosPointer {
     SRWLOCK lock;
-    MkwVkPointer point;
+    NX2VkPointer point;
     int active;
-    MkwVkPointer press;   /* first pending click, in the geometry of its event */
+    NX2VkPointer press;   /* first pending click, in the geometry of its event */
     int64_t wheel;   /* 1/120 notches; a fractional notch survives a read */
 } HosPointer;
 #define HOS_POINTER_INIT {SRWLOCK_INIT, {0}, 0, {0}, 0}
 
-static inline void hos_pointer_publish(HosPointer *p, MkwVkPointer sample, int active) {
+static inline void hos_pointer_publish(HosPointer *p, NX2VkPointer sample, int active) {
     AcquireSRWLockExclusive(&p->lock);
     active = active && sample.width > 0 && sample.height > 0;
     const uint32_t pressed = p->point.pressed;
@@ -26,7 +26,7 @@ static inline void hos_pointer_publish(HosPointer *p, MkwVkPointer sample, int a
     ReleaseSRWLockExclusive(&p->lock);
 }
 
-static inline int hos_pointer_take(HosPointer *p, MkwVkPointer *out) {
+static inline int hos_pointer_take(HosPointer *p, NX2VkPointer *out) {
     AcquireSRWLockExclusive(&p->lock);
     *out = p->point;
     const int active = p->active;

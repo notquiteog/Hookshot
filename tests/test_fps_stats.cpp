@@ -9,7 +9,7 @@
 
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
-namespace fs = mkwvk::fps_stats;
+namespace fs = nx2vk::fps_stats;
 
 static bool near(double a, double b, double e = 1e-3) { return std::fabs(a - b) <= e; }
 

@@ -57,8 +57,8 @@ FIXTURE = r'''
 #include <string>
 #include <utility>
 #include <vector>
-using namespace mkwvk;
-namespace ur = mkwvk::upscaler_rows;
+using namespace nx2vk;
+namespace ur = nx2vk::upscaler_rows;
 int failures = 0, checks = 0;
 #define CHECK(x) do { ++checks; if (!(x)) { ++failures; std::fprintf(stderr, "FAIL %d: %s\n", __LINE__, #x); } } while (0)
 // set_row also dispatches Debug-row neighbours in the same product function.
@@ -164,7 +164,7 @@ int display_refresh_mhz() { return 60000; }
 /* AUTO_TUNE */
 void bridge_probe_first() {}
 bool bridge_row(int) { return true; }
-struct MkwVkSetting {
+struct NX2VkSetting {
     char key[64], name[128], tab[32], text[256];
     int value, lo, hi, step;
     bool restart, fixed;
@@ -178,7 +178,7 @@ void arrow_to(int engine) {
     CHECK(opts.dlss == engine);
 }
 void bridge_to(int engine) {
-    MkwVkSetting out{};
+    NX2VkSetting out{};
     CHECK(menu_setting_set("dlss", engine, &out) == 1 && out.value == engine);
 }
 void fresh(int engine, int value) {
@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
     fresh(ur::DLSS, 5);
     bridge_to(ur::GAME);
     CHECK(active_scale() == 5000);
-    MkwVkSetting shown{};
+    NX2VkSetting shown{};
     CHECK(menu_setting(1, &shown) == 1 && shown.value == 5);
     CHECK(std::strcmp(shown.key, "resolution") == 0 && std::strcmp(shown.text, "50% (960x540)") == 0);
     bridge_to(ur::DLSS);
@@ -295,7 +295,7 @@ int main(int argc, char** argv) {
     for (int engine : {(int)ur::DLSS, (int)ur::FSR3, (int)ur::FSR4}) {
         for (int value : ur::kSlider) {
             fresh(engine, 0);
-            MkwVkSetting out{};
+            NX2VkSetting out{};
             CHECK(menu_setting_set("resolution", value, &out) == 1 && out.value == value);
             CHECK(opts.dlss == engine && opts.resolution == value);
         }

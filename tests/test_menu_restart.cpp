@@ -7,7 +7,7 @@
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
 int main() {
-    namespace mr = mkwvk::menu_restart;
+    namespace mr = nx2vk::menu_restart;
     const char* names[] = {"GPU device", "Output resolution", "Profile", "Aspect ratio", "Robust buffers"};
     mr::State st;
     // (the five rows as the game started: Auto, 2048x1152, Off, 16:9, Auto)

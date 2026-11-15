@@ -65,7 +65,7 @@
 #endif
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk {
+namespace nx2vk {
 namespace {
 
 uint64_t mix(uint64_t h, uint64_t v) {
@@ -5361,4 +5361,4 @@ void texture_read_texels(const nvn_tex* t, unsigned level, unsigned layer0, cons
     }
 }
 
-} // namespace mkwvk
+} // namespace nx2vk

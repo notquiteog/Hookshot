@@ -20,7 +20,7 @@ already_prepared=block((a.source/'gpu/vk/vk_draw.cpp').read_text(encoding='utf-8
                        'if (why == PrepareWhy::None && !env_on("RX_VK_PREPARE_AGAIN")) {')
 cpp=r"""
 #include "vk_progress.h"
-using namespace mkwvk;
+using namespace nx2vk;
 #include <cstdio>
 #include <cstdlib>
 #include <string>

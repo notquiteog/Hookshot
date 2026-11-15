@@ -20,7 +20,7 @@ FIXTURE = r'''
 #include <cstdio>
 #include <cstdlib>
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); std::exit(1); } } while (0)
-using namespace mkwvk::dlss_math;
+using namespace nx2vk::dlss_math;
 static void mul(const double a[16], const double b[16], float out[16]) {
     for (int r = 0; r < 4; r++)
         for (int c = 0; c < 4; c++) {

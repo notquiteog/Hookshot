@@ -26,13 +26,13 @@ constexpr int THREAD_PRIORITY_BELOW_NORMAL = -1;
 inline HANDLE GetCurrentThread() { return nullptr; }
 inline int SetThreadPriority(HANDLE, int) { return 1; }
 inline long SetThreadDescription(HANDLE, const wchar_t*) { return 0; }
-namespace mkwvk {
+namespace nx2vk {
 inline void logf(const char*, ...) {}
 }
 """
 
 STUB_DRAW = """#pragma once
-namespace mkwvk {
+namespace nx2vk {
 inline void ub_thread_off() {}
 }
 """

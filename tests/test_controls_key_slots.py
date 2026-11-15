@@ -41,7 +41,7 @@ def cut(menu):
 HARNESS = r'''
 #include "vk_menu_hit.h"
 #include <cstdio>
-namespace menu_hit = mkwvk::menu_hit;   // (as vk_menu.cpp sees it: the column names, and the helpers only by their namespace)
+namespace menu_hit = nx2vk::menu_hit;   // (as vk_menu.cpp sees it: the column names, and the helpers only by their namespace)
 using enum menu_hit::CtlColumn;
 enum { HOS_BIND_PAD, HOS_BIND_KEY };
 struct Host {

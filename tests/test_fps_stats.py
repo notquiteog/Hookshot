@@ -84,8 +84,8 @@ def main():
     need("host->slept_ns" in pres, "the host's sleeps (pacing, OoT's present poll) are not read")
 
     api = (vk / "vk_api.h").read_text(encoding="utf-8")
-    ver = int(re.search(r"#define MKWVK_API_VERSION (\d+)", api).group(1))
-    need(ver >= 15 and "slept_ns" in api, "MkwVkHost has no slept_ns (API version 15)")
+    ver = int(re.search(r"#define NX2VK_API_VERSION (\d+)", api).group(1))
+    need(ver >= 15 and "slept_ns" in api, "NX2VkHost has no slept_ns (API version 15)")
     backend = (ROOT / "host" / "rx_backend.c").read_text(encoding="utf-8")
     need(re.search(r"host_wide_menus,\s*host_slept_ns,\s*host_fps_timing", backend), "host/rx_backend.c does not give the back end its sleeps")
     need("host->fps_timing(" in pres, "the host is not told when to time its sleeps")

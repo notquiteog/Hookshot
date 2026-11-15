@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 
-namespace mkwvk::bc_levels {
+namespace nx2vk::bc_levels {
 
 /// The 4 x 4 blocks across `texels`
 inline uint32_t blocks(uint32_t texels) {
@@ -30,4 +30,4 @@ inline uint32_t even_size(uint32_t texels, uint32_t levels) {
     return (texels + m - 1) / m * m;
 }
 
-} // namespace mkwvk::bc_levels
+} // namespace nx2vk::bc_levels

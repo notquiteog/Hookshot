@@ -51,7 +51,7 @@ void hos_mouse_give_back(int32_t dx, int32_t dy) {
     InterlockedExchangeAdd(&mouse_dy, dy);
 }
 
-/* the free mouse, for the Insert menu (gpu/vk/vk_api.h MkwVkPointer): set on the window's thread, read on the renderer's */
+/* the free mouse, for the Insert menu (gpu/vk/vk_api.h NX2VkPointer): set on the window's thread, read on the renderer's */
 static HosPointer pointer = HOS_POINTER_INIT;
 static int menu_open, captured_before_menu;
 static int pointer_tracking;
@@ -76,7 +76,7 @@ static int gm_cursor_shown(void) {
     return (int)gm_shown;
 }
 
-int hos_mouse_pointer(MkwVkPointer *out) { return hos_pointer_take(&pointer, out); }
+int hos_mouse_pointer(NX2VkPointer *out) { return hos_pointer_take(&pointer, out); }
 
 /* Publish client coordinates on the DPI-aware window thread, including the exact button event point. */
 static void pointer_publish_at(HWND w, POINT at, uint32_t pressed, int wheel) {
@@ -85,7 +85,7 @@ static void pointer_publish_at(HWND w, POINT at, uint32_t pressed, int wheel) {
     POINT screen = at;
     const int valid = GetClientRect(w, &rc) && ClientToScreen(w, &screen);
     const int over = valid && WindowFromPoint(screen) == w;
-    MkwVkPointer sample = {0};
+    NX2VkPointer sample = {0};
     sample.x = at.x, sample.y = at.y, sample.width = rc.right, sample.height = rc.bottom;
     sample.held = ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) ? HOS_MOUSE_LEFT : 0) |
                   ((GetAsyncKeyState(VK_RBUTTON) & 0x8000) ? HOS_MOUSE_RIGHT : 0) |
@@ -248,7 +248,7 @@ int hos_mouse_wheel_take(void) {
    2 while the cursor is hidden: the wheel only (no presses; the position is not one to point with) */
 int hos_mouse_game_pointer(int *x, int *y, int *w, int *h, uint32_t *pressed, int *wheel) {
     *pressed = 0, *wheel = 0;
-    MkwVkPointer sample = {0};
+    NX2VkPointer sample = {0};
     const int active = hos_pointer_take(&game_pointer, &sample);
     *x = sample.x, *y = sample.y, *w = sample.width, *h = sample.height;
     if (!active) return 0;

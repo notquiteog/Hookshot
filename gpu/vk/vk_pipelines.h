@@ -11,7 +11,7 @@
 #include "vk_internal.h"
 #include "vk_draw.h"
 
-namespace mkwvk {
+namespace nx2vk {
 
 struct Program;
 
@@ -47,4 +47,4 @@ std::vector<std::pair<uint64_t, uint64_t>> compute_variants_learned();
 /// the caches alone then never finds one the prepare should have compiled
 bool precompile_covers_notes();
 
-} // namespace mkwvk
+} // namespace nx2vk

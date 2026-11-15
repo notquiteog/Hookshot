@@ -52,7 +52,7 @@
 #endif
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk {
+namespace nx2vk {
 
 extern std::atomic<bool> present_native_pq;   // (vk_replay.cpp do_present: the game presents its own HDR10 picture, Native)
 
@@ -420,7 +420,7 @@ int prepare(VkCommandBuffer cmd, uint32_t rw, uint32_t rh, uint32_t ow, uint32_t
     cp.InFeatureCreateFlags = NVSDK_NGX_DLSS_Feature_Flags_MVLowRes |
                               (hdr ? NVSDK_NGX_DLSS_Feature_Flags_IsHDR | NVSDK_NGX_DLSS_Feature_Flags_AutoExposure : 0);
     const auto t0 = std::chrono::steady_clock::now();
-    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (NGX records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
+    ::nx2vk::rec::boundary(::nx2vk::rec::B_DIRECT);   // (NGX records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
     const NVSDK_NGX_Result r = NGX_VULKAN_CREATE_DLSS_EXT(cmd, 1, 1, &s.feature, s.params, &cp);
     const double made_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     note_work();   // (NGX's own commands, which vk_work.h does not see: the next full_barrier is not left out)
@@ -469,7 +469,7 @@ bool evaluate(VkCommandBuffer cmd, const TemporalFrame& f) {
                                                       m.image_width, m.image_height, false);
         ep.pInBiasCurrentColorMask = &bias;
     }
-    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (NGX records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
+    ::nx2vk::rec::boundary(::nx2vk::rec::B_DIRECT);   // (NGX records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
     const NVSDK_NGX_Result r = NGX_VULKAN_EVALUATE_DLSS_EXT(cmd, s.feature, s.params, &ep);
     note_work();   // (as at its creation: the barrier after it, and the game's next one, are recorded)
     if (NVSDK_NGX_FAILED(r)) {
@@ -1043,7 +1043,7 @@ int dlss_fg_frames(VkCommandBuffer cmd, VkImage color, VkImageView color_view, u
         NVSDK_NGX_Parameter_SetUI(g.params, NVSDK_NGX_DLSSG_Parameter_InternalWidth, g.rw);
         NVSDK_NGX_Parameter_SetUI(g.params, NVSDK_NGX_DLSSG_Parameter_InternalHeight, g.rh);
         NVSDK_NGX_Parameter_SetUI(g.params, NVSDK_NGX_DLSSG_Parameter_DynamicResolution, 0u);
-        ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (NGX records into cmd itself)
+        ::nx2vk::rec::boundary(::nx2vk::rec::B_DIRECT);   // (NGX records into cmd itself)
         const NVSDK_NGX_Result r = NGX_VK_CREATE_DLSSG(cmd, 1, 1, &g.feature, g.params, &cp);
         note_work();
         if (NVSDK_NGX_FAILED(r) || !g.feature) {
@@ -1133,7 +1133,7 @@ int dlss_fg_frames(VkCommandBuffer cmd, VkImage color, VkImageView color_view, u
                                                                             VK_FORMAT_R8G8B8A8_UNORM, w, h, true);
         ep.pOutputInterpFrame = &made;
         o.multiFrameIndex = (unsigned)k;
-        ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (NGX records into cmd itself)
+        ::nx2vk::rec::boundary(::nx2vk::rec::B_DIRECT);   // (NGX records into cmd itself)
         const NVSDK_NGX_Result r = NGX_VK_EVALUATE_DLSSG(cmd, g.feature, g.params, &ep, &o);
         note_work();
         if (NVSDK_NGX_FAILED(r)) {
@@ -1221,4 +1221,4 @@ void dlss_fg_close() {}
 
 #endif
 
-} // namespace mkwvk
+} // namespace nx2vk

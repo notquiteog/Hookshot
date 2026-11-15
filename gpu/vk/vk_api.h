@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define MKWVK_API_VERSION 22
+#define NX2VK_API_VERSION 23   /* (23: the names from MKW to NX2, scripts/rename_nx2.py: MkwVkHost is NX2VkHost, mkwvk_init nx2vk_init) */
 enum { HOS_OPT_CHEAT_HEARTS = 32, HOS_OPT_CHEAT_FLIGHT, HOS_OPT_CHEAT_ACTION, HOS_OPT_CHEAT_CAMERA, HOS_OPT_CHEAT_SPEED };
 /* (hookshot) the Gameplay tab's Text size (host/oot_text_size.c): 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% */
 enum { HOS_OPT_TEXT_SIZE = 10 };
@@ -49,7 +49,7 @@ enum { HOS_OPT_HDR_TONEMAP = 47 };
 enum { HOS_OPT_FOV = 51 };
 /* (HOS_OPT_SKIP_OPENING, 52: Gameplay's Skip opening, host/hos_main.c hos_oot_opening. Off. The new-game story movie
    and Navi waking Link. 44 stays reserved for Skip title, 49 and 50 for Walk, 60 for the item wheel. A new option id
-   answered by the existing option callback does not change MkwVkHost or MkwVkRenderer.) */
+   answered by the existing option callback does not change NX2VkHost or NX2VkRenderer.) */
 enum { HOS_OPT_SKIP_OPENING = 52 };
 /* The Auto run row (Controls): 0 Off, 1 On, A (the sprint) kept held after it is let go (host/auto_run.h,
    host/nn_hid.c). */
@@ -80,7 +80,7 @@ enum { HOS_BIND_PAD, HOS_BIND_KEY };
    then the keyboard's (nx2/prompt_keys.py: the keys bound, not the pad inputs); the Button prompts row's value is one more (0
    Auto) */
 enum { HOS_PROMPT_SWITCH, HOS_PROMPT_XBOX, HOS_PROMPT_PS4, HOS_PROMPT_PS5, HOS_PROMPT_STEAMDECK, HOS_PROMPT_KEYBOARD, HOS_PROMPT_N };
-/* (hookshot) what of the button prompts follows a new face or new controls at once (MkwVkHost.prompts_live, a bit each):
+/* (hookshot) what of the button prompts follows a new face or new controls at once (NX2VkHost.prompts_live, a bit each):
    the textures (the ocarina's notes, the Talk ring's letters, the System page's controller), the layouts (the Talk ring's
    places, the ocarina hint's spacing), the icons in texts; the rest at the next start */
 enum { HOS_PROMPTS_LIVE_TEXTURES = 1, HOS_PROMPTS_LIVE_LAYOUTS = 2, HOS_PROMPTS_LIVE_TEXTS = 4, HOS_PROMPTS_LIVE_ALL = 7 };
@@ -96,23 +96,23 @@ enum { HOS_KEY_MOVE_UP = HOS_SW_N, HOS_KEY_MOVE_DOWN, HOS_KEY_MOVE_LEFT, HOS_KEY
    swapchain's, as a rule); held: the buttons down now, pressed: those pressed since the last read (1 left, 2 right,
    4 middle); wheel: the wheel's notches since then, away from the player positive */
 enum { HOS_MOUSE_LEFT = 1, HOS_MOUSE_RIGHT = 2, HOS_MOUSE_MIDDLE = 4 };
-typedef struct MkwVkPointer {
+typedef struct NX2VkPointer {
     int32_t x, y, width, height;
     uint32_t held, pressed;
     int32_t wheel;
-} MkwVkPointer;
+} NX2VkPointer;
 
-/* (hookshot) one of the Insert menu's settings, for the control bridge (MkwVkRenderer setting): key is its line in
+/* (hookshot) one of the Insert menu's settings, for the control bridge (NX2VkRenderer setting): key is its line in
    hookshot_options.ini, name the row's, text how the menu shows the value */
-typedef struct MkwVkSetting {
+typedef struct NX2VkSetting {
     char key[32], name[48], text[64], tab[16];
     int value, lo, hi, step;
     int restart, fixed;   /* the change applies at the next start; nothing to choose on this PC (the menu shows it greyed) */
-} MkwVkSetting;
+} NX2VkSetting;
 
 /* what the executable gives the back end */
-typedef struct MkwVkHost {
-    uint32_t version;   /* MKWVK_API_VERSION */
+typedef struct NX2VkHost {
+    uint32_t version;   /* NX2VK_API_VERSION */
     void (*log)(const char *line);
     /* guest memory: the window, and GPU addresses (pools, below 1 TB the guest address itself) */
     uint8_t *(*guest_base)(void);
@@ -165,10 +165,10 @@ typedef struct MkwVkHost {
     /// Zero means no override; the renderer then fits the cropped texture's pixel aspect.
     float (*aspect_ratio)(void);
     int (*take_key_press)(int key);
-    /* (hookshot) the free mouse (MkwVkPointer), read and its presses and wheel cleared: 1 when the cursor is over the
+    /* (hookshot) the free mouse (NX2VkPointer), read and its presses and wheel cleared: 1 when the cursor is over the
        window and the window has the focus. The Insert menu releases the mouse while it is open: WM_APP + 8 to the
        window, wParam 1 open, 0 closed (the capture it had then comes back) */
-    int (*pointer)(MkwVkPointer *out);
+    int (*pointer)(NX2VkPointer *out);
     /* (hookshot) the microphones for the game's input streams (host/nn_audio_in.c), for the Insert menu's Microphone row:
        how many there are (listing them again), one's name, and the row's choice: mode 0 off, 1 the system's default, 2 the
        microphone of that name (index: its place in the list, -1 while it is not plugged in) */
@@ -207,15 +207,15 @@ typedef struct MkwVkHost {
        while the game draws it in the middle 16:9 with the menus (wide_menus's keep_mask) and so leaves the sides open
        (host/hos_main.c hos_wide_cover); 0 when it covers the whole picture itself. Asked at each present */
     float (*wide_cover)(void);
-} MkwVkHost;
+} NX2VkHost;
 
 /* One completed temporal-upscale sample; all zero while inactive. */
-typedef struct MkwVkJitter {
+typedef struct NX2VkJitter {
     uint32_t width, height, phases;
-} MkwVkJitter;
+} NX2VkJitter;
 
 /* what the back end gives the executable: the rx_* functions (gpu/render/rx_nvn.h, rx_core) */
-typedef struct MkwVkRenderer {
+typedef struct NX2VkRenderer {
     uint32_t version;
     int (*start)(void *hwnd);
     void (*resize)(int width, int height);
@@ -263,7 +263,7 @@ typedef struct MkwVkRenderer {
        in percent (the - and = keys, host/nn_hid.c) */
     void (*option_set)(int id, int value);
     /* (version 14) one coherent camera-jitter sample, without per-axis queries */
-    void (*jitter_sample)(MkwVkJitter *out);
+    void (*jitter_sample)(NX2VkJitter *out);
     /* (version 16, hookshot) the control bridge (host/control.c, docs/control.md) */
     /* the presents replayed so far, the draws recorded since the start, and the picture's size (the window's swapchain, or
        the offscreen image's) */
@@ -276,30 +276,30 @@ typedef struct MkwVkRenderer {
        past the last; an index is no name, rows come and go), and the one whose hookshot_options.ini key is key set to value
        as the menu's Left and Right set it, kept in the options file, out the row after it (1 set, 0 no such row, -1 nothing
        to choose on this PC, -2 no step of a list row reaches value here, left as it was) */
-    int (*setting)(int index, MkwVkSetting *out);
-    int (*setting_set)(const char *key, int value, MkwVkSetting *out);
+    int (*setting)(int index, NX2VkSetting *out);
+    int (*setting_set)(const char *key, int value, NX2VkSetting *out);
     /* (version 21, hookshot: 20 is the host's screen_size, which main added while this was 20 on its branch) the game gave a program its shaders (nvnProgramSetShaders, nvnProgramInitializeFromBuilder), on the
        game's thread, before any draw uses it: what the back end kept ready for it can be loaded now (gpu/vk/vk_programs.cpp).
        Its stages' code and control sections are in the game's memory at this call */
     void (*nvn_program_created)(const nvn_prog *p);
-} MkwVkRenderer;
+} NX2VkRenderer;
 
 /* the DLL's one export: null when Vulkan is not usable (the executable then falls back to WebGPU) */
-typedef const MkwVkRenderer *(*mkwvk_init_fn)(const MkwVkHost *host);
-#ifdef MKWVK_BUILDING
+typedef const NX2VkRenderer *(*nx2vk_init_fn)(const NX2VkHost *host);
+#ifdef NX2VK_BUILDING
 #ifdef _WIN32
-__declspec(dllexport) const MkwVkRenderer *mkwvk_init(const MkwVkHost *host);
+__declspec(dllexport) const NX2VkRenderer *nx2vk_init(const NX2VkHost *host);
 #else
-__attribute__((visibility("default"))) const MkwVkRenderer *mkwvk_init(const MkwVkHost *host);
+__attribute__((visibility("default"))) const NX2VkRenderer *nx2vk_init(const NX2VkHost *host);
 #endif
 #endif
 
 #ifndef _WIN32
 /* (linux) what start() is given in place of a window handle (host/posix/display_sdl.c): the window makes the
    surface (SDL_Vulkan_CreateSurface: X11 or Wayland) and says its size in pixels */
-#define MKWVK_WINDOW_VERSION 3
-typedef struct MkwVkWindow {
-    uint32_t version;   /* MKWVK_WINDOW_VERSION */
+#define NX2VK_WINDOW_VERSION 3
+typedef struct NX2VkWindow {
+    uint32_t version;   /* NX2VK_WINDOW_VERSION */
     int (*create_surface)(void *window, void *instance, void *surface_out);   /* (VkInstance, VkSurfaceKHR *): 1 if made */
     void (*drawable_size)(void *window, int *width, int *height);
     void *window;
@@ -307,7 +307,7 @@ typedef struct MkwVkWindow {
     int (*refresh_mhz)(void *window);
     /* (version 3) the desktop's size in pixels, 0 x 0 when not known (the Quality preset Auto (this PC)) */
     void (*desktop_size)(void *window, int *width, int *height);
-} MkwVkWindow;
+} NX2VkWindow;
 #endif
 
 #ifdef __cplusplus

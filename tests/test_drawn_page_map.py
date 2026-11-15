@@ -75,7 +75,7 @@ FIXTURE = r'''#include <algorithm>
 // -Wdangling-reference can take it for a reference to the temporary Run. It is the vector's element)
 #pragma GCC diagnostic ignored "-Wdangling-reference"
 #endif
-namespace mkwvk {
+namespace nx2vk {
 using Ranges = std::vector<std::pair<uint64_t, uint64_t>>;
 struct Texture {   // (the fields the code cut out uses, as gpu/vk/vk_texture.h has them)
     uint32_t width = 64, height = 64, layers = 1;
@@ -192,9 +192,9 @@ Texture* live(Texture* tex) {
     CUT_LIVE
     return nullptr;
 }
-}  // namespace mkwvk
+}  // namespace nx2vk
 
-using namespace mkwvk;
+using namespace nx2vk;
 namespace {
 int failed = 0;
 Ranges span(uint64_t lo, uint64_t hi) {

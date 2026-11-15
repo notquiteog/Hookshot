@@ -42,7 +42,7 @@ FIXTURE = r'''
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
-using namespace mkwvk::pipeline_share;
+using namespace nx2vk::pipeline_share;
 // fixture check <list|->: the count (or -1) and the reason; fixture zip <list> <out>: the zip with a known template; fixture fields
 int main(int argc, char** argv) {
     const std::string mode = argv[1];

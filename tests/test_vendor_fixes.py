@@ -50,7 +50,7 @@ FIXTURE = r"""
 #include <map>
 #include <string>
 #include "vk_vendor.h"
-using namespace mkwvk;
+using namespace nx2vk;
 static std::map<std::string, std::string> env;
 static const char* get(const char* name) {
     auto it = env.find(name);

@@ -12,7 +12,7 @@ Taken unmodified except as noted:
 mkw-recomp's changes:
 - **The guest window.** It is 64-bit, 512 GB, reserved whole. The image sits at Eden's `0x80000000`, the address the
   code was lifted for. The heap starts at 64 GB, and address regions grow down from 512 GB (`hos.h`). The runtime
-  commits what it hands out (`hos_commit`), and `mkw_glue.c` commits anything else on first touch. TOTK's whole
+  commits what it hands out (`hos_commit`), and `nx2_glue.c` commits anything else on first touch. TOTK's whole
   4 GB window was committed up front.
 - `hos_main.c`: the image base comes from `gen/hos_image.c`.
 - `hos_mem.c`: the default memory size is a Switch 2 application's 9809 MB.
@@ -24,9 +24,9 @@ mkw-recomp's changes:
   The replay was `gpu/render` (see `gpu/PROVENANCE.md`); it is the Vulkan back end in `gpu/vk` now, with `gpu/render`
   as the fallback (`host/rx_backend.c`). `nn_vi.c` is MKW's own, with the window's frame pacing.
 - **Virtual cores** (`hos_thread.c`): on by default with six cores; a waiter's request reaches a holder at its next
-  loop header too (`mkw_glue.c` `a64_poll`), and equal-priority holders yield after a 2 ms slice.
+  loop header too (`nx2_glue.c` `a64_poll`), and equal-priority holders yield after a 2 ms slice.
 - **Left out:** files bound to TOTK or its Maxwell GPU: `gpu.c`, `nvn_trace.c`, `hos_prof.c`, `mods.c`, `movie*.c`,
-  `nn_image_debug.c`, `totk_*.c`. `mkw_glue.c` stands in for the hooks the taken files call into them. `mods.c`
+  `nn_image_debug.c`, `totk_*.c`. `nx2_glue.c` stands in for the hooks the taken files call into them. `mods.c`
   came back later as Hookshot's `host/mods.c`: the RomFS part of Skybound's loader (`NotRexed/SkyboundTotk`, MIT).
 
 Licensing follows a64-kit: GPL, through suyu's translator in the lifted code (see

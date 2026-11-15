@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 
-namespace mkwvk::vram_pressure {
+namespace nx2vk::vram_pressure {
 
 /// What the process really holds: the driver's count less the free space inside VMA's blocks. A destroyed image's or
 /// buffer's memory stays in its block, and the driver counts the block whole until VMA frees it
@@ -37,4 +37,4 @@ inline bool shadow_fits(uint64_t n, uint64_t used, uint64_t allowed, uint64_t bl
     return allocated(used, block_free) + n <= allowed / 100 * 90 && used + n <= allowed / 100 * 97;
 }
 
-} // namespace mkwvk::vram_pressure
+} // namespace nx2vk::vram_pressure

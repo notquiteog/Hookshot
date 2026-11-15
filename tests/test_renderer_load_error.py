@@ -1,7 +1,7 @@
 """Why the Linux renderer did not load is in the log (host/posix/win32_posix.c hos_load_error, host/rx_backend.c load_vulkan).
 
 hookshot_vk.so is opened with RTLD_NOW and takes symbols from the executable, so one from another build fails at dlopen,
-before mkwvk_init's version check, and the game falls back to WebGPU. The POSIX LoadLibraryA kept only
+before nx2vk_init's version check, and the game falls back to WebGPU. The POSIX LoadLibraryA kept only
 ERROR_FILE_NOT_FOUND, so the log said "(2)" for that and for a missing file alike. It now keeps dlerror()'s text, which
 names the file or the symbol, and load_vulkan prints it (the dev-loop proposal's B1, #2636).
 
@@ -44,7 +44,7 @@ def check_source():
     if "const char *hos_load_error(void);" not in (ROOT / "host" / "posix" / "windows.h").read_text(encoding="utf-8"):
         raise SystemExit("host/posix/windows.h: hos_load_error is not declared")
     rx = (ROOT / "host" / "rx_backend.c").read_text(encoding="utf-8")
-    load = rx[rx.index("static const MkwVkRenderer *load_vulkan(const char *dll) {"):]
+    load = rx[rx.index("static const NX2VkRenderer *load_vulkan(const char *dll) {"):]
     load = load[:load.index("\n}\n")]
     failed = load[load.index("if (!m) {"):load.index("return NULL;", load.index("if (!m) {"))]
     if "#ifdef _WIN32" not in failed or "hos_load_error()" not in failed.split("#else")[1]:
@@ -60,7 +60,7 @@ def check_posix(cc):
         subprocess.run([cc, "-std=gnu11", "-D_GNU_SOURCE", "-w", "-I", str(ROOT / "host" / "posix"), str(tmp / "driver.c"),
                         str(ROOT / "host" / "posix" / "win32_posix.c"), "-o", str(exe), "-lpthread", "-ldl"], check=True)
         # a library that needs a symbol nothing loaded has, as hookshot_vk.so from another build would
-        (tmp / "needs.c").write_text("extern int mkwvk_from_another_build(void);\nint use(void) { return mkwvk_from_another_build(); }\n",
+        (tmp / "needs.c").write_text("extern int nx2vk_from_another_build(void);\nint use(void) { return nx2vk_from_another_build(); }\n",
                                      encoding="utf-8")
         subprocess.run([cc, "-shared", "-fPIC", str(tmp / "needs.c"), "-o", str(tmp / "needs.so")], check=True)
         (tmp / "good.c").write_text("int fine(void) { return 1; }\n", encoding="utf-8")
@@ -75,7 +75,7 @@ def check_posix(cc):
         (absent, needs, good) = rows
         if absent[0] != "failed" or absent[1] != "2" or "absent_vk.so" not in absent[2]:
             raise SystemExit("a missing library: %r (wanted the failure, 2, and the file named)" % absent)
-        if needs[0] != "failed" or "mkwvk_from_another_build" not in needs[2]:
+        if needs[0] != "failed" or "nx2vk_from_another_build" not in needs[2]:
             raise SystemExit("a library needing a missing symbol: %r (wanted the symbol named)" % needs)
         if good[0] != "loaded" or good[2] != "":
             raise SystemExit("a good library: %r (wanted it loaded, and no reason left from the failure before)" % good)

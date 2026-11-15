@@ -16,7 +16,7 @@
 #endif
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk {
+namespace nx2vk {
 namespace {
 
 enum Kind { KIND_FLOAT, KIND_UINT, KIND_SINT };
@@ -477,4 +477,4 @@ void dump_write() {
     buf_items.clear();
 }
 
-} // namespace mkwvk
+} // namespace nx2vk

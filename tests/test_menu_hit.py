@@ -1,7 +1,7 @@
 """The Insert menu's mouse: the hit-test (gpu/vk/vk_menu_hit.h) compiled and run against positions over the controls as drawn
 (tests/test_menu_hit.cpp: the options, the Controls page, a list, the restart question), and the sources checked for the rest of
 the path: the window lets the mouse go while the menu is open and takes it back after (WM_APP + 8, host/display.c and
-host/posix/display_sdl.c), the free mouse reaches the menu (MkwVkHost.pointer, host/rx_backend.c), and the menu records each
+host/posix/display_sdl.c), the free mouse reaches the menu (NX2VkHost.pointer, host/rx_backend.c), and the menu records each
 control it draws and tests the mouse against that record, so its picture and its hit-test cannot drift apart.
 
     python -I -B tests/test_menu_hit.py [--cxx g++]
@@ -34,10 +34,10 @@ def sources():
         raise SystemExit("the menu does not decide a row's click with menu_hit::row_click (a click on the name would change the value)")
     if "PostMessageA(app_window(), WM_APP + 8" not in menu:
         raise SystemExit("the menu does not tell the window it opened or closed")
-    if "int (*pointer)(MkwVkPointer *out);" not in api or "hos_mouse_pointer," not in backend:
+    if "int (*pointer)(NX2VkPointer *out);" not in api or "hos_mouse_pointer," not in backend:
         raise SystemExit("the free mouse does not reach the renderer")
     for name, src in (("display.c", win), ("display_sdl.c", sdl)):
-        if "int hos_mouse_pointer(MkwVkPointer *out)" not in src:
+        if "int hos_mouse_pointer(NX2VkPointer *out)" not in src:
             raise SystemExit(name + ": no hos_mouse_pointer")
         if "WM_APP + 8" not in src or "captured_before_menu" not in src:
             raise SystemExit(name + ": the menu does not release the mouse and give the capture back")

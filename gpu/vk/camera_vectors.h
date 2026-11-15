@@ -9,7 +9,7 @@
 
 #include <cmath>
 
-namespace mkwvk::camera_vectors {
+namespace nx2vk::camera_vectors {
 
 struct Vectors {
     float position[3]{}, right[3]{}, up[3]{}, forward[3]{};   ///< forward: the way the camera looks
@@ -77,4 +77,4 @@ inline bool from(const float projection[16], const float view_projection[16], Ve
     return true;
 }
 
-}  // namespace mkwvk::camera_vectors
+}  // namespace nx2vk::camera_vectors

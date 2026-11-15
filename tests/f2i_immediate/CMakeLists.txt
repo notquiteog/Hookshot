@@ -27,7 +27,7 @@ target_include_directories(f2i_immediate PRIVATE
     "${REPO_ROOT}/gpu/vk/eden" "${REPO_ROOT}/gpu/third_party/suyu"
     "${REPO_ROOT}/gpu/vk/sirit/include" "${REPO_ROOT}/gpu/vk/sirit/src"
     "${SPIRV_HEADERS_ROOT}/include")
-target_compile_definitions(f2i_immediate PRIVATE NDEBUG MKWVK_INCLUDES=2 VK_NO_PROTOTYPES)
+target_compile_definitions(f2i_immediate PRIVATE NDEBUG NX2VK_INCLUDES=2 VK_NO_PROTOTYPES)
 if(MSVC)
     target_compile_options(f2i_immediate PRIVATE /O1 /EHsc)
 else()

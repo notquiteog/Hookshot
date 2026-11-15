@@ -22,7 +22,7 @@
 #include "hookshot_env.h"
 #endif
 
-namespace mkwvk {
+namespace nx2vk {
 namespace {
 
 uint16_t to_half(float f) {   // (small integers only: exact)
@@ -438,4 +438,4 @@ void coopmat_init() {
     logf("vk: native matrix multiplies on (cooperative matrices, the console's fragment layout checked)");
 }
 
-} // namespace mkwvk
+} // namespace nx2vk

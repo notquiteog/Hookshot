@@ -17,7 +17,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2vk {
 
 struct Texture;
 
@@ -46,4 +46,4 @@ bool mask(VkCommandBuffer cmd, uint32_t width, uint32_t height, uint32_t image_w
           VkImageView color, Mask& out);
 
 } // namespace reactive
-} // namespace mkwvk
+} // namespace nx2vk

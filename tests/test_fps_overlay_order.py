@@ -42,7 +42,7 @@ bool begin(uint32_t, uint32_t) { calls += "b"; return can_draw; }
 void idle() { calls += "i"; }
 void record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) { CHECK(cmd == 1 && index == 2 && w == 640 && h == 360); calls += "r"; }
 }
-namespace mkwvk::rec {   // (RX_VK_RECORDER: the boundary before each Dear ImGui recording, logged as "d")
+namespace nx2vk::rec {   // (RX_VK_RECORDER: the boundary before each Dear ImGui recording, logged as "d")
 enum Bound { B_DIRECT };
 void boundary(Bound) { calls += "d"; }
 }

@@ -20,7 +20,7 @@
 #include "shaders/reactive_mask_comp_spv.h"
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk::reactive {
+namespace nx2vk::reactive {
 namespace {
 
 struct Image {
@@ -292,4 +292,4 @@ bool mask(VkCommandBuffer cmd, uint32_t width, uint32_t height, uint32_t image_w
     return true;
 }
 
-} // namespace mkwvk::reactive
+} // namespace nx2vk::reactive

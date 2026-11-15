@@ -17,7 +17,7 @@
 #include "fsr3_math.h"
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2vk {
 
 struct Texture;
 
@@ -91,4 +91,4 @@ const TemporalEngine* fsr3_engine();
 bool fsr3_upscale(VkCommandBuffer cmd, uint64_t key, bool known, Texture* in, VkImageView in_view, Texture* out,
                   VkImageView out_view, uint32_t out_level);
 
-} // namespace mkwvk
+} // namespace nx2vk

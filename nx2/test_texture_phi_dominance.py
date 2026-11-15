@@ -42,7 +42,7 @@ def main():
     sources = sorted({p for directory in ('eden/shader_recompiler/backend/spirv',
                       'eden/shader_recompiler/frontend/ir', 'eden/shader_recompiler/ir_opt', 'sirit/src')
                       for p in (vk / directory).rglob('*.cpp')})
-    flags = ['-std=c++20', '-include', ENV_ON_H, '-O1', '-D_CRT_SECURE_NO_WARNINGS', '-DVK_NO_PROTOTYPES', '-DMKWVK_INCLUDES=2']
+    flags = ['-std=c++20', '-include', ENV_ON_H, '-O1', '-D_CRT_SECURE_NO_WARNINGS', '-DVK_NO_PROTOTYPES', '-DNX2VK_INCLUDES=2']
     for header in ('algorithm', 'cstdio', 'cstdlib', 'cstring', 'functional', 'string', 'vector'):
         flags += ['-include', header]
     flags += ['-I' + str(p) for p in (vk / 'compat', root / 'gpu/compat', vk / 'eden',

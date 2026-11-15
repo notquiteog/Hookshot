@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-namespace mkwvk::opennr_khr_spv {
+namespace nx2vk::opennr_khr_spv {
 inline constexpr uint32_t k_e4m3_k32_f16__gemm_fp8[] = {
     0x07230203,0x00010600,0x0008000b,0x0000041d,0x00000000,0x00020011,0x00000001,0x00020011,
     0x00000009,0x00020011,0x00000016,0x00020011,0x0000003d,0x00020011,0x00001074,0x00020011,
@@ -18963,4 +18963,4 @@ inline constexpr Module kModules[] = {
     {"common/gemm_mlp", k_common__gemm_mlp, (unsigned)(sizeof k_common__gemm_mlp / sizeof k_common__gemm_mlp[0])},
     {"common/global_attention", k_common__global_attention, (unsigned)(sizeof k_common__global_attention / sizeof k_common__global_attention[0])},
 };
-} // namespace mkwvk::opennr_khr_spv
+} // namespace nx2vk::opennr_khr_spv

@@ -16,7 +16,7 @@
 #define VK_USE_64_BIT_PTR_DEFINES 0
 #include <vulkan/vulkan.h>
 #include "vk_present_rect.h"
-using namespace mkwvk;
+using namespace nx2vk;
 using VmaAllocation = void*;
 constexpr int kMaxMult = 8;
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); std::exit(1); } } while (0)

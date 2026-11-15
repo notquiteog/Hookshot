@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-namespace mkwvk::pipeline_share {
+namespace nx2vk::pipeline_share {
 
 constexpr const char* kIssueUrl = "https://github.com/NotRexed/Hookshot/issues/2034";
 constexpr const char* kListName = "hookshot_pipeline_states.bin";
@@ -169,4 +169,4 @@ inline std::string xdg_download_dir(const std::string& text, const std::string& 
     return "";
 }
 
-}  // namespace mkwvk::pipeline_share
+}  // namespace nx2vk::pipeline_share

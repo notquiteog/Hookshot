@@ -15,7 +15,7 @@
 #include "vk_draw.h"
 #include "vk_shader.h"
 
-namespace mkwvk {
+namespace nx2vk {
 namespace {
 
 uint64_t fnv(const void* p, size_t n, uint64_t h = 0xcbf29ce484222325ull) {
@@ -233,4 +233,4 @@ std::vector<std::unique_ptr<PipeNote>> predict_pipelines(const std::vector<std::
     return out;
 }
 
-} // namespace mkwvk
+} // namespace nx2vk

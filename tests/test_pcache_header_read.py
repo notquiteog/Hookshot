@@ -60,7 +60,7 @@ static ssize_t counted_read(int fd, void* p, size_t n, off_t offset) {
 #define pread counted_read
 #endif
 #include "pipeline_cache_file.h"
-using mkwvk::PipelineCacheFile;
+using nx2vk::PipelineCacheFile;
 ''' + reader + r'''
 static std::vector<uint8_t> cache(uint32_t vendor, uint32_t device, uint8_t uuid0, size_t body, uint32_t head_size = 32) {
     std::vector<uint8_t> d(32 + body);

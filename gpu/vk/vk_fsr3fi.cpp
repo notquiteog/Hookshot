@@ -43,7 +43,7 @@
 #include "shaders/fsr3_of_scale_optical_flow_v5_comp_spv.h"
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk::fsr3fi {
+namespace nx2vk::fsr3fi {
 namespace {
 
 // ---- the passes and what each one binds ----
@@ -347,7 +347,7 @@ std::vector<std::pair<uint64_t, Image>> dead;
 void destroy_now(Image& t) {
     for (VkImageView v : t.levels) vkDestroyImageView(dev.device, v, nullptr);
     if (t.view) vkDestroyImageView(dev.device, t.view, nullptr);
-    if (t.image) mkwvk::destroy_image(t.image, t.memory);
+    if (t.image) nx2vk::destroy_image(t.image, t.memory);
     t = Image{};
 }
 
@@ -1165,4 +1165,4 @@ VkImage made_image() { return g.ready ? g.made[0].image : VK_NULL_HANDLE; }
 
 void reset() { g.first_frame = true; }
 
-} // namespace mkwvk::fsr3fi
+} // namespace nx2vk::fsr3fi

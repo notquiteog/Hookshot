@@ -49,7 +49,7 @@ FIXTURE = r"""
 #include "hookshot_env.h"   // (gpu/vk/compat: env_value_off, the switches' rule)
 #include "hos_wide_size.h"   // (host/: the output sizes the menu accepts, hos_output_size_valid)
 #include "display_modes.h"   // (gpu/vk/: the sizes the Output resolution offers)
-using namespace mkwvk;
+using namespace nx2vk;
 // (the screen's display modes: HOS_DISPLAY_MODES names them here)
 std::vector<display_modes::Size> screen_modes() { return {}; }
 void outputs_sync() {}   // (the rows' ends and the Aspect ratio from the sizes read: not what this checks)

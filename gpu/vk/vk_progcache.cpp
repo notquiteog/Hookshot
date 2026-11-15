@@ -42,7 +42,7 @@
 #include "vk_progcache.h"
 #include "vk_programs.h"
 
-namespace mkwvk {
+namespace nx2vk {
 
 /// (hookshot) The cache's own format: raise it with any change to what a record holds or how the file or its index is laid out
 constexpr uint32_t kProgramCacheFormat = 1;
@@ -75,7 +75,7 @@ uint64_t program_cache_stamp() {
 // ---- (hookshot) The program cache, hookshot_programs.bin beside the executable: what translation made, by the key of the
 // stages' code and inputs. A program met for the first time stopped the frame for its translation, 9 s of it each run,
 // the long stutters when walking somewhere (replay workers in jobs_wait for up to 150 ms). The pipelines themselves were
-// already kept (mkw_vk_pipelines.bin). Written as made; good for this translator (HOOKSHOT_SHADER_STAMP) and these switches only
+// already kept (hookshot_pipeline_cache.bin). Written as made; good for this translator (HOOKSHOT_SHADER_STAMP) and these switches only
 // (a file made by another starts again). RX_VK_NO_PROGRAM_CACHE=1: off ----
 std::mutex disk_mu;
 // (read as wanted: with every program of the game in it the file is gigabytes, and it was read into memory whole)
@@ -951,4 +951,4 @@ unsigned half_cpus() {
     return std::max(1u, std::min(std::max(1u, std::thread::hardware_concurrency()) / 2, usable_cpus()));
 }
 
-} // namespace mkwvk
+} // namespace nx2vk

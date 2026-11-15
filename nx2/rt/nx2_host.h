@@ -1,26 +1,26 @@
-/* The C ABI between the recompiled game (mkw_game.dll: lifted code + a64-kit's runtime + eden_shim.c) and the
+/* The C ABI between the recompiled game (hookshot_game.dll: lifted code + a64-kit's runtime + eden_shim.c) and the
    emulator that hosts it (Eglantine's ArmRecomp backend, eglantine/src/core/arm/recomp/).
 
    The DLL knows nothing about Eden: every way out of lifted code (SVC, interrupt poll, trap, an indirect call to an
-   address with no lifted function, the counter) goes through the MkwHost table the backend hands to
-   mkw_recomp_attach. The backend knows nothing about the lifted code beyond this header: it looks functions up by
+   address with no lifted function, the counter) goes through the NX2Host table the backend hands to
+   nx2_recomp_attach. The backend knows nothing about the lifted code beyond this header: it looks functions up by
    guest address and calls them with a context.
 
    Guest memory is the 64-bit window at A64_HOST_BASE (nx2/rtgen.py): the backend must have placed the process's
    fastmem arena there (attach checks it). */
-#ifndef MKW_HOST_H
-#define MKW_HOST_H
+#ifndef NX2_HOST_H
+#define NX2_HOST_H
 #include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MKW_HOST_VERSION 1
+#define NX2_HOST_VERSION 1
 
 /* The lifted code's context (a64-kit rt/a64.h GuestContext with nx2/rtgen.py's poll flag), as the host sees it.
    eden_shim.c checks every offset against the real one at compile time. */
-typedef struct MkwGuestContext {
+typedef struct NX2GuestContext {
     uint64_t x[32];             /* x[31] is SP */
     uint64_t pc;                /* written where a thread stops (traps); otherwise the thread's start address */
     uint8_t n, z, c, v;
@@ -33,14 +33,14 @@ typedef struct MkwGuestContext {
     uint32_t excl_size;
     int32_t excl_valid;
     void *thread;               /* the host's per-thread object */
-    uint32_t poll;              /* interrupt request: the next loop header calls MkwHost::poll */
-} MkwGuestContext;
+    uint32_t poll;              /* interrupt request: the next loop header calls NX2Host::poll */
+} NX2GuestContext;
 
 struct GuestContext;
-typedef void (*MkwFn)(struct GuestContext *c);
+typedef void (*NX2Fn)(struct GuestContext *c);
 
-typedef struct MkwHost {
-    uint32_t version;   /* MKW_HOST_VERSION */
+typedef struct NX2Host {
+    uint32_t version;   /* NX2_HOST_VERSION */
     uint32_t ctx_size;  /* sizeof(GuestContext) as the host sees it */
     void *user;
     /* SVC #imm: the context holds the arguments; returns when the thread runs again, results in the context */
@@ -54,27 +54,27 @@ typedef struct MkwHost {
     int (*call_miss)(void *user, struct GuestContext *c, uint64_t target);
     /* CNTPCT_EL0 */
     uint64_t (*cntpct)(void *user);
-} MkwHost;
+} NX2Host;
 
 #if defined(_WIN32)
-#define MKW_EXPORT __declspec(dllexport)
+#define NX2_EXPORT __declspec(dllexport)
 #else
-#define MKW_EXPORT __attribute__((visibility("default")))
+#define NX2_EXPORT __attribute__((visibility("default")))
 #endif
 
-/* exported by mkw_game.dll */
-typedef struct MkwGameInfo {
-    uint32_t version;          /* MKW_HOST_VERSION */
+/* exported by hookshot_game.dll */
+typedef struct NX2GameInfo {
+    uint32_t version;          /* NX2_HOST_VERSION */
     uint32_t ctx_size;         /* sizeof(GuestContext) in the DLL */
     uint64_t mem_base;         /* A64_HOST_BASE: where the guest window must be */
     uint64_t image_base;       /* the guest address the image was lifted at (rtld's load address) */
     uint32_t functions;        /* lifted entries */
     uint32_t polls;            /* 1 if built with A64_POLLING */
     const char *main_build_id; /* hex, the main module's NSO build id */
-} MkwGameInfo;
+} NX2GameInfo;
 
-typedef int (*PFN_mkw_recomp_attach)(const MkwHost *host, MkwGameInfo *info);   /* 0: ok */
-typedef MkwFn (*PFN_mkw_recomp_lookup)(uint64_t guest_addr);                    /* NULL: no lifted function */
+typedef int (*PFN_nx2_recomp_attach)(const NX2Host *host, NX2GameInfo *info);   /* 0: ok */
+typedef NX2Fn (*PFN_nx2_recomp_lookup)(uint64_t guest_addr);                    /* NULL: no lifted function */
 
 #ifdef __cplusplus
 }

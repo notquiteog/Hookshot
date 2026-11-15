@@ -6,7 +6,7 @@
 #include <atomic>
 #include <functional>
 
-namespace mkwvk {
+namespace nx2vk {
 
 /// Queues fn for a worker (urgent: ahead of the others, for work a draw waits on)
 /// flag: what the job sets when it is done. A jobs_wait on it while the job is still queued runs the job there and then
@@ -26,4 +26,4 @@ bool jobs_hurry(const std::atomic<bool>& flag);
 void jobs_notify();
 int jobs_pending();
 
-} // namespace mkwvk
+} // namespace nx2vk

@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-namespace mkwvk::dlss_checks {
+namespace nx2vk::dlss_checks {
 
 /// Whether a scene of w x h can be DLSS's input for an output of ow x oh: the output 1 to 3 times its size on each axis
 /// (DLAA at 1, Ultra Performance at 3: 512x288 for 1536x864, 683x384 for 2048x1152). False while the output is not known
@@ -129,4 +129,4 @@ inline std::wstring utf8_to_wide(std::string_view s, bool* bad = nullptr) {
     return out;
 }
 
-} // namespace mkwvk::dlss_checks
+} // namespace nx2vk::dlss_checks

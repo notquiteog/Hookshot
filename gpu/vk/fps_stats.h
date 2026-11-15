@@ -9,7 +9,7 @@
 #include <cstdio>
 #include <vector>
 
-namespace mkwvk::fps_stats {
+namespace nx2vk::fps_stats {
 
 /// The FPS counter row (opts.show_fps, saved as fps_counter=): an options file from before the levels has 0 Off or 1 On,
 /// and 1 is the counter as it was, the number alone. Dev: the Breakdown and the renderer's own numbers under it (dev_line)
@@ -205,4 +205,4 @@ inline int rate_grade(double fps, double target_ms) {
 inline int frame_time_text(char* b, size_t n, double ms) { return snprintf(b, n, ms >= 100 ? "%.0f ms" : "%.1f ms", ms); }
 inline int low_text(char* b, size_t n, double fps) { return snprintf(b, n, "1%% low %.0f", fps); }
 
-} // namespace mkwvk::fps_stats
+} // namespace nx2vk::fps_stats

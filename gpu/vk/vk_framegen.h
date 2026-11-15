@@ -4,7 +4,7 @@
 #include "framegen_methods.h"
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2vk {
 
 bool framegen_on();
 /// (hookshot fork) Whether AMD FSR 4's frame generation, which takes the scene's depth, motion and camera
@@ -66,4 +66,4 @@ float wide_cover_sample();
 /// Whether ultrawide's menu sides can show at all: Ultrawide with a margin and the Insert menu's setting on
 bool wide_sides_possible();
 
-} // namespace mkwvk
+} // namespace nx2vk

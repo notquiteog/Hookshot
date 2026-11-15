@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-namespace mkwvk {
+namespace nx2vk {
 
 /// One queue family as vkGetPhysicalDeviceQueueFamilyProperties gives it: its VkQueueFlags and its queueCount
 struct QueueFamilyInfo {
@@ -34,4 +34,4 @@ inline bool presenter_queue_pick(const QueueFamilyInfo* families, uint32_t n, ui
     return false;
 }
 
-}  // namespace mkwvk
+}  // namespace nx2vk

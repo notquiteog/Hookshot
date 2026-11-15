@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <string_view>
 
-namespace mkwvk::skip_code {
+namespace nx2vk::skip_code {
 
 /// Whether `codes`, a program's stage code keys as program_code_keys writes them (" <stage>:<16 hex digits>" each),
 /// holds a key that starts with one of `list`'s comma-separated hex prefixes (in either case). Empty prefixes match
@@ -29,4 +29,4 @@ inline bool matches(std::string_view codes, std::string_view list) {
     return false;
 }
 
-}  // namespace mkwvk::skip_code
+}  // namespace nx2vk::skip_code

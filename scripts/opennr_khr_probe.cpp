@@ -13,7 +13,7 @@
 
 #include "opennr_khr.h"
 
-using namespace mkwvk;
+using namespace nx2vk;
 
 int main() {
     if (volkInitialize() != VK_SUCCESS) {

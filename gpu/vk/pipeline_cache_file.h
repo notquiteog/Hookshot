@@ -24,7 +24,7 @@
 #include <unistd.h>
 #endif
 
-namespace mkwvk {
+namespace nx2vk {
 // File-backed, contiguous Vulkan cache bytes. Published files are replaced, never
 // truncated. Read views retain the opened file/inode across atomic replacement.
 // External in-place truncation is not supported while a Linux view is in use.
@@ -80,18 +80,22 @@ class PipelineCacheFile {
         return true;
     }
     static bool temporary_name(const std::string& name) {
-        const std::string marker = ".bin.tmp-", play = "mkw_vk_pipelines_play_";
+        // (the pipeline cache's names, pcache_stamp.h, and the old ones a folder may still hold: mkw_vk_pipelines*)
+        const std::string marker = ".bin.tmp-";
         const size_t at = name.find(marker);
         if (at == std::string::npos) return false;
         const std::string stem = name.substr(0, at), suffix = name.substr(at + marker.size());
         const auto digits = [](const std::string& s) {
             return !s.empty() && s.find_first_not_of("0123456789") == std::string::npos;
         };
-        if (stem != "mkw_vk_pipelines") {
+        const auto ours = [&](const std::string& main, const std::string& play) {
+            if (stem == main) return true;
             if (stem.compare(0, play.size(), play)) return false;
             const std::string number = stem.substr(play.size());
-            if (number.size() > 9 || !digits(number)) return false;
-        }
+            return number.size() <= 9 && digits(number);
+        };
+        if (!ours("hookshot_pipeline_cache", "hookshot_pipeline_cache_play_") && !ours("mkw_vk_pipelines", "mkw_vk_pipelines_play_"))
+            return false;
         if (suffix.size() == 6 && std::all_of(suffix.begin(), suffix.end(), [](unsigned char c) {
                 return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
             })) return true;
@@ -333,4 +337,4 @@ public:
         return true;
     }
 };
-} // namespace mkwvk
+} // namespace nx2vk

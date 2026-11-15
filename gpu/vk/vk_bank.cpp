@@ -20,7 +20,7 @@
 #include "hookshot_env.h"
 #endif
 
-namespace mkwvk {
+namespace nx2vk {
 // (hookshot) the seed's compute programs (vk_shader.cpp seed_program) have no bound program to read their layout from. Translated
 // with Maxwell's table instead, one kept the right key and the wrong storage buffers, and play would have used it as it was
 thread_local const uint8_t* seed_cs_control = nullptr;
@@ -438,4 +438,4 @@ uint32_t driver_bank_word(const NvnState& s, int bank, int stage, uint32_t offse
     return 0;
 }
 
-} // namespace mkwvk
+} // namespace nx2vk

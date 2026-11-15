@@ -6,7 +6,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2vk {
 
 /// The extensions it needs (VK_NV_low_latency2, VK_KHR_present_id), added to `want` when the device has them
 void reflex_device_extensions(std::vector<const char*>& want, const std::vector<VkExtensionProperties>& all);
@@ -57,4 +57,4 @@ void reflex_game_submitted();
 /// RX_VK_REFLEX_SUBMIT_IDS=0 (or false, off, no). The struct is the calling thread's until its next call: take it right before the submit
 const void* reflex_submit_id(const void* next, uint64_t frame = kReflexThisFrame);
 
-} // namespace mkwvk
+} // namespace nx2vk

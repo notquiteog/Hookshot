@@ -8,7 +8,7 @@
 #include <chrono>
 #include <cstdint>
 
-namespace mkwvk::gpu_wait_stats {
+namespace nx2vk::gpu_wait_stats {
 
 enum Kind { kFence, kTimeline, kIdle, kQuery, kCount };
 using Snapshot = std::array<int64_t, kCount>;
@@ -82,4 +82,4 @@ inline auto queries(F call, Mask wait_bit, Device device, Pool pool, First first
     return timed(kQuery, (flags & wait_bit) != 0, call, device, pool, first, count, size, data, stride, flags);
 }
 
-} // namespace mkwvk::gpu_wait_stats
+} // namespace nx2vk::gpu_wait_stats

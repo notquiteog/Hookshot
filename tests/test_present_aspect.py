@@ -30,7 +30,7 @@ def main():
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
-using namespace mkwvk;
+using namespace nx2vk;
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); std::exit(1); } } while (0)
 using VkImage = uint64_t;
 using VkImageView = uint64_t;

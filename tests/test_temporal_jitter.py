@@ -25,20 +25,20 @@ def main():
     fixture = (ROOT / "tests/temporal_jitter_test.cpp").read_text(encoding="utf-8")
     fixture = fixture.replace("/* HOST_CACHE_LOCKED */", "#define HOST_CACHE_LOCKED " +
                               str(int("AcquireSRWLockExclusive" in block(host, "int hos_dlss_jitter_clip("))))
-    if "MkwVkJitter temporal_jitter_sample()" in dlss:
-        reader = block(dlss, "MkwVkJitter temporal_jitter_sample()") + "\n" + block(dlss, "uint32_t temporal_jitter_size(int axis)")
+    if "NX2VkJitter temporal_jitter_sample()" in dlss:
+        reader = block(dlss, "NX2VkJitter temporal_jitter_sample()") + "\n" + block(dlss, "uint32_t temporal_jitter_size(int axis)")
         producer = re.search(r"s\.jitter\.publish\([^;]+;", dlss).group()
-        fr = block(fsr, "MkwVkJitter jitter_sample()") + "\n" + block(fsr, "uint32_t jitter_size(int axis)")
-        callback = block(replay, "void jitter_sample(MkwVkJitter* out)")
+        fr = block(fsr, "NX2VkJitter jitter_sample()") + "\n" + block(fsr, "uint32_t jitter_size(int axis)")
+        callback = block(replay, "void jitter_sample(NX2VkJitter* out)")
         # The actual public table producer must install the callback the host consumes.
         assert "t.jitter_sample = jitter_sample;" in block(replay, "void fill_replay_table(")
     else:
         reader = block(dlss, "uint32_t temporal_jitter_size(int axis)")
-        reader += "\nMkwVkJitter temporal_jitter_sample() { return {temporal_jitter_size(0),temporal_jitter_size(1),temporal_jitter_size(2)}; }"
+        reader += "\nNX2VkJitter temporal_jitter_sample() { return {temporal_jitter_size(0),temporal_jitter_size(1),temporal_jitter_size(2)}; }"
         producer = re.search(r"s\.jitter_w = rw, s\.jitter_h = rh, s\.jitter_phases = [^;]+;", dlss).group()
         fr = block(fsr, "uint32_t jitter_size(int axis)")
-        fr += "\nMkwVkJitter jitter_sample() { return {jitter_size(0),jitter_size(1),jitter_size(2)}; }"
-        callback = "void jitter_sample(MkwVkJitter* out) { *out=temporal_jitter_sample(); if(!out->width)*out=fsr3_inputs::jitter_sample(); }"
+        fr += "\nNX2VkJitter jitter_sample() { return {jitter_size(0),jitter_size(1),jitter_size(2)}; }"
+        callback = "void jitter_sample(NX2VkJitter* out) { *out=temporal_jitter_sample(); if(!out->width)*out=fsr3_inputs::jitter_sample(); }"
     for tag, text in [("/* DLSS_READER */", reader), ("/* DLSS_PUBLISH */", producer), ("/* FSR_READER */", fr),
                       ("/* FSR_PUBLISH */", block(fsr, "void upscaled(")), ("/* REPLAY_CALLBACK */", callback),
                       ("/* HOST_TRANSPORT */", block(host, "int hos_dlss_jitter_clip("))]:

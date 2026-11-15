@@ -7,7 +7,7 @@
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
 int main() {
-    namespace sl = mkwvk::status_line;
+    namespace sl = nx2vk::status_line;
     constexpr uint64_t GB = 1ull << 30;
     char b[256];
     sl::vram_text(b, sizeof b, 7 * GB + GB / 10, 8 * GB, true);

@@ -7,7 +7,7 @@
 #include "vk_internal.h"
 #include "vk_state.h"
 
-namespace mkwvk {
+namespace nx2vk {
 /// Something other than the draw path pushed or bound descriptors in the recording (its next push is whole)
 void descriptors_disturbed();
 
@@ -37,7 +37,7 @@ void note_color_types(const PipeNote& n, uint8_t types[8]);
 #include "vk_internal.h"
 #include "vk_state.h"
 
-namespace mkwvk {
+namespace nx2vk {
 
 struct DrawArgs {
     int prim = 0;
@@ -116,4 +116,4 @@ uint64_t ub_overlay(uint64_t addr, uint64_t n, uint8_t* base, const std::functio
 /// Guest memory as the stream's place sees it: as submitted, the stream's uniform updates before it over it
 bool ub_read(uint64_t addr, void* dst, uint64_t n);
 
-} // namespace mkwvk
+} // namespace nx2vk

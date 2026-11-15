@@ -22,7 +22,7 @@ POLL_DECL = r"""
    across the loop. (a64_poll(c), the old form, made every loop body reload and store them: a call that takes c may change
    any of it.) The poll sits before the backward goto, after the body's stores: at the loop header, a call C cannot mark
    as returning (LLVM's willreturn) left the stores after it not guaranteed to execute, and nothing was promoted.
-   a64_poll_cur finds the thread's context itself (host/mkw_glue.c, hos_ctx). A64_POLL_CTX keeps the old form for the
+   a64_poll_cur finds the thread's context itself (host/nx2_glue.c, hos_ctx). A64_POLL_CTX keeps the old form for the
    emulator-hosted DLL (nx2/rt/eden_shim.c), whose host's poll takes the context. */
 void a64_poll(Ctx *A64_NOESC c);
 void a64_poll_cur(void);

@@ -58,7 +58,7 @@
 #include "vk_programs.h"
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk {
+namespace nx2vk {
 extern std::atomic<bool> movie_networks_slow;   // (vk_draw.cpp: the movie networks left out, issue 109)
 int64_t presents_now;   // (the presents so far, for SlowWatch)
 void hang_watch_start();   // (EvilOOT, vk_hangdump.cpp: RX_VK_HANG_DUMP)
@@ -97,13 +97,13 @@ std::unordered_map<uint64_t, uint64_t> q_last;   // queue -> its last submission
 std::map<uint64_t, uint64_t> value_queue;   // a submission's value -> its queue (sync_order_mu)
 std::atomic<uint64_t> pushed{0};
 std::atomic<uint64_t> q_values{0};   // the fence values handed out (a submit or a present takes one each)
-::mkwvk::rec::DrainingMutex replay_mu;   // one replay at a time (the game submits from several threads; RX_VK_RECORDER=defer: what
+::nx2vk::rec::DrainingMutex replay_mu;   // one replay at a time (the game submits from several threads; RX_VK_RECORDER=defer: what
                                          // a thread recorded is drained before another may take it)
 // (RX_VK_RECORDER=thread: the recorder thread named, and above normal priority as par_worker_main's threads)
 // RX_VK_RECORDER_PIN (experiment): next = the physical core below the reserved one (the replay thread's: hos_reserved_cpus),
 // sibling = the reserved core itself (shares it with the replay thread), or a hex mask; unset: not pinned
-const bool rec_thread_hook = (::mkwvk::rec::g_thread_start_hook = [] {
-    SetThreadDescription(GetCurrentThread(), L"mkw_vk recorder");
+const bool rec_thread_hook = (::nx2vk::rec::g_thread_start_hook = [] {
+    SetThreadDescription(GetCurrentThread(), L"nx2_vk recorder");
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
     const char* pin = getenv("RX_VK_RECORDER_PIN");
     if (!pin || !*pin) return;
@@ -113,7 +113,7 @@ const bool rec_thread_hook = (::mkwvk::rec::g_thread_start_hook = [] {
     else if (!strcmp(pin, "sibling")) m = reserved;
     else m = strtoull(pin, nullptr, 16);
     const bool ok = m && SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)m) != 0;
-    ::mkwvk::logf("vk: RX_VK_RECORDER_PIN=%s: the recorder %s %#llx (reserved %#llx)", pin, ok ? "pinned to" : "NOT pinned, mask",
+    ::nx2vk::logf("vk: RX_VK_RECORDER_PIN=%s: the recorder %s %#llx (reserved %#llx)", pin, ok ? "pinned to" : "NOT pinned, mask",
                   (unsigned long long)m, (unsigned long long)reserved);
 }, true);
 // (RX_VK_BATCH: see queue_flush_locked)
@@ -1818,7 +1818,7 @@ struct ParPool {
 };
 ParPool par_pool;
 void par_worker_main() {
-    SetThreadDescription(GetCurrentThread(), L"mkw_vk replay worker");
+    SetThreadDescription(GetCurrentThread(), L"nx2_vk replay worker");
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
     for (;;) {
         std::function<void()> fn;
@@ -2698,7 +2698,7 @@ bool sync_settle_met() {
     return true;
 }
 void sync_watch() {
-    SetThreadDescription(GetCurrentThread(), L"mkw_vk order");
+    SetThreadDescription(GetCurrentThread(), L"nx2_vk order");
     for (;;) {
         Sleep(1);
         if (!blocked_n.load()) continue;
@@ -3107,8 +3107,8 @@ void invalidate(uint64_t gpu, uint64_t size) {
 void do_texture_released(const nvn_tex* t) {
     std::lock_guard lk(replay_mu);
     if (t) {
-        mkwvk::texture_released(t->serial);   // (vk_bank.cpp: the registrations of it)
-        mkwvk::texture_released(t);           // (vk_texture.cpp: its image may take CPU writes again)
+        nx2vk::texture_released(t->serial);   // (vk_bank.cpp: the registrations of it)
+        nx2vk::texture_released(t);           // (vk_texture.cpp: its image may take CPU writes again)
     }
 }
 
@@ -3365,7 +3365,7 @@ void gpu_hang_watch_start() {
     if (limit) logf("vk: GPU hang watch: work that finishes nothing for %d s ends the game (RX_VK_GPU_HANG_SEC)", limit);
     else logf("vk: GPU hang watch: a stall is only logged (RX_VK_GPU_HANG_SEC=%s)", e);
     std::thread([limit] {
-        SetThreadDescription(GetCurrentThread(), L"mkw_vk gpu hang watch");
+        SetThreadDescription(GetCurrentThread(), L"nx2_vk gpu hang watch");
         uint64_t last = 0;
         int still = 0;
         for (;;) {
@@ -4352,7 +4352,7 @@ void framelog_resources_drop() {
     log_image_alloc = nullptr;
 }
 void framelog_write(FILE* f) {
-    SetThreadDescription(GetCurrentThread(), L"mkw_vk frame log");
+    SetThreadDescription(GetCurrentThread(), L"nx2_vk frame log");
     for (;;) {
         std::vector<uint8_t> rec;
         {
@@ -4883,7 +4883,7 @@ bool presenter_wait_copy(VkFence done) {
     return false;
 }
 void presenter_loop() {
-    SetThreadDescription(GetCurrentThread(), L"mkw_vk presenter");
+    SetThreadDescription(GetCurrentThread(), L"nx2_vk presenter");
     static const auto wait_for_present = dev.present_wait
         ? (PFN_vkWaitForPresentKHR)vkGetDeviceProcAddr(dev.device, "vkWaitForPresentKHR") : nullptr;
     VkSwapchainKHR ids_of = VK_NULL_HANDLE;   // (the swapchain the present ids count on: they start again on a new one)
@@ -5128,7 +5128,7 @@ bool async_on() {
 }
 
 void replay_thread_main() {
-    SetThreadDescription(GetCurrentThread(), L"mkw_vk replay");
+    SetThreadDescription(GetCurrentThread(), L"nx2_vk replay");
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
     // (on the core the host keeps free of the game's threads, hos_reserved_cpus: its last physical one)
     if (host->reserved_cpus) {
@@ -5524,7 +5524,7 @@ bool replay_start() {
 /// (hookshot) The host's camera jitter (nx2/oot_jitter.py, host/rx_backend.c): the scene's size while a temporal upscaler
 /// draws, NVIDIA DLSS or AMD FSR 4 (vk_temporal.cpp) or AMD FSR 3.1 (vk_fsr3_inputs.cpp), whichever it is (one at a time: the
 /// Upscaler row); 0, no jitter, otherwise
-void jitter_sample(MkwVkJitter* out) {
+void jitter_sample(NX2VkJitter* out) {
     *out = temporal_jitter_sample();
     if (!out->width) *out = fsr3_inputs::jitter_sample();
 }
@@ -5535,7 +5535,7 @@ int jitter_option(int id) {
     return (int)(d ? d : fsr3_inputs::jitter_size(axis));
 }
 
-void fill_replay_table(MkwVkRenderer& t) {
+void fill_replay_table(NX2VkRenderer& t) {
     t.stats = stats;
     t.nvn_submit = submit;
     t.nvn_submit_q = submit_q;
@@ -5639,4 +5639,4 @@ int64_t par_now_ns() {
     return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-} // namespace mkwvk
+} // namespace nx2vk

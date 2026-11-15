@@ -15,7 +15,7 @@
 #include "vk_imgui.h"
 #include "vk_menu_i18n.h"   // (every text below is looked up in the menu's language first: i18n::tr)
 
-namespace mkwvk::ui {
+namespace nx2vk::ui {
 
 constexpr ImU32 rgba(int r, int g, int b, int a = 255) { return IM_COL32(r, g, b, a); }
 inline ImU32 alpha(ImU32 c, float k) {
@@ -310,4 +310,4 @@ inline void button(Ctx& c, ImVec2 a0, ImVec2 b0, const char* label, bool sel) {
     if (sel) glow(c, a0, b0);
 }
 
-} // namespace mkwvk::ui
+} // namespace nx2vk::ui

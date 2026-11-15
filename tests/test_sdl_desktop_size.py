@@ -1,4 +1,4 @@
-"""host/hos_sdl.c hos_sdl_desktop_size, the main screen's size on Linux (MkwVkHost.screen_size: the Insert menu's Aspect
+"""host/hos_sdl.c hos_sdl_desktop_size, the main screen's size on Linux (NX2VkHost.screen_size: the Insert menu's Aspect
 ratio and Output resolution rows ask for it at startup and while the game runs). A windowless start (HOS_HEADLESS) loads no
 SDL: the screen is unknown, not a call through an empty slot (#2566: exit 139 before the first frame on Linux). With SDL3,
 the desktop mode's size in pixels (its screen units times its pixel density: 1536x864 at 1.25 is 1920x1080); with SDL2, the

@@ -11,7 +11,7 @@
 
 The game renders through `hookshot_vk.dll` (`RX_BACKEND` unset or `vulkan`) instead of the WebGPU renderer in the executable
 (`gpu/render`). `host/rx_backend.c` owns the `rx_*` names the host calls. It loads the DLL, passes it the host
-functions (`vk_api.h` `MkwVkHost`) and routes the calls to the table the DLL returns (`MkwVkRenderer`). If the DLL
+functions (`vk_api.h` `NX2VkHost`) and routes the calls to the table the DLL returns (`NX2VkRenderer`). If the DLL
 or Vulkan is missing, the WebGPU renderer stays in place.
 
 Why a DLL of its own: it carries Eden's shader recompiler (`gpu/vk/eden`, copied unmodified from Eglantine, with its
@@ -89,7 +89,7 @@ What it took, in the order it blocked a picture:
   areas). Dumping a decoded texture (a switch of the time, since removed) showed the corruption was already there, before
   any draw. The fix is to stop guessing: `gpu/vk/vk_upload.cpp` now calls suyu's own `Tegra::Texture::UnswizzleTexture`
   and `Tegra::Texture::ASTC::DecompressSerial` (`gpu/third_party/suyu/video_core/textures/`), the exact pair the
-  working WebGPU back end decodes with in rx_texture.cpp. Those two files are built into `mkw_vk.dll` now
+  working WebGPU back end decodes with in rx_texture.cpp. Those two files are built into `hookshot_vk.dll` now
   (nx2/build.py `vk_sources()`, with suyu's root on the include path). The dumped map texture is pixel-crisp
   afterwards, "WORLD MAP" and the course names legible.
 - **Backface culling threw away every triangle.** The viewport is flipped with a negative height to turn NVN's
@@ -107,7 +107,7 @@ Not a race. The DLL's include path had suyu's root (`gpu/third_party/suyu`, adde
 `nvn_mesh_stage` and `uses_quad_shuffles`. Objects compiled before that change (Eden's recompiler) and after it
 (`vk_draw.cpp`) disagreed on the layout of `Info`, and the descriptor walk read a garbage vector at `this+0x238`. The
 object cache leaves `-I` folders out of its keys, which is why nothing rebuilt to show it. nx2/build.py now puts
-Eden first and carries `-DMKWVK_INCLUDES=2` so the keys change with the order. (The "descriptor list is not host
+Eden first and carries `-DNX2VK_INCLUDES=2` so the keys change with the order. (The "descriptor list is not host
 memory" guards added while chasing it refused every draw and are gone.)
 
 ## The renderer after the rewrite (Nov 1 evening)
@@ -136,7 +136,7 @@ Designed after totk-pc-recomp's runtime/vk_*.c (MIT) and Eden's renderer_vulkan,
 - **Pipelines**: whatever Vulkan 1.3 and `VK_EXT_extended_dynamic_state3` take as dynamic is dynamic; graphics
   programs are translated and pipelines built on worker threads (`vk_jobs.cpp`). A draw whose program or pipeline
   is not ready is left out when its targets hold an earlier frame's picture and waits otherwise (TOTK's
-  `TOTK_PIPE_SKIP` rule; `RX_VK_PIPE_WAIT=1` always waits). The pipeline cache persists (`mkw_vk_pipelines.bin`).
+  `TOTK_PIPE_SKIP` rule; `RX_VK_PIPE_WAIT=1` always waits). The pipeline cache persists (`hookshot_pipeline_cache.bin`).
 - **Uniform updates** (`UPDATE_UB`) go to guest memory at the end of their recording; draws after one bind a copy
   of the range with it applied (`ub_overlay`).
 - **The VRAM mirror** (`vk_memory.cpp`, TOTK's): pools bound as buffers get a device-local copy at the next

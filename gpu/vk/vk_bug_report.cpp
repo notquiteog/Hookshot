@@ -36,7 +36,7 @@
 extern char** environ;
 #endif
 
-namespace mkwvk::bug_report {
+namespace nx2vk::bug_report {
 namespace {
 
 // (a log is copied whole up to 10 MB, GitHub taking files up to 25 MB; a longer one keeps its first MB, where the start, the
@@ -604,4 +604,4 @@ void picture_written(uint64_t ticket, bool ok) {
     pic_cv.notify_all();
 }
 
-}  // namespace mkwvk::bug_report
+}  // namespace nx2vk::bug_report

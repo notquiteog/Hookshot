@@ -52,7 +52,7 @@ static inline int dlss_jitter_phases(unsigned render_w, unsigned render_h, unsig
 }
 
 #ifdef __cplusplus
-namespace mkwvk::dlss_math {
+namespace nx2vk::dlss_math {
 
 /// This frame's clip space to the frame before's: previous * inverse(current), both row major (clip = M * position); false
 /// when either input is not finite, current is singular, or the result cannot be represented as finite floats
@@ -152,5 +152,5 @@ inline void jitter_to_pixels(const float clip[2], unsigned width, unsigned heigh
     out[1] = -clip[1] * 0.5f * (float)height;
 }
 
-} // namespace mkwvk::dlss_math
+} // namespace nx2vk::dlss_math
 #endif

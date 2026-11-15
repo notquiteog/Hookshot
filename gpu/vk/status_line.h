@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <cstdio>
 
-namespace mkwvk::status_line {
+namespace nx2vk::status_line {
 
 constexpr int kEvery = 600;      // (the game's frames between two status lines)
 constexpr int kCheckEvery = 60;  // (and between two looks at the allowance, for the warning)
@@ -42,4 +42,4 @@ inline int over_text(char* b, size_t n, uint64_t used, uint64_t allowed, int dls
                     over_advice(dlss_mode));
 }
 
-} // namespace mkwvk::status_line
+} // namespace nx2vk::status_line

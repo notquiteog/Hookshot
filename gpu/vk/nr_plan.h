@@ -17,7 +17,7 @@
 
 #include <cstdint>
 
-namespace mkwvk::nr_plan {
+namespace nx2vk::nr_plan {
 
 constexpr int kMaxPasses = 10;
 /// The Passes row's value as a count: 1 to kMaxPasses (an older file without the row: 1)
@@ -42,4 +42,4 @@ inline uint32_t scaled_side(uint32_t full, int row) {
     return side > full ? full : side;
 }
 
-} // namespace mkwvk::nr_plan
+} // namespace nx2vk::nr_plan

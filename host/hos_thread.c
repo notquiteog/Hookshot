@@ -264,7 +264,7 @@ static LONG WINAPI log_crash_filter(EXCEPTION_POINTERS *e) {
 
 /* Lines are written by log_main, not by the thread that logs: a write that blocks (a console; the log file while the
    disk is busy: the render thread was seen held 140-310 ms in one line's write) holds no game thread. Nothing queued is
-   lost when the game ends or crashes: hos_fatal, report_crash/report_fatal (mkw_glue.c), log_crash_filter,
+   lost when the game ends or crashes: hos_fatal, report_crash/report_fatal (nx2_glue.c), log_crash_filter,
    svcExitProcess, the window's close and the process's exit (atexit) write the queue first. HOS_LOG_SYNC=1: each line
    written by the thread that logs it, as files and pipes were before */
 static int log_queue(const char *line) {
@@ -409,7 +409,7 @@ int hos_thread_handles(HANDLE *out, const char **names, int max) {
 }
 
 /* (mkw-recomp) Every guest thread's name and guest registers as of its last call out of lifted code, with its
-   frame chain from x29: what each thread of a stalled game waits in (mkw_glue.c, HOS_STATS_AFTER). */
+   frame chain from x29: what each thread of a stalled game waits in (nx2_glue.c, HOS_STATS_AFTER). */
 void hos_thread_dump(void) {
     AcquireSRWLockShared(&threads_lock);
     for (int i = 0; i < nthreads; i++) {
@@ -1384,11 +1384,11 @@ static int present_poll(Ctx *c, int64_t ns) {
     if (away) hos_vcore_back();
     return 1;
 }
-/* (hookshot) The FPS counter's Breakdown (gpu/vk/vk_fps.cpp, through MkwVkHost slept_ns): the time slept in OoT's present poll
+/* (hookshot) The FPS counter's Breakdown (gpu/vk/vk_fps.cpp, through NX2VkHost slept_ns): the time slept in OoT's present poll
    (0x80590520 above: waiting for its frame's GPU work) and in the window's acquire (host/nn_vi.c: the frame pacing), whichever
    thread they are on (OoT simulates on its main thread and records on its presentation thread, which waits for it), and each
    thread's other guest sleeps. A clock read before and after a sleep, only while the Breakdown shows (hos_fps_timing, set by the
-   back end through MkwVkHost fps_timing): off, a load of that flag */
+   back end through NX2VkHost fps_timing): off, a load of that flag */
 volatile int hos_fps_timing;
 volatile int64_t hos_poll_slept_ns, hos_acquire_slept_ns;
 _Thread_local int64_t hos_slept_ns[2];
@@ -1839,7 +1839,7 @@ void hos_vcore_back(void) {
     if (!t->vc_held) vc_acquire(t);
 }
 /* Lifted code calls this from its interrupt polls with the loop's guest registers still in host registers (a64_poll_cur,
-   mkw_glue.c: the poll hands over no context, so the compiler need not spill them). It, and everything it calls, must never
+   nx2_glue.c: the poll hands over no context, so the compiler need not spill them). It, and everything it calls, must never
    read or write the thread's guest context (Ctx) or run guest code: what it would see there may be older than the loop. A
    stall dump of a thread spinning in a polled loop shows such older registers for the same reason. */
 void hos_vcore_checkpoint(void) {

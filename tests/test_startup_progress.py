@@ -18,7 +18,7 @@ FIXTURE = r'''#include "vk_progress.h"
 #include <cstdio>
 #include <cstdlib>
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); std::exit(1); } } while (0)
-using namespace mkwvk;
+using namespace nx2vk;
 int main() {
     CHECK(with_commas(0) == "0");
     CHECK(with_commas(999) == "999");
@@ -173,7 +173,7 @@ def main():
                       ("dev.swap_resize.store", "a resize while it runs is not taken")):
         if need not in screen:
             raise SystemExit(why)
-    if 'void mkwvk_close_asked(void)' not in main_cpp or "prepare_stop();" not in main_cpp:
+    if 'void nx2vk_close_asked(void)' not in main_cpp or "prepare_stop();" not in main_cpp:
         raise SystemExit("closing the window no longer stops the preparation")
     for fn in ("bool prepare_run(", "bool warm_libraries(", "void predict_run(", "void precompile_run("):
         body = draw[draw.index(fn):]

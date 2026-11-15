@@ -33,7 +33,7 @@ static Sentinel g_sentinel __attribute__((init_priority(101)));
 
 #include "vk_work.h"
 
-namespace mkwvk {
+namespace nx2vk {
 std::atomic<uint64_t> work_epoch{0};
 std::atomic<bool> par_active{false};
 void logf(const char* fmt, ...) {
@@ -43,7 +43,7 @@ void logf(const char* fmt, ...) {
     va_end(a);
     std::fputc('\n', stdout);
 }
-} // namespace mkwvk
+} // namespace nx2vk
 
 static std::atomic<int> g_draws{0};
 static std::atomic<bool> g_parked{false};
@@ -54,7 +54,7 @@ PFN_vkCmdDraw vkCmdDraw = fake_vkCmdDraw;
 
 /// The recorder started by a packet, run, then parked for good inside idle() with sleep_mu held; 1 once it is
 extern "C" __declspec(dllexport) int park_recorder() {
-    using namespace mkwvk;
+    using namespace nx2vk;
     rec::g_stats_log = false;
     rec::g_test_idle_locked = [] {
         g_parked = true;

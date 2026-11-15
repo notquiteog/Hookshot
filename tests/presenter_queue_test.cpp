@@ -4,7 +4,7 @@
 
 #include "../gpu/vk/presenter_queue.h"
 
-using namespace mkwvk;
+using namespace nx2vk;
 static int failures;
 static void check(bool ok, const char* what) {
     if (!ok) std::printf("FAIL: %s\n", what), failures++;

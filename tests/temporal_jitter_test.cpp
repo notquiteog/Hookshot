@@ -17,7 +17,7 @@
 
 #define CHECK(c) do { if (!(c)) { std::fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #c); std::exit(1); } } while (0)
 using LONG = int;
-using mkwvk::TemporalJitter;
+using nx2vk::TemporalJitter;
 /* HOST_CACHE_LOCKED */
 using SRWLOCK = std::mutex;
 #define SRWLOCK_INIT {}
@@ -37,8 +37,8 @@ void AcquireSRWLockExclusive(SRWLOCK* lock) {
     lock->lock();
 }
 void ReleaseSRWLockExclusive(SRWLOCK* lock) { lock->unlock(); }
-static_assert(MKWVK_API_VERSION >= 14);
-static_assert(offsetof(MkwVkRenderer, jitter_sample) > offsetof(MkwVkRenderer, option_set));
+static_assert(NX2VK_API_VERSION >= 14);
+static_assert(offsetof(NX2VkRenderer, jitter_sample) > offsetof(NX2VkRenderer, option_set));
 std::atomic<uint64_t> clock_frame{100};
 bool env_off = false;
 const char* env_off_name = nullptr;   // (one switch set to 0 alone: "fsr-jitter-off" below)
@@ -85,7 +85,7 @@ static bool interleave = true;
 std::mutex callback_mu;
 std::condition_variable callback_cv;
 bool block_callback = false, callback_entered = false, allow_callback = false;
-void callback(MkwVkJitter* out) {
+void callback(NX2VkJitter* out) {
     callbacks++;
     if (block_callback) {
         std::unique_lock lock(callback_mu);
@@ -106,9 +106,9 @@ LONG presents = 100;
 volatile float hos_wide_ratio = 16.0f / 9.0f;
 float projection_matrix[16]{};
 #define GP(p) ((void*)(uintptr_t)(p))
-MkwVkRenderer table{};
-const MkwVkRenderer* vk = &table;
-thread_local MkwVkJitter observed{};
+NX2VkRenderer table{};
+const NX2VkRenderer* vk = &table;
+thread_local NX2VkJitter observed{};
 int dlss_jitter_clip(const float*, float, unsigned, int phases, float width, float height, float out[2]) {
     observed = {(uint32_t)width, (uint32_t)height, (uint32_t)phases};
     out[0] = out[1] = 0;
@@ -116,7 +116,7 @@ int dlss_jitter_clip(const float*, float, unsigned, int phases, float width, flo
 }
 /* HOST_TRANSPORT */
 
-bool equal(MkwVkJitter a, MkwVkJitter b) {
+bool equal(NX2VkJitter a, NX2VkJitter b) {
     return a.width == b.width && a.height == b.height && a.phases == b.phases;
 }
 void host_read() {
@@ -133,7 +133,7 @@ int main(int argc, char** args) {
         // An older invocation reaches the lock after a newer host frame filled its cache.
         // It must not roll the cache back and make two reads of frame101 query different samples.
         interleave = false;
-        MkwVkJitter older_sample{};
+        NX2VkJitter older_sample{};
         std::thread older([&] { delay_host_lock = true; host_read(); older_sample = observed; });
         {
             std::unique_lock schedule(host_schedule_mu);
@@ -141,13 +141,13 @@ int main(int argc, char** args) {
         }
         presents = 101;
         host_read();
-        const MkwVkJitter first_sample = observed;
+        const NX2VkJitter first_sample = observed;
         gpu::publish(1720, 720, 3440, 1440);
         { std::lock_guard schedule(host_schedule_mu); release_older = true; }
         host_schedule_cv.notify_all();
         older.join();
         host_read();
-        const MkwVkJitter last_sample = observed;
+        const NX2VkJitter last_sample = observed;
         CHECK(equal(first_sample, last_sample));
         CHECK(equal(older_sample, first_sample));
         CHECK(callbacks == 1);
@@ -159,7 +159,7 @@ int main(int argc, char** args) {
         // A second caller must not consume the not-yet-filled cache or query another sample.
         interleave = false;
         block_callback = true;
-        MkwVkJitter first_sample{}, second_sample{};
+        NX2VkJitter first_sample{}, second_sample{};
         std::thread first([&] { host_read(); first_sample = observed; });
         {
             std::unique_lock lock(callback_mu);

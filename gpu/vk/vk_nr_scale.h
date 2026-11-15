@@ -10,7 +10,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk::nr_scale {
+namespace nx2vk::nr_scale {
 
 /// The picture (the x, y, w, h part of src: GENERAL, the game's window image) copied for the model, recorded into cmd: at
 /// `percent` of its width and height (nr_plan.h scaled_side) when that is under 100, else as it is. This module's own
@@ -23,4 +23,4 @@ namespace mkwvk::nr_scale {
 /// Its images and its pass let go. Before the device goes
 void shutdown();
 
-} // namespace mkwvk::nr_scale
+} // namespace nx2vk::nr_scale

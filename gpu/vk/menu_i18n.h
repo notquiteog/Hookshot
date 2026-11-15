@@ -4,7 +4,7 @@
 // one line each here.
 #pragma once
 
-namespace mkwvk::menu_i18n {
+namespace nx2vk::menu_i18n {
 struct Entry {
     const char* en;
     const char* text;
@@ -7004,4 +7004,4 @@ inline constexpr Lang kLangs[] = {
     {"zh-Hant", "繁體中文", kzh_Hant, 537},
 };
 inline constexpr int kLangCount = sizeof kLangs / sizeof kLangs[0];
-}  // namespace mkwvk::menu_i18n
+}  // namespace nx2vk::menu_i18n

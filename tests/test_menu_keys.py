@@ -37,7 +37,7 @@ FIXTURE = r'''#include "gpu/vk/vk_menu_keys.h"
 #include <initializer_list>
 #include <string>
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); std::exit(1); } } while (0)
-using namespace mkwvk::menu_keys;
+using namespace nx2vk::menu_keys;
 static void expect(int a, int b, int confirm, int back, int line) {
     int c = -9, k = -9;
     confirm_back(a, b, &c, &k);

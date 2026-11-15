@@ -11,47 +11,47 @@
   "does": "A compiler-made exception-handling label inside a renderer function (not a function of its own).",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdBindPipeline@vkx@@3P6AXPEAUVkCommandBuffer_T@@W4VkPipelineBindPoint@@PEAUVkPipeline_T@@@ZEA$1?pack@?$Value@$1?vkCmdBindPipeline@vkx@@3P6AXPEAUVkCommandBuffer_T@@W4VkPipelineBindPoint@@PEAUVkPipeline_T@@@ZEA$0BL@P6AX012@Z@rec@mkwvk@@SAX012@ZP6AX012@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@W4VkPipelineBindPoint@@PEAUVkPipeline_T@@@Z": {
+ "?call@?$Route@$1?vkCmdBindPipeline@vkx@@3P6AXPEAUVkCommandBuffer_T@@W4VkPipelineBindPoint@@PEAUVkPipeline_T@@@ZEA$1?pack@?$Value@$1?vkCmdBindPipeline@vkx@@3P6AXPEAUVkCommandBuffer_T@@W4VkPipelineBindPoint@@PEAUVkPipeline_T@@@ZEA$0BL@P6AX012@Z@rec@nx2vk@@SAX012@ZP6AX012@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@W4VkPipelineBindPoint@@PEAUVkPipeline_T@@@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdBindVertexBuffers2@vkx@@3P6AXPEAUVkCommandBuffer_T@@IIPEBQEAUVkBuffer_T@@PEB_K22@ZEA$1?pk_vkCmdBindVertexBuffers2@rec@mkwvk@@YAX0II1222@ZP6AX0II1222@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@IIPEBQEAUVkBuffer_T@@PEB_K22@Z": {
+ "?call@?$Route@$1?vkCmdBindVertexBuffers2@vkx@@3P6AXPEAUVkCommandBuffer_T@@IIPEBQEAUVkBuffer_T@@PEB_K22@ZEA$1?pk_vkCmdBindVertexBuffers2@rec@nx2vk@@YAX0II1222@ZP6AX0II1222@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@IIPEBQEAUVkBuffer_T@@PEB_K22@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdCopyBufferToImage@vkx@@3P6AXPEAUVkCommandBuffer_T@@PEAUVkBuffer_T@@PEAUVkImage_T@@W4VkImageLayout@@IPEBUVkBufferImageCopy@@@ZEA$1?pk_vkCmdCopyBufferToImage@rec@mkwvk@@YAX0123I4@ZP6AX0123I4@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@PEAUVkBuffer_T@@PEAUVkImage_T@@W4VkImageLayout@@IPEBUVkBufferImageCopy@@@Z": {
+ "?call@?$Route@$1?vkCmdCopyBufferToImage@vkx@@3P6AXPEAUVkCommandBuffer_T@@PEAUVkBuffer_T@@PEAUVkImage_T@@W4VkImageLayout@@IPEBUVkBufferImageCopy@@@ZEA$1?pk_vkCmdCopyBufferToImage@rec@nx2vk@@YAX0123I4@ZP6AX0123I4@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@PEAUVkBuffer_T@@PEAUVkImage_T@@W4VkImageLayout@@IPEBUVkBufferImageCopy@@@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdCopyImage@vkx@@3P6AXPEAUVkCommandBuffer_T@@PEAUVkImage_T@@W4VkImageLayout@@12IPEBUVkImageCopy@@@ZEA$1?pk_vkCmdCopyImage@rec@mkwvk@@YAX01212I3@ZP6AX01212I3@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@PEAUVkImage_T@@W4VkImageLayout@@12IPEBUVkImageCopy@@@Z": {
+ "?call@?$Route@$1?vkCmdCopyImage@vkx@@3P6AXPEAUVkCommandBuffer_T@@PEAUVkImage_T@@W4VkImageLayout@@12IPEBUVkImageCopy@@@ZEA$1?pk_vkCmdCopyImage@rec@nx2vk@@YAX01212I3@ZP6AX01212I3@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@PEAUVkImage_T@@W4VkImageLayout@@12IPEBUVkImageCopy@@@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdDispatch@vkx@@3P6AXPEAUVkCommandBuffer_T@@III@ZEA$1?pack@?$Value@$1?vkCmdDispatch@vkx@@3P6AXPEAUVkCommandBuffer_T@@III@ZEA$0M@P6AX0III@Z@rec@mkwvk@@SAX0III@ZP6AX0III@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@III@Z": {
+ "?call@?$Route@$1?vkCmdDispatch@vkx@@3P6AXPEAUVkCommandBuffer_T@@III@ZEA$1?pack@?$Value@$1?vkCmdDispatch@vkx@@3P6AXPEAUVkCommandBuffer_T@@III@ZEA$0M@P6AX0III@Z@rec@nx2vk@@SAX0III@ZP6AX0III@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@III@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdDraw@vkx@@3P6AXPEAUVkCommandBuffer_T@@IIII@ZEA$1?pack@?$Value@$1?vkCmdDraw@vkx@@3P6AXPEAUVkCommandBuffer_T@@IIII@ZEA$02P6AX0IIII@Z@rec@mkwvk@@SAX0IIII@ZP6AX0IIII@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@IIII@Z": {
+ "?call@?$Route@$1?vkCmdDraw@vkx@@3P6AXPEAUVkCommandBuffer_T@@IIII@ZEA$1?pack@?$Value@$1?vkCmdDraw@vkx@@3P6AXPEAUVkCommandBuffer_T@@IIII@ZEA$02P6AX0IIII@Z@rec@nx2vk@@SAX0IIII@ZP6AX0IIII@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@IIII@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdDrawIndexed@vkx@@3P6AXPEAUVkCommandBuffer_T@@IIIHI@ZEA$1?pack@?$Value@$1?vkCmdDrawIndexed@vkx@@3P6AXPEAUVkCommandBuffer_T@@IIIHI@ZEA$03P6AX0IIIHI@Z@rec@mkwvk@@SAX0IIIHI@ZP6AX0IIIHI@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@IIIHI@Z": {
+ "?call@?$Route@$1?vkCmdDrawIndexed@vkx@@3P6AXPEAUVkCommandBuffer_T@@IIIHI@ZEA$1?pack@?$Value@$1?vkCmdDrawIndexed@vkx@@3P6AXPEAUVkCommandBuffer_T@@IIIHI@ZEA$03P6AX0IIIHI@Z@rec@nx2vk@@SAX0IIIHI@ZP6AX0IIIHI@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@IIIHI@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdDrawMeshTasksEXT@vkx@@3P6AXPEAUVkCommandBuffer_T@@III@ZEA$1?pack@?$Value@$1?vkCmdDrawMeshTasksEXT@vkx@@3P6AXPEAUVkCommandBuffer_T@@III@ZEA$08P6AX0III@Z@rec@mkwvk@@SAX0III@ZP6AX0III@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@III@Z": {
+ "?call@?$Route@$1?vkCmdDrawMeshTasksEXT@vkx@@3P6AXPEAUVkCommandBuffer_T@@III@ZEA$1?pack@?$Value@$1?vkCmdDrawMeshTasksEXT@vkx@@3P6AXPEAUVkCommandBuffer_T@@III@ZEA$08P6AX0III@Z@rec@nx2vk@@SAX0III@ZP6AX0III@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@III@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdDrawMeshTasksIndirectEXT@vkx@@3P6AXPEAUVkCommandBuffer_T@@PEAUVkBuffer_T@@_KII@ZEA$1?pack@?$Value@$1?vkCmdDrawMeshTasksIndirectEXT@vkx@@3P6AXPEAUVkCommandBuffer_T@@PEAUVkBuffer_T@@_KII@ZEA$09P6AX012II@Z@rec@mkwvk@@SAX012II@ZP6AX012II@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@PEAUVkBuffer_T@@_KII@Z": {
+ "?call@?$Route@$1?vkCmdDrawMeshTasksIndirectEXT@vkx@@3P6AXPEAUVkCommandBuffer_T@@PEAUVkBuffer_T@@_KII@ZEA$1?pack@?$Value@$1?vkCmdDrawMeshTasksIndirectEXT@vkx@@3P6AXPEAUVkCommandBuffer_T@@PEAUVkBuffer_T@@_KII@ZEA$09P6AX012II@Z@rec@nx2vk@@SAX012II@ZP6AX012II@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@PEAUVkBuffer_T@@_KII@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdPushConstants@vkx@@3P6AXPEAUVkCommandBuffer_T@@PEAUVkPipelineLayout_T@@IIIPEBX@ZEA$1?pk_vkCmdPushConstants@rec@mkwvk@@YAX01III2@ZP6AX01III2@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@PEAUVkPipelineLayout_T@@IIIPEBX@Z": {
+ "?call@?$Route@$1?vkCmdPushConstants@vkx@@3P6AXPEAUVkCommandBuffer_T@@PEAUVkPipelineLayout_T@@IIIPEBX@ZEA$1?pk_vkCmdPushConstants@rec@nx2vk@@YAX01III2@ZP6AX01III2@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@PEAUVkPipelineLayout_T@@IIIPEBX@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
- "?call@?$Route@$1?vkCmdPushDescriptorSetKHR@vkx@@3P6AXPEAUVkCommandBuffer_T@@W4VkPipelineBindPoint@@PEAUVkPipelineLayout_T@@IIPEBUVkWriteDescriptorSet@@@ZEA$1?pk_vkCmdPushDescriptorSetKHR@rec@mkwvk@@YAX012II3@ZP6AX012II3@Z@rec@mkwvk@@SAXPEAUVkCommandBuffer_T@@W4VkPipelineBindPoint@@PEAUVkPipelineLayout_T@@IIPEBUVkWriteDescriptorSet@@@Z": {
+ "?call@?$Route@$1?vkCmdPushDescriptorSetKHR@vkx@@3P6AXPEAUVkCommandBuffer_T@@W4VkPipelineBindPoint@@PEAUVkPipelineLayout_T@@IIPEBUVkWriteDescriptorSet@@@ZEA$1?pk_vkCmdPushDescriptorSetKHR@rec@nx2vk@@YAX012II3@ZP6AX012II3@Z@rec@nx2vk@@SAXPEAUVkCommandBuffer_T@@W4VkPipelineBindPoint@@PEAUVkPipelineLayout_T@@IIPEBUVkWriteDescriptorSet@@@Z": {
   "does": "A Vulkan call wrapper of the renderer (its call-routing template): forwards one Vulkan function, counted or timed when profiling is on.",
   "source": "generated"
  },
@@ -525,623 +525,623 @@
   "does": "The C runtime's memmove.",
   "source": "read"
  },
- "mkwvk::FineScope::~FineScope": {
+ "nx2vk::FineScope::~FineScope": {
   "does": "Ends a fine-grained timer scope of the draw path (adds its time when RX_VK_PROF_FINE is set, nothing otherwise).",
   "source": "read"
  },
- "mkwvk::ParLock::ParLock": {
+ "nx2vk::ParLock::ParLock": {
   "does": "Takes the lock that guards the renderer's shared tables while a parallel replay is running (nothing otherwise).",
   "source": "read"
  },
- "mkwvk::ProfScopeHot::ProfScopeHot": {
+ "nx2vk::ProfScopeHot::ProfScopeHot": {
   "does": "Starts a sampled profiling scope: one scope in eight reads the clock.",
   "source": "read"
  },
- "mkwvk::ProfScopeHot::~ProfScopeHot": {
+ "nx2vk::ProfScopeHot::~ProfScopeHot": {
   "does": "Ends a sampled profiling scope and adds its time when it was a timed one.",
   "source": "read"
  },
- "mkwvk::ReplayPin::ReplayPin": {
+ "nx2vk::ReplayPin::ReplayPin": {
   "does": "Moves the calling thread to the renderer's reserved core for the length of a replay, remembering the mask to put back.",
   "source": "read"
  },
- "mkwvk::StatsQuery::StatsQuery": {
+ "nx2vk::StatsQuery::StatsQuery": {
   "does": "Begins a draw's or dispatch's statistics query when the draw statistics are being collected (nothing otherwise).",
   "source": "read"
  },
- "mkwvk::answer_handle": {
+ "nx2vk::answer_handle": {
   "does": "The texture handle behind one of a program's variant questions.",
   "source": "read"
  },
- "mkwvk::answer_handles": {
+ "nx2vk::answer_handles": {
   "does": "The texture handles behind all of a program's variant questions, for the program cache's key.",
   "source": "read"
  },
- "mkwvk::begin_pass": {
+ "nx2vk::begin_pass": {
   "does": "Begins a render pass for the current targets when they or their load state changed.",
   "source": "read"
  },
- "mkwvk::begin_recording": {
+ "nx2vk::begin_recording": {
   "does": "The next recording slot, begun, for the submission that will signal value.",
   "source": "read"
  },
- "mkwvk::bind_descriptors": {
+ "nx2vk::bind_descriptors": {
   "does": "Allocates or reuses the descriptor set for the writes build_descriptors made and binds it.",
   "source": "read"
  },
- "mkwvk::bind_index": {
+ "nx2vk::bind_index": {
   "does": "Binds the index buffer, skipping the Vulkan call when the same buffer, offset and type are already bound.",
   "source": "read"
  },
- "mkwvk::blit_crop_to_rect": {
+ "nx2vk::blit_crop_to_rect": {
   "does": "The crop of src (x, y, w, h; w 0: all of it) scaled into a rectangle of dst. An empty source clears the whole destination image; current callers give that fallback a full-image rectangle.",
   "source": "read"
  },
- "mkwvk::build_descriptors": {
+ "nx2vk::build_descriptors": {
   "does": "Builds the descriptor writes of a draw or dispatch: for each binding of the program, the buffer range, texture view or sampler the game's state names.",
   "source": "read"
  },
- "mkwvk::canonical_answer": {
+ "nx2vk::canonical_answer": {
   "does": "Only ignore an answer bit when the translated module already has the corresponding type. Keep the entries themselves: handle/version tracking and binding-stage masks still use them.",
   "source": "read"
  },
- "mkwvk::capture_make": {
+ "nx2vk::capture_make": {
   "does": "Makes a submission's capture: copies the written pages of GPU-visible memory so the replay sees memory as it was.",
   "source": "read"
  },
- "mkwvk::capture_ranges_merged": {
+ "nx2vk::capture_ranges_merged": {
   "does": "The ranges the captures take (the mirrored pools, the texture storage, the small pools): their union, sorted and merged, as of now; empty while no capture was made (memory_collect_written: a page in them written after its submit's capture is left for the next capture)..",
   "source": "read"
  },
- "mkwvk::clear_color_target": {
+ "nx2vk::clear_color_target": {
   "does": "Replays a colour clear of one render target with the game's write mask.",
   "source": "read"
  },
- "mkwvk::clear_depth_stencil": {
+ "nx2vk::clear_depth_stencil": {
   "does": "Replays a depth and stencil clear of the current depth target.",
   "source": "read"
  },
- "mkwvk::color_types_of": {
+ "nx2vk::color_types_of": {
   "does": "(hookshot) The colour output types a program is translated for: each target's, by its format (Shader::AttributeType). The draw's, and the pipeline state list's from the formats it maps the game's to (state_targets).",
   "source": "read"
  },
- "mkwvk::completed": {
+ "nx2vk::completed": {
   "does": "The GPU's progress: the timeline semaphore's counter.",
   "source": "read"
  },
- "mkwvk::copy_helper_main": {
+ "nx2vk::copy_helper_main": {
   "does": "A helper thread that shares the capture's page copies.",
   "source": "read"
  },
- "mkwvk::copy_nt": {
+ "nx2vk::copy_nt": {
   "does": "Copies captured guest pages with non-temporal stores (the copy of what a submission's memory looked like).",
   "source": "read"
  },
- "mkwvk::copy_part": {
+ "nx2vk::copy_part": {
   "does": "One share of the capture's page copies, done by a copy helper thread.",
   "source": "read"
  },
- "mkwvk::copy_split": {
+ "nx2vk::copy_split": {
   "does": "(hookshot) whole's n copies in helpers + 1 parts: the first on the calling thread, the others queued for the helpers. Under 128 copies (512 KB) all on the calling thread: waking the helpers costs more than they save..",
   "source": "read"
  },
- "mkwvk::cpu_words_merge": {
+ "nx2vk::cpu_words_merge": {
   "does": "Merges the per-submission record of CPU-written words into the pools' state.",
   "source": "read"
  },
- "mkwvk::create": {
+ "nx2vk::create": {
   "does": "Creates the renderer's texture for a guest texture description: the Vulkan image, its memory and its bookkeeping.",
   "source": "read"
  },
- "mkwvk::cs_layout": {
+ "nx2vk::cs_layout": {
   "does": "The layout of the driver's constant bank for the current state.",
   "source": "read"
  },
- "mkwvk::desc_fp_note": {
+ "nx2vk::desc_fp_note": {
   "does": "Adds a texture slot and its version to the fingerprint of a draw's descriptor set (the set is reused while the fingerprint is the same).",
   "source": "read"
  },
- "mkwvk::desc_slotgen_on": {
+ "nx2vk::desc_slotgen_on": {
   "does": "(hookshot) the Descriptor reuse row / RX_VK_DESC_SLOTGEN=1: a draw keeps its descriptors through registrations of the texture slots it does not sample. What it does sample is checked by slot version, and the samplers by their registrations' generation, instead of the global one every registration moves..",
   "source": "read"
  },
- "mkwvk::desc_slots_kept": {
+ "nx2vk::desc_slots_kept": {
   "does": "(RX_VK_DESC_SLOTGEN) Whether every slot the last build resolved still holds what it did: no registration since touched a slot this draw samples, so its descriptors stand through the streaming's churn. A build that sampled an unregistered slot keeps the old check.",
   "source": "read"
  },
- "mkwvk::dispatch": {
+ "nx2vk::dispatch": {
   "does": "Replays one compute dispatch.",
   "source": "read"
  },
- "mkwvk::dlss_trace_draw": {
+ "nx2vk::dlss_trace_draw": {
   "does": "(hookshot, a diagnostic for the temporal upscaler's motion: vk_temporal.cpp) RX_VK_DLSS_TRACE=<frames>: every that many frames, one frame's draws into targets of a size the upscaler can take as the scene (temporal_scene_size), logged: the program, its targets' formats, the geometry and the uniform buffers.",
   "source": "read"
  },
- "mkwvk::drain": {
+ "nx2vk::drain": {
   "does": "Every stopped queue on now (why: an index of st_forced): in turn as their waits allow; when all of them wait, the oldest past its wait.",
   "source": "read"
  },
- "mkwvk::draw": {
+ "nx2vk::draw": {
   "does": "Replays one draw: program, pipeline, vertex streams, descriptors, dynamic state, then the Vulkan draw call.",
   "source": "read"
  },
- "mkwvk::draw_begin_recording": {
+ "nx2vk::draw_begin_recording": {
   "does": "Readies the per-recording draw state when the replay starts a new Vulkan command buffer.",
   "source": "read"
  },
- "mkwvk::draw_hazards": {
+ "nx2vk::draw_hazards": {
   "does": "Finds a draw that samples a target its pass writes, which must start a pass of its own.",
   "source": "read"
  },
- "mkwvk::driver_bank_fill": {
+ "nx2vk::driver_bank_fill": {
   "does": "Fills a whole driver constant bank for a stage (the bytes NVN's driver would have written).",
   "source": "read"
  },
- "mkwvk::driver_bank_word": {
+ "nx2vk::driver_bank_word": {
   "does": "One word of the driver's constant bank (what NVN's driver would put in c0/c2) as the shader reads it.",
   "source": "read"
  },
- "mkwvk::dump_on": {
+ "nx2vk::dump_on": {
   "does": "Whether a frame dump is armed (a debug switch; a flag read).",
   "source": "read"
  },
- "mkwvk::dump_ssbos": {
+ "nx2vk::dump_ssbos": {
   "does": "(and the GPU's copies of them, before or after the dispatch).",
   "source": "read"
  },
- "mkwvk::dynamic_state": {
+ "nx2vk::dynamic_state": {
   "does": "Sets the Vulkan dynamic state that changed since the last draw (viewport, scissor, depth, stencil, blend constants).",
   "source": "read"
  },
- "mkwvk::fence": {
+ "nx2vk::fence": {
   "does": "Waits until the GPU has finished the submissions up to a point (called when the game reuses memory the GPU may still read).",
   "source": "read"
  },
- "mkwvk::fence_q": {
+ "nx2vk::fence_q": {
   "does": "(hookshot) A fence of one queue (nvnQueueFenceSync): the value of that queue's last submission.",
   "source": "read"
  },
- "mkwvk::finish_recording": {
+ "nx2vk::finish_recording": {
   "does": "The recording being made: ended and submitted, the timeline signalled as far as no older submission is unfinished.",
   "source": "read"
  },
- "mkwvk::flush_ub_updates": {
+ "nx2vk::flush_ub_updates": {
   "does": "The recording's uniform updates into guest memory (after its draws: the ones that came after an update read their overlay copies).",
   "source": "read"
  },
- "mkwvk::framegen_scale": {
+ "nx2vk::framegen_scale": {
   "does": "Scales and sharpens the game's picture into the output image, with the ultrawide sides when they are on; nothing when no scaling is wanted.",
   "source": "read"
  },
- "mkwvk::full_barrier": {
+ "nx2vk::full_barrier": {
   "does": "Records a full pipeline barrier in the command buffer (left out when one was just recorded with no work since).",
   "source": "read"
  },
- "mkwvk::get_pushed": {
+ "nx2vk::get_pushed": {
   "does": "How many submissions the game has handed over so far.",
   "source": "read"
  },
- "mkwvk::get_replayed": {
+ "nx2vk::get_replayed": {
   "does": "How far the replay has got (the last submission replayed), for the host to free what is no longer needed.",
   "source": "read"
  },
- "mkwvk::gpu_bind_stamp": {
+ "nx2vk::gpu_bind_stamp": {
   "does": "(pools leaving, a mirror made, or the next submission: a remembered read binding is looked up again).",
   "source": "read"
  },
- "mkwvk::gpu_buffer_bind": {
+ "nx2vk::gpu_buffer_bind": {
   "does": "The Vulkan buffer and offset for a guest GPU address range: finds the memory pool's mirror and brings it up to date.",
   "source": "read"
  },
- "mkwvk::gpu_buffer_bind::lambda": {
+ "nx2vk::gpu_buffer_bind::lambda": {
   "does": "Inside gpu_buffer_bind: remembers the buffer found for a range so the next binding of the same range skips the lookup.",
   "source": "read"
  },
- "mkwvk::gpu_pool_start": {
+ "nx2vk::gpu_pool_start": {
   "does": "Where the memory pool that holds a GPU address begins.",
   "source": "read"
  },
- "mkwvk::gpu_time_collect": {
+ "nx2vk::gpu_time_collect": {
   "does": "Reads a finished recording's two GPU timestamp queries (the GPU time a frame the profile shows).",
   "source": "read"
  },
- "mkwvk::gpu_write": {
+ "nx2vk::gpu_write": {
   "does": "Writes bytes into guest GPU memory from the command stream (vkCmdUpdateBuffer in 64 KB pieces).",
   "source": "read"
  },
- "mkwvk::gpu_wrote_into": {
+ "nx2vk::gpu_wrote_into": {
   "does": "Whether a finished GPU write went into a texture's storage after its last upload (the texture then reloads from memory).",
   "source": "read"
  },
- "mkwvk::graphics_key": {
+ "nx2vk::graphics_key": {
   "does": "A vertex and fragment program's key: their code, and the vertex input and colour output types that change what they translate to.",
   "source": "read"
  },
- "mkwvk::graphics_pipeline": {
+ "nx2vk::graphics_pipeline": {
   "does": "The Vulkan pipeline for a program and the state baked into it, from the pipeline cache (compiles on a miss).",
   "source": "read"
  },
- "mkwvk::guarded_copy": {
+ "nx2vk::guarded_copy": {
   "does": "copy_nt behind a fault handler: a guest page unmapped meanwhile ends the copy instead of the game.",
   "source": "read"
  },
- "mkwvk::guest_bytes": {
+ "nx2vk::guest_bytes": {
   "does": "The guest bytes [gpu, gpu + n) in host memory: in place when contiguous, else copied into scratch.",
   "source": "read"
  },
- "mkwvk::guest_cpu_wrote": {
+ "nx2vk::guest_cpu_wrote": {
   "does": "Notes the pages of a guest range the game's code wrote, so a pending copy-back of GPU results does not overwrite them.",
   "source": "read"
  },
- "mkwvk::handle_hits": {
+ "nx2vk::handle_hits": {
   "does": "The per-thread cache of texture views by handle that texture_view_of looks in first.",
   "source": "read"
  },
- "mkwvk::import_pool": {
+ "nx2vk::import_pool": {
   "does": "Imports a guest memory range as a Vulkan buffer over the same host memory (no copy), or reports why it cannot.",
   "source": "read"
  },
- "mkwvk::jitter_sample": {
+ "nx2vk::jitter_sample": {
   "does": "(hookshot) The host's camera jitter (nx2/oot_jitter.py, host/rx_backend.c): the scene's size while a temporal upscaler draws, NVIDIA DLSS or AMD FSR 4 (vk_temporal.cpp) or AMD FSR 3.1 (vk_fsr3_inputs.cpp), whichever it is (one at a time: the Upscaler row); 0, no jitter, otherwise.",
   "source": "read"
  },
- "mkwvk::log_big_copy": {
+ "nx2vk::log_big_copy": {
   "does": "(RX_VK_LOG_BIG_COPY=1: copies into textures of 32 MB or more, 300 lines).",
   "source": "read"
  },
- "mkwvk::log_img_wanted": {
+ "nx2vk::log_img_wanted": {
   "does": "Whether a program's texture bindings are to be logged (RX_VK_LOG_IMG; false in normal runs).",
   "source": "read"
  },
- "mkwvk::memory_begin_submission": {
+ "nx2vk::memory_begin_submission": {
   "does": "Start of a submission's memory work: takes the capture made at submit and readies the mirrors.",
   "source": "read"
  },
- "mkwvk::memory_collect_written": {
+ "nx2vk::memory_collect_written": {
   "does": "Collects the pages the game wrote since the last submission (host: collect_in).",
   "source": "read"
  },
- "mkwvk::memory_cpu_owned": {
+ "nx2vk::memory_cpu_owned": {
   "does": "Notes words of GPU-written memory the CPU has since written itself, so a later write-back does not overwrite them.",
   "source": "read"
  },
- "mkwvk::memory_end_submission": {
+ "nx2vk::memory_end_submission": {
   "does": "End of a submission's memory work: records the write-back of what the GPU wrote and merges the CPU's written words.",
   "source": "read"
  },
- "mkwvk::memory_end_submission::lambda": {
+ "nx2vk::memory_end_submission::lambda": {
   "does": "Inside memory_end_submission: records one copy-back of a range the GPU wrote.",
   "source": "read"
  },
- "mkwvk::memory_page_stamp": {
+ "nx2vk::memory_page_stamp": {
   "does": "A guest page's change stamp (bumped when the page is written).",
   "source": "read"
  },
- "mkwvk::memory_rb_recording_begun": {
+ "nx2vk::memory_rb_recording_begun": {
   "does": "Notes which mirror uploads a new recording has already joined (readback refresh bookkeeping).",
   "source": "read"
  },
- "mkwvk::memory_rb_refresh": {
+ "nx2vk::memory_rb_refresh": {
   "does": "Records the copies that refresh readback buffers into the submission's upload command buffer.",
   "source": "read"
  },
- "mkwvk::memory_rb_refresh::lambda": {
+ "nx2vk::memory_rb_refresh::lambda": {
   "does": "A lambda inside memory_rb_refresh. Records the refresh copies into the submission's upload command buffer; true when it recorded any.",
   "source": "read"
  },
- "mkwvk::memory_read_as_submitted": {
+ "nx2vk::memory_read_as_submitted": {
   "does": "Reads guest memory as it was when the submission was made (from the capture), for what the replay must read on the CPU.",
   "source": "read"
  },
- "mkwvk::memory_stamp": {
+ "nx2vk::memory_stamp": {
   "does": "Marks a guest range as changed for everything that caches by page.",
   "source": "read"
  },
- "mkwvk::memory_sync": {
+ "nx2vk::memory_sync": {
   "does": "Refresh the guest's pool table (no Vulkan work: pools are imported as they are used).",
   "source": "read"
  },
- "mkwvk::memory_table_flush": {
+ "nx2vk::memory_table_flush": {
   "does": "(at the end of the recording's uploads: the changes, the last one for each page, as transfers into the table; the upload command buffer's barriers order them after the work submitted before and before this submission's).",
   "source": "read"
  },
- "mkwvk::memory_table_flush::lambda": {
+ "nx2vk::memory_table_flush::lambda": {
   "does": "A lambda inside memory_table_flush. (at the end of the recording's uploads: the changes, the last one for each page, as transfers into the table; the upload command buffer's barriers order them after the work submitted before and before this submission's).",
   "source": "read"
  },
- "mkwvk::memory_writeback_value": {
+ "nx2vk::memory_writeback_value": {
   "does": "The newest submission that writes a guest range back from the GPU.",
   "source": "read"
  },
- "mkwvk::memory_written_runs": {
+ "nx2vk::memory_written_runs": {
   "does": "The runs of pages in a range written since a given generation.",
   "source": "read"
  },
- "mkwvk::menu_vsync": {
+ "nx2vk::menu_vsync": {
   "does": "The V-Sync choice of the menu, read at every present.",
   "source": "read"
  },
- "mkwvk::mirror_make": {
+ "nx2vk::mirror_make": {
   "does": "A pool's mirror made, filled in the recording's upload command buffer: all of it, then the pages a capture holds as they were at their submit (pools_mu held). False over the budget (tried again when next bound, as mirrors are given back) or over 1 GB (never).",
   "source": "read"
  },
- "mkwvk::mirror_sync": {
+ "nx2vk::mirror_sync": {
   "does": "Copies the pages the CPU wrote in a pool since its mirror's last sync into the mirror (the upload command buffer).",
   "source": "read"
  },
- "mkwvk::nvn_block_size": {
+ "nx2vk::nvn_block_size": {
   "does": "Bytes per block and block size of an NVN format: the texture code's table, plus ASTC's fixed 16-byte blocks.",
   "source": "read"
  },
- "mkwvk::on": {
+ "nx2vk::on": {
   "does": "With a.mu held: the row on, the extension and its feature, and no frame generation (its own display thread). Turning off tells the driver once.",
   "source": "read"
  },
- "mkwvk::parse_code": {
+ "nx2vk::parse_code": {
   "does": "A control section and its code, from the game's memory or the archives (the seed).",
   "source": "read"
  },
- "mkwvk::pass": {
+ "nx2vk::pass": {
   "does": "One pass: pipe over w x h in 8x8 groups, the bindings in order (a sampler when one is given: a sampled image).",
   "source": "read"
  },
- "mkwvk::pipeline_key": {
+ "nx2vk::pipeline_key": {
   "does": "The key of a graphics pipeline: everything baked into it.",
   "source": "read"
  },
- "mkwvk::pointer_table": {
+ "nx2vk::pointer_table": {
   "does": "The table of buffer addresses NVN's driver would pass to a shader stage, built once per state change and thread.",
   "source": "read"
  },
- "mkwvk::pool_of": {
+ "nx2vk::pool_of": {
   "does": "The memory pool that holds a guest address range.",
   "source": "read"
  },
- "mkwvk::present": {
+ "nx2vk::present": {
   "does": "The renderer's side of nvnQueuePresentTexture: finishes the frame's replay and hands the game's picture to the presentation path.",
   "source": "read"
  },
- "mkwvk::present_image": {
+ "nx2vk::present_image": {
   "does": "Puts the frame's picture on the swapchain: scaling, the overlays and the menu, then the present itself; remakes the swapchain when its format or size changed.",
   "source": "read"
  },
- "mkwvk::present_out": {
+ "nx2vk::present_out": {
   "does": "Presents a swapchain image (vkQueuePresentKHR with the frame's present id), outside the queue lock.",
   "source": "read"
  },
- "mkwvk::prof_now": {
+ "nx2vk::prof_now": {
   "does": "The clock for the renderer's own timers.",
   "source": "read"
  },
- "mkwvk::prog_same": {
+ "nx2vk::prog_same": {
   "does": "The last answer for this serial, these stages, these bindings and these vertex inputs.",
   "source": "read"
  },
- "mkwvk::program_cache_load": {
+ "nx2vk::program_cache_load": {
   "does": "(shader_mu held) the kept variants of key go to its list, ready, once.",
   "source": "read"
  },
- "mkwvk::program_for": {
+ "nx2vk::program_for": {
   "does": "The translated shader program for the game's current shaders and state, from a per-thread cache of the last picks.",
   "source": "read"
  },
- "mkwvk::program_for::lambda": {
+ "nx2vk::program_for::lambda": {
   "does": "Inside program_for: stores the picked program in the per-thread cache of last picks.",
   "source": "read"
  },
- "mkwvk::push_constants": {
+ "nx2vk::push_constants": {
   "does": "Pushes a program's constants before a draw or dispatch; most programs read none and skip it.",
   "source": "read"
  },
- "mkwvk::read_code": {
+ "nx2vk::read_code": {
   "does": "Reads a shader stage's control block and code from guest memory for translation.",
   "source": "read"
  },
- "mkwvk::recording_wait": {
+ "nx2vk::recording_wait": {
   "does": "(a recording slot's last submit done: before it is used again).",
   "source": "read"
  },
- "mkwvk::refresh_pool_ranges_locked": {
+ "nx2vk::refresh_pool_ranges_locked": {
   "does": "Rebuilds the list of GPU-visible memory ranges the capture scans.",
   "source": "read"
  },
- "mkwvk::register_texture_copy": {
+ "nx2vk::register_texture_copy": {
   "does": "Stores a copy of a texture's description under its texture-pool slot when the game registers it (nvnTexturePoolRegisterTexture).",
   "source": "read"
  },
- "mkwvk::replay": {
+ "nx2vk::replay": {
   "does": "Walks a submission's recorded commands and replays each into Vulkan state and calls.",
   "source": "read"
  },
- "mkwvk::resume_queue": {
+ "nx2vk::resume_queue": {
   "does": "A stopped queue on (forced: past the wait it stopped at), then its later submits, as far as their waits allow.",
   "source": "read"
  },
- "mkwvk::retired_imports_give_back": {
+ "nx2vk::retired_imports_give_back": {
   "does": "Returns imported host memory of retired pools to the system when it is safe (kept by default on Windows).",
   "source": "read"
  },
- "mkwvk::run_submit": {
+ "nx2vk::run_submit": {
   "does": "Replays one submitted command list and submits the Vulkan command buffers made from it.",
   "source": "read"
  },
- "mkwvk::shadow_drop_range": {
+ "nx2vk::shadow_drop_range": {
   "does": "Drops the kept copies of what the GPU last wrote for the pages of a range that changed.",
   "source": "read"
  },
- "mkwvk::shadow_written_to": {
+ "nx2vk::shadow_written_to": {
   "does": "Adds pages to the list of pages written since the write-back shadows were taken.",
   "source": "read"
  },
- "mkwvk::shadows_forget_written": {
+ "nx2vk::shadows_forget_written": {
   "does": "After a submission: drops the write-back shadows of the pages written since (sorts and merges the three page lists).",
   "source": "read"
  },
- "mkwvk::skin_check": {
+ "nx2vk::skin_check": {
   "does": "Decides whether a draw is a skinned (moving) draw, whose motion the temporal upscalers need (vk_temporal.cpp).",
   "source": "read"
  },
- "mkwvk::skip_live": {
+ "nx2vk::skip_live": {
   "does": "(EvilOOT) RX_VK_SKIP_FILE=<file>: the draws of the programs listed in it (hex keys, comma or newline separated) left out, the file read again whenever it changes (checked every 300 ms): a bisection in one run, from the scene being looked at.",
   "source": "read"
  },
- "mkwvk::stage_cbuf_word": {
+ "nx2vk::stage_cbuf_word": {
   "does": "One word of a stage's constant buffers as the shader will see it.",
   "source": "read"
  },
- "mkwvk::stage_handle": {
+ "nx2vk::stage_handle": {
   "does": "Evaluates a shader stage's small handle program: which texture handle the shader will read from its constants.",
   "source": "read"
  },
- "mkwvk::stats_tick": {
+ "nx2vk::stats_tick": {
   "does": "(each draw) arms a capture when the trigger file is there; writes the results once the measured frame is long done.",
   "source": "read"
  },
- "mkwvk::still_valid": {
+ "nx2vk::still_valid": {
   "does": "Whether the textures bound now answer what the variant's translation was told (a variant whose translation asked nothing stands for any, and an unbound slot takes any).",
   "source": "read"
  },
- "mkwvk::stream_reserve": {
+ "nx2vk::stream_reserve": {
   "does": "Room in the recording's upload stream.",
   "source": "read"
  },
- "mkwvk::submit_job": {
+ "nx2vk::submit_job": {
   "does": "A submit on the replay thread: replayed as far as its waits allow, or (its queue stopped) after its queue's.",
   "source": "read"
  },
- "mkwvk::submit_q": {
+ "nx2vk::submit_q": {
   "does": "The renderer's side of nvnQueueSubmitCommands: takes the capture of guest memory for the submission and replays its command lists (on the calling thread in the default mode).",
   "source": "read"
  },
- "mkwvk::submit_recording": {
+ "nx2vk::submit_recording": {
   "does": "Ends a replayed recording: flushes its draw state, adds the texture uploads and the memory copies recorded for it, and submits its Vulkan command buffer.",
   "source": "read"
  },
- "mkwvk::taau_key": {
+ "nx2vk::taau_key": {
   "does": "Whether a shader program is the one Hookshot replaces with its own upscale (shaders/taau_upscale.comp).",
   "source": "read"
  },
- "mkwvk::taau_stand_in": {
+ "nx2vk::taau_stand_in": {
   "does": "Whether a compute dispatch is the game's temporal anti-aliasing pass the renderer stands in for.",
   "source": "read"
  },
- "mkwvk::take_capture": {
+ "nx2vk::take_capture": {
   "does": "Hands a submit-time capture to the replay that will read it.",
   "source": "read"
  },
- "mkwvk::target_write_mask": {
+ "nx2vk::target_write_mask": {
   "does": "A target's write mask: the state's channel mask, or nothing for a target the fragment shader leaves unwritten.",
   "source": "read"
  },
- "mkwvk::targets": {
+ "nx2vk::targets": {
   "does": "The Vulkan views of the game's current render targets, cached until the targets change.",
   "source": "read"
  },
- "mkwvk::temporal_stand_in": {
+ "nx2vk::temporal_stand_in": {
   "does": "(hookshot) A temporal upscaler (NVIDIA DLSS, AMD FSR 4: vk_temporal.cpp) in place of the gameplay upscale network, when one is on and its inputs are as expected: the network's input as it samples it, its output's storage view.",
   "source": "read"
  },
- "mkwvk::texture_answer": {
+ "nx2vk::texture_answer": {
   "does": "A texture's kind (the answer to a shader variant's question), cached by texture slot.",
   "source": "read"
  },
- "mkwvk::texture_dirty": {
+ "nx2vk::texture_dirty": {
   "does": "What the CPU wrote of a texture's storage since gen, as byte ranges from its start. A texture in a virtual (sparse) pool is looked at page by page through its mapping, and is all dirty when its mapping changed.",
   "source": "read"
  },
- "mkwvk::texture_frame": {
+ "nx2vk::texture_frame": {
   "does": "Per-frame texture bookkeeping at present: upload statistics, deferred uploads, eviction.",
   "source": "read"
  },
- "mkwvk::texture_get": {
+ "nx2vk::texture_get": {
   "does": "The renderer's texture for a guest texture description, created on first use.",
   "source": "read"
  },
- "mkwvk::texture_gpu_wrote": {
+ "nx2vk::texture_gpu_wrote": {
   "does": "Notes that the GPU writes a memory range, so textures stored there are reloaded.",
   "source": "read"
  },
- "mkwvk::texture_of": {
+ "nx2vk::texture_of": {
   "does": "The texture description registered under a texture-pool slot.",
   "source": "read"
  },
- "mkwvk::texture_released": {
+ "nx2vk::texture_released": {
   "does": "Forgets the slots registered for a texture the game finalized.",
   "source": "read"
  },
- "mkwvk::texture_rendered": {
+ "nx2vk::texture_rendered": {
   "does": "Notes that a pass rendered into a texture.",
   "source": "read"
  },
- "mkwvk::texture_slot_version": {
+ "nx2vk::texture_slot_version": {
   "does": "A texture-pool slot's version: bumped when the slot is registered anew, so caches keyed by the slot notice.",
   "source": "read"
  },
- "mkwvk::texture_touch": {
+ "nx2vk::texture_touch": {
   "does": "Marks a texture used by this frame and this recording; for sampling it also makes sure its upload is not deferred.",
   "source": "read"
  },
- "mkwvk::texture_touch_quick": {
+ "nx2vk::texture_touch_quick": {
   "does": "Marks a texture used this frame and checks whether its guest storage changed since its upload.",
   "source": "read"
  },
- "mkwvk::texture_view": {
+ "nx2vk::texture_view": {
   "does": "Makes or finds a view of a texture's image for a level and layer range.",
   "source": "read"
  },
- "mkwvk::texture_view_of": {
+ "nx2vk::texture_view_of": {
   "does": "The Vulkan image view for a texture handle as a binding needs it (view type, use, format), from a small cache keyed by the handle.",
   "source": "read"
  },
- "mkwvk::ub_generation": {
+ "nx2vk::ub_generation": {
   "does": "The change counter of the uniform-buffer update list (caches of uniform words check it).",
   "source": "read"
  },
- "mkwvk::ub_overlay": {
+ "nx2vk::ub_overlay": {
   "does": "Lays the uniform updates the command stream made so far over a buffer range read on the CPU.",
   "source": "read"
  },
- "mkwvk::ub_read": {
+ "nx2vk::ub_read": {
   "does": "Guest memory as the stream's place sees it: the capture with the stream's earlier uniform updates over it.",
   "source": "read"
  },
- "mkwvk::ub_try_gap": {
+ "nx2vk::ub_try_gap": {
   "does": "Whether a read of uniform-buffer memory falls in a gap between the stream's own updates (then the captured memory answers).",
   "source": "read"
  },
- "mkwvk::ub_word_hit": {
+ "nx2vk::ub_word_hit": {
   "does": "A cached word of uniform-buffer memory as the stream sees it, valid while the page and the recording are unchanged.",
   "source": "read"
  },
- "mkwvk::upload_inner": {
+ "nx2vk::upload_inner": {
   "does": "Uploads a texture's changed data from guest memory to its Vulkan image, converting or decoding the format where needed.",
   "source": "read"
  },
- "mkwvk::use_queue_state": {
+ "nx2vk::use_queue_state": {
   "does": "The state the replay goes on with: its queue's. (The draw path's caches made afresh: they are keyed on the state's counters, which the queues' states share no order of.).",
   "source": "read"
  },
- "mkwvk::vertex_set_same": {
+ "nx2vk::vertex_set_same": {
   "does": "Whether the vertex streams to bind are the ones already bound on this command buffer.",
   "source": "read"
  },
- "mkwvk::wait_recorded": {
+ "nx2vk::wait_recorded": {
   "does": "(hookshot) Waits for the recording submission value f (or the recording of value f) was finished in, on the recordings' timeline: true when that recording is known (the result in *ok), false when it is not (f not finished yet).",
   "source": "read"
  },
- "mkwvk::watch_tex": {
+ "nx2vk::watch_tex": {
   "does": "HOS_NVN_WATCH_TEX=<handle hex> (debugging): who binds that texture handle, as guest call chains (frame pointers), each new chain logged once.",
   "source": "read"
  },
- "mkwvk::watched": {
+ "nx2vk::watched": {
   "does": "Whether a program is on the debug watch list (RX_VK_WATCH_PROG; false in normal runs).",
   "source": "read"
  },
- "mkwvk::wb_pages_note": {
+ "nx2vk::wb_pages_note": {
   "does": "Notes pages the GPU will write so their contents are copied back to guest memory.",
   "source": "read"
  },
- "mkwvk::widened": {
+ "nx2vk::widened": {
   "does": "3-component formats are not image formats on NVIDIA: the image holds 4 (alpha one), the upload widens them.",
   "source": "read"
  },

@@ -11,7 +11,7 @@
 #include <cfloat>
 #include <cmath>
 
-namespace mkwvk::fsr3_math {
+namespace nx2vk::fsr3_math {
 
 struct Camera {
     /// view distance = [1] / (device depth - [0]); view x = [2] * ndc x * distance, y = [3] * ndc y * distance. For the
@@ -56,4 +56,4 @@ inline float view_distance(const Camera& c, float device_depth) {
     return c.device_to_view_depth[1] / (device_depth - c.device_to_view_depth[0]);
 }
 
-} // namespace mkwvk::fsr3_math
+} // namespace nx2vk::fsr3_math

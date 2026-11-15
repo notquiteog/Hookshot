@@ -17,7 +17,7 @@
 
 #include <vulkan/vulkan.h>
 
-namespace mkwvk::opennr_khr {
+namespace nx2vk::opennr_khr {
 
 struct Variant {
     const char* name;
@@ -101,4 +101,4 @@ inline const Variant* choose(const Device& d, const char* forced, std::string* w
     return nullptr;
 }
 
-} // namespace mkwvk::opennr_khr
+} // namespace nx2vk::opennr_khr

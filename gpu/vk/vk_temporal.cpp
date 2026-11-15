@@ -73,7 +73,7 @@
 #include "shaders/dlss_prep_comp_spv.h"
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk {
+namespace nx2vk {
 
 namespace ur = upscaler_rows;
 
@@ -831,7 +831,7 @@ bool temporal_scene_size(uint32_t width, uint32_t height) {
                                         s.out_h.load(std::memory_order_relaxed));
 }
 
-MkwVkJitter temporal_jitter_sample() {
+NX2VkJitter temporal_jitter_sample() {
     static const bool off = env_switch("RX_VK_DLSS_JITTER") == 0;
     static const bool fsr3_off = env_switch("RX_VK_FSR_JITTER") == 0;   // (hookshot: FSR 3.1's own switch, on the chain too)
     State& s = st();
@@ -843,7 +843,7 @@ MkwVkJitter temporal_jitter_sample() {
 }
 
 uint32_t temporal_jitter_size(int axis) {
-    const MkwVkJitter sample = temporal_jitter_sample();
+    const NX2VkJitter sample = temporal_jitter_sample();
     return axis == 2 ? sample.phases : axis ? sample.height : sample.width;
 }
 
@@ -1284,4 +1284,4 @@ bool temporal_upscale(VkCommandBuffer cmd, uint64_t key, bool known, Texture* in
     return true;
 }
 
-} // namespace mkwvk
+} // namespace nx2vk

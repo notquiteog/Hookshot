@@ -46,7 +46,7 @@ void vkCmdCopyBuffer(VkCommandBuffer cb, VkBuffer s, VkBuffer d, uint32_t n, con
     cb->cmds.push_back({'c', s, d, std::vector<VkBufferCopy>(r, r + n), 0, 0});
 }
 
-namespace mkwvk {
+namespace nx2vk {
 constexpr uint64_t kPageShift = 12;
 void logf(const char*, ...) {}
 struct GprofSpan {
@@ -130,8 +130,8 @@ BufferRef bind_storage(const Desc& d, uint64_t addr, uint64_t size, uint64_t* ba
     *base_out = base;
     return b;
 }
-}  // namespace mkwvk
-using namespace mkwvk;
+}  // namespace nx2vk
+using namespace nx2vk;
 
 // ---- the world ----
 constexpr uint64_t LO = 0x10000000, SZ = 0x10000, A = LO + 0x2000;

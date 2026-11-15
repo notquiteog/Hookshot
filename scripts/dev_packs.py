@@ -31,7 +31,7 @@ changes nothing in what players build (docs/development.md, *Testing a change ag
     python -I scripts/dev_packs.py ls <dir>
 
 A pack's modules come from the same base as the rest of the runtime, so the game and the renderer always match
-(MKWVK_API_VERSION). Two packs that bring the same file are refused: merge their branches and build one pack. base, pack, rt
+(NX2VK_API_VERSION). Two packs that bring the same file are refused: merge their branches and build one pack. base, pack, rt
 and warm hold <dir>/dev_packs.busy while they run, so a second job on the same base is refused.
 """
 import argparse
@@ -55,8 +55,10 @@ CROSS = WINDOWS and os.name != "nt"   # (the Windows game built on Linux: it can
 # (the game's own caches beside it, kept between runs and stamped by the translator (gpu/vk/vk_progcache.cpp): a stale one is
 # not used, so a base can start from an older base's)
 CACHES = ("hookshot_programs.bin", "hookshot_programs.idx", "hookshot_pipelines.bin", "hookshot_pipelines.bin.predicted",
-          "hookshot_computes.bin", "hookshot_pipeline_states.bin", "hookshot_prepared.bin", "mkw_vk_pipelines.bin")
-PLAY_FILES = re.compile(r"mkw_vk_pipelines_play_[0-9]+\.bin")   # (what play adds to the pipeline cache: gpu/vk/vk_draw.cpp play_path)
+          "hookshot_computes.bin", "hookshot_pipeline_states.bin", "hookshot_prepared.bin", "hookshot_pipeline_cache.bin",
+          "mkw_vk_pipelines.bin")   # (mkw_vk_pipelines.bin: the pipeline cache's old name, in a base built before the rename)
+# (what play adds to the pipeline cache: gpu/vk/vk_draw.cpp play_path; the old name's too, gpu/vk/pcache_stamp.h)
+PLAY_FILES = re.compile(r"(hookshot_pipeline_cache|mkw_vk_pipelines)_play_[0-9]+\.bin")
 BUSY = "dev_packs.busy"   # (in a base's folder while a job builds, warms or copies from it)
 SEED = "hookshot_shaders.bin"   # (the shader list the prepare goes through: a new one is prepared again)
 # (module, its map, its link list in sa/build, the object that holds the version: nx2/build.py gives hos_main.c and vk_menu.cpp

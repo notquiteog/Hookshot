@@ -48,7 +48,7 @@
 #endif
 #include "vk_work.h"   // (after the others: the barriers here count as work for full_barrier)
 
-namespace mkwvk {
+namespace nx2vk {
 
 extern std::atomic<bool> present_native_pq;   // (vk_replay.cpp do_present: the game presents its own HDR10 picture, Native)
 VkResult shared_compute_pipeline(const VkComputePipelineCreateInfo* ci, VkPipeline* out);   // (vk_draw.cpp: through the pipeline cache kept across runs)
@@ -1182,7 +1182,7 @@ bool evaluate(VkCommandBuffer cmd, const TemporalFrame& f) {
     ffxReturnCode_t r;
     {
         GprofSpan timed(cmd, "fsr4 ffxDispatch (AMD's passes)");   // (RX_VK_PASS_TIMING=1: AMD's own GPU time, named)
-        ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (ffxDispatch records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
+        ::nx2vk::rec::boundary(::nx2vk::rec::B_DIRECT);   // (ffxDispatch records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
         r = l.dispatch(&s.context->context, &d.header);
         note_work();   // (AMD's dispatches: full_barrier must not take the next barrier for a repeat of the one before them)
     }
@@ -1249,4 +1249,4 @@ bool fsr4_wants_descriptor_buffer() { return false; }
 
 #endif
 
-}  // namespace mkwvk
+}  // namespace nx2vk

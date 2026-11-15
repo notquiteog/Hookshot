@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <thread>
 
-namespace gs = mkwvk::gpu_wait_stats;
+namespace gs = nx2vk::gpu_wait_stats;
 static int failures, checks, boundaries, calls;
 static bool excluded;
 static void check(bool ok, const char* what) {
@@ -34,7 +34,7 @@ using Device = uintptr_t;
 using Fence = uint64_t;
 struct WaitInfo { uint64_t value; };
 constexpr unsigned VK_QUERY_RESULT_WAIT_BIT = 2;
-namespace mkwvk::rec {
+namespace nx2vk::rec {
 enum Bound { B_vkWaitForFences, B_vkWaitSemaphores, B_vkQueueWaitIdle, B_vkDeviceWaitIdle, B_vkGetQueryPoolResults };
 inline void boundary(Bound) {
     ++boundaries;

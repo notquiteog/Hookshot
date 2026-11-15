@@ -76,7 +76,7 @@ extern thread_local bool g_nvn2_miss_log_this;
 extern thread_local bool g_all_global_this;
 extern thread_local bool g_gm_port_this;
 }
-namespace mkwvk {
+namespace nx2vk {
 struct NvnState;
 uint32_t compute_ssbo_table(const NvnState& s, uint32_t* count, uint32_t* layout_end);   // (vk_bank.cpp)
 bool seed_cs_buffer_word(uint32_t offset);   // (vk_bank.cpp)
@@ -93,7 +93,7 @@ void ptr_diag_log(uint64_t key, const char* kind) {
     if (!ptr_diag_on()) return;
     const auto& d = Shader::Optimization::g_pointer_diag;
     if (!d.fallback && !d.mixed && !d.split) return;
-    mkwvk::logf("vk: pointers %s %016llx: %u bound (%u with memory in the address, %u SPLIT), %u run-time search (%u through a table, "
+    nx2vk::logf("vk: pointers %s %016llx: %u bound (%u with memory in the address, %u SPLIT), %u run-time search (%u through a table, "
          "%u split)",
          kind, (unsigned long long)key, d.tracked, d.mixed, d.split, d.fallback, d.fallback_table, d.fallback_split);
 }
@@ -103,7 +103,7 @@ void ptr_diag_log(uint64_t key, const char* kind) {
 #include "hookshot_env.h"
 #endif
 
-namespace mkwvk {
+namespace nx2vk {
 namespace {
 
 constexpr uint32_t kControlMagic = 0x98761234;
@@ -2660,4 +2660,4 @@ int64_t shader_translated() {
     return st_translated.load();
 }
 
-} // namespace mkwvk
+} // namespace nx2vk

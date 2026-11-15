@@ -25,7 +25,7 @@
 #include "../gpu/vk/vk_api.h"   /* (HOS_MOUSE_*) */
 
 /* A guest read, of the pointers the game's objects hold: inside the guest's space (below 1 MB: a null pointer's), it is
-   read as the lifted code reads it; a page there not committed yet is committed on the touch (mkw_glue.c
+   read as the lifted code reads it; a page there not committed yet is committed on the touch (nx2_glue.c
    commit_on_touch), so a stray pointer costs a page, not a fault. Not ReadProcessMemory: a call into the kernel each,
    hundreds a frame */
 static int peek(uint64_t a, void *dst, size_t n) {

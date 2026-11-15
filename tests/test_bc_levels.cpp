@@ -5,7 +5,7 @@
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
 int main() {
-    using namespace mkwvk::bc_levels;
+    using namespace nx2vk::bc_levels;
 
     CHECK("blocks round up", blocks(1) == 1 && blocks(4) == 1 && blocks(5) == 2 && blocks(1365) == 342);
     CHECK("powers of two are even", first_uneven(2048, 2048, 12) == 12 && first_uneven(512, 256, 10) == 10);

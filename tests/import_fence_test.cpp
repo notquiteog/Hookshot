@@ -10,7 +10,7 @@ static int bad;
 #ifdef __linux__
 int main() {
     uint8_t page[1] = {0x5a};
-    const mkwvk::ImportFence fence(page, 1, true);
+    const nx2vk::ImportFence fence(page, 1, true);
     CHECK(!fence.set() && page[0] == 0x5a);
     printf("no fence on Linux, failures=%d\n", bad);
     return bad ? 1 : 0;
@@ -39,7 +39,7 @@ int main() {
 
     CHECK(region(base) == page * pages);   // (the walk an import pays without the fence: the whole run)
     {
-        const mkwvk::ImportFence fence(base, page * range, true);
+        const nx2vk::ImportFence fence(base, page * range, true);
         CHECK(fence.set());
         CHECK(region(base) == page * range);
         CHECK(protect(after) == PAGE_EXECUTE_READWRITE && protect(after + page) == PAGE_READWRITE);
@@ -49,24 +49,24 @@ int main() {
     CHECK(region(base) == page * pages && protect(after) == PAGE_READWRITE && after[1] == 0x6b);
 
     {   // (switched off: nothing changes)
-        const mkwvk::ImportFence fence(base, page * range, false);
+        const nx2vk::ImportFence fence(base, page * range, false);
         CHECK(!fence.set() && region(base) == page * pages);
     }
     {   // (the range runs to the end of the committed pages: the page after is reserved)
-        const mkwvk::ImportFence fence(base, page * pages, true);
+        const nx2vk::ImportFence fence(base, page * pages, true);
         CHECK(!fence.set() && region(base) == page * pages);
     }
     // (a write watch's read-only page after the range stays read-only, during and after)
     CHECK(VirtualProtect(after, page, PAGE_READONLY, &old));
     {
-        const mkwvk::ImportFence fence(base, page * range, true);
+        const nx2vk::ImportFence fence(base, page * range, true);
         CHECK(!fence.set() && protect(after) == PAGE_READONLY);
     }
     CHECK(protect(after) == PAGE_READONLY);
     CHECK(VirtualProtect(after, page, PAGE_READWRITE, &old));
     // (a watch armed on the page while the fence stands is the one that stays)
     {
-        const mkwvk::ImportFence fence(base, page * range, true);
+        const nx2vk::ImportFence fence(base, page * range, true);
         CHECK(fence.set());
         CHECK(VirtualProtect(after, page, PAGE_READONLY, &old) && old == PAGE_EXECUTE_READWRITE);
     }

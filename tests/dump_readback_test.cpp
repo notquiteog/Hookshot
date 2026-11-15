@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-namespace mkwvk {
+namespace nx2vk {
 struct Allocation {
     std::vector<uint8_t> gpu, cpu;
     bool copied=false, host=false, completed=false, destroyed=false;
@@ -83,11 +83,11 @@ void wait_value(uint64_t) {
 void write_png(const char*,const uint8_t* p,uint32_t w,uint32_t h){png.assign(p,p+(size_t)w*h*4);}
 int _mkdir(const char*){return 0;}
 /* FULL_BARRIER */
-} // namespace mkwvk
+} // namespace nx2vk
 
 /* SOURCE */
 
-namespace mkwvk {
+namespace nx2vk {
 void consume_dump(bool burst_open) {
     const uint64_t value=1;
     /* CALLER */
@@ -98,13 +98,13 @@ void require(bool ok,const char* what) {
     if(!ok){std::fprintf(stderr,"FAIL %s\n",what);std::exit(1);}
 }
 template<class T> void upload(const std::vector<T>& v) {
-    mkwvk::payload.resize(v.size()*sizeof(T));
-    std::memcpy(mkwvk::payload.data(),v.data(),mkwvk::payload.size());
+    nx2vk::payload.resize(v.size()*sizeof(T));
+    std::memcpy(nx2vk::payload.data(),v.data(),nx2vk::payload.size());
 }
 
 int main(int argc,char** argv) {
     if(argc!=4)return 2;
-    using namespace mkwvk;
+    using namespace nx2vk;
     const std::string which=argv[1];
     dir=".";
     coherent=atoi(argv[2])!=0;implicit_host=atoi(argv[3])!=0;

@@ -17,7 +17,7 @@
 
 #include "../../host/hos_wide_size.h"   // (hos_output_size_valid: the sizes the game accepts)
 
-namespace mkwvk::display_modes {
+namespace nx2vk::display_modes {
 
 struct Size {
     uint32_t w, h;
@@ -143,4 +143,4 @@ inline int pick(const std::vector<Size>& sizes, const std::string& name, Size sc
     return best;
 }
 
-}  // namespace mkwvk::display_modes
+}  // namespace nx2vk::display_modes

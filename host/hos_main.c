@@ -181,7 +181,7 @@ static void *reserve_large(SIZE_T size) {
 #if !defined(_WIN32) && !defined(A64_MEM_ZERO)
 extern int hos_guest_memfd;   /* (below) */
 #ifndef _WIN32
-/* (linux) Guest addresses below 1 MB fault, as on Windows (mkw_glue.c commit_on_touch leaves them uncommitted: "a null
+/* (linux) Guest addresses below 1 MB fault, as on Windows (nx2_glue.c commit_on_touch leaves them uncommitted: "a null
    pointer: the game's own fault") and as on the console, where nothing is mapped there. The window is mapped readable and
    writable whole, so before this a game's null-pointer reads and writes went into guest page 0 without a word, and its
    crash came later and elsewhere, through whatever had been left there: Kirby Air Riders' first boot (Dragoon) read a
@@ -1740,11 +1740,11 @@ float hos_aspect_ratio = 0;   /* (the window's default shape: host/display.c) */
 /* (nx2/oot_wide.py) read by the widescreen patches in the game's code; 0: the game's own 16:9 */
 volatile uint64_t hos_wide_out, hos_wide_scene;
 volatile float hos_wide_ratio, hos_wide_squeeze, hos_wide_margin;
-volatile uint32_t hos_wide_keep_mask = 0xf;   /* (nx2/oot_wide.py KEEP_VTABLES: the screens that keep the whole picture, a bit each; MkwVkHost.wide_menus) */
+volatile uint32_t hos_wide_keep_mask = 0xf;   /* (nx2/oot_wide.py KEEP_VTABLES: the screens that keep the whole picture, a bit each; NX2VkHost.wide_menus) */
 /* The loading cover between two areas (the game's UILoadingFadeScreen, KEEP_VTABLES[3]): a black picture over the whole
    3840 x 2160 UI grid, and an icon. Drawn in the middle 16:9 with the menus, it leaves the sides open, and the game draws
    the new area under it for some frames before it opens: the sides showed that area, overbright at first, beside a black
-   middle (issue 2220). The renderer closes the sides by as much as the cover is closed (MkwVkHost.wide_cover), which is
+   middle (issue 2220). The renderer closes the sides by as much as the cover is closed (NX2VkHost.wide_cover), which is
    read here from the screen's layout. The layout ([[screen + 0x28] + 0x80]) has its panes at [+0x100], 0xb0 bytes each
    (the layout again at +0x18, the size at +0x58, the opacity at +0x74), and their tree at [+0x110], 8 bytes a pane with
    the parent's index at +2. Pane 2 is the black picture, under pane 1 (the one the fade animates) under the root, and
@@ -2167,7 +2167,7 @@ static DWORD WINAPI game_thread(void *p) {
     ExitProcess((UINT)game_main(game_argc, game_argv));
 }
 /* (hookshot, linux) Room in the drivers' own shader caches for what the preparation builds. The pipelines the notes predict (~43,000
-   in OoT, vk_draw.cpp predict_run) are built into the driver's disk cache alone, not into mkw_vk_pipelines.bin, which is read in whole
+   in OoT, vk_draw.cpp predict_run) are built into the driver's disk cache alone, not into hookshot_pipeline_cache.bin, which is read in whole
    at every start. NVIDIA's cache holds 1 GiB by default and cleans itself down to that as it is written: a full preparation filled
    it to the limit (1026 MB) and the pipelines it dropped were compiled again in play. Mesa's (RADV, ANV) has the same 1 GiB default.
    Raised for this process only, before anything loads Vulkan; a value the player set (or hookshot_env.txt) is kept. Windows: the

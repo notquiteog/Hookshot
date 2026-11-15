@@ -30,7 +30,7 @@
 #include "shaders/fsr3_prep_comp_spv.h"
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk::fsr3_inputs {
+namespace nx2vk::fsr3_inputs {
 namespace {
 
 int env_switch(const char* name) {   // (-1: unset)
@@ -372,7 +372,7 @@ void upscaled(uint32_t rw, uint32_t rh, uint32_t dw, uint32_t dh) {
     s.jitter.publish(rw, rh, (uint32_t)dlss_jitter_phases(rw, rh, dw, dh), texture_frame_no());
 }
 
-MkwVkJitter jitter_sample() {
+NX2VkJitter jitter_sample() {
     // (RX_VK_FSR_JITTER=0: none. 0 too once FSR has not drawn for a while: the camera as the game has it)
     static const bool off = env_switch("RX_VK_FSR_JITTER") == 0;
     State& s = st();
@@ -381,8 +381,8 @@ MkwVkJitter jitter_sample() {
 }
 
 uint32_t jitter_size(int axis) {
-    const MkwVkJitter sample = jitter_sample();
+    const NX2VkJitter sample = jitter_sample();
     return axis == 2 ? sample.phases : axis ? sample.height : sample.width;
 }
 
-} // namespace mkwvk::fsr3_inputs
+} // namespace nx2vk::fsr3_inputs

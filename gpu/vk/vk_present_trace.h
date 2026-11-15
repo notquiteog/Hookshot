@@ -5,7 +5,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace mkwvk {
+namespace nx2vk {
 
 struct PresentGeometrySample {
     std::array<uint32_t, 2> source{}, content{}, output{};
@@ -58,4 +58,4 @@ private:
     bool limited_ = false;
 };
 
-} // namespace mkwvk
+} // namespace nx2vk

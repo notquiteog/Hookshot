@@ -89,7 +89,7 @@ def recorder_calls(text):
     return re.findall(r"\b[VA]\((vkCmd\w+)\)", m.group(1))
 
 
-B_DIRECT_STMT = "::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);"
+B_DIRECT_STMT = "::nx2vk::rec::boundary(::nx2vk::rec::B_DIRECT);"
 
 
 C_COMMENT_OR_STRING = re.compile(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\'', re.S)
@@ -107,7 +107,7 @@ FORK_RECORD_CALLS = (("vk_ngx.cpp", FORK_NGX_RECORD_CALL), ("vk_ffx.cpp", FORK_F
                      ("vk_dlssnr.cpp", FORK_SL_RECORD_CALL), ("vk_opennr.cpp", FORK_OPENNR_RECORD_CALL))
 OPAQUE_RECORD_CALL = re.compile("|".join([UI_RECORD_CALL.pattern, NGX_RECORD_CALL.pattern, FFX_RECORD_CALL.pattern] +
                                          [call.pattern for _, call in FORK_RECORD_CALLS]))
-B_DIRECT_BEFORE = re.compile(r"::\s*mkwvk\s*::\s*rec\s*::\s*boundary\s*\(\s*::\s*mkwvk\s*::\s*rec\s*::\s*B_DIRECT\s*\)\s*;\Z")
+B_DIRECT_BEFORE = re.compile(r"::\s*nx2vk\s*::\s*rec\s*::\s*boundary\s*\(\s*::\s*nx2vk\s*::\s*rec\s*::\s*B_DIRECT\s*\)\s*;\Z")
 
 
 def blank_comments(text):
@@ -136,7 +136,7 @@ def opaque_unregistered(text, fname):
     (OPAQUE_RECORD_CALL), so a new library recording into the command buffer has to be added here, with its boundary"""
     code = blank_comments(text)
     bad = []
-    for m in re.finditer(r"(?<![\w:])(?:::\s*mkwvk\s*::\s*)?note_work\s*\(\s*\)\s*;", code):
+    for m in re.finditer(r"(?<![\w:])(?:::\s*nx2vk\s*::\s*)?note_work\s*\(\s*\)\s*;", code):
         if not OPAQUE_RECORD_CALL.search(code[max(0, m.start() - 600):m.start()]):   # (in the few statements before it)
             bad.append("%s:%d: note_work() after a recording this test does not know: add it to OPAQUE_RECORD_CALL with a "
                        "B_DIRECT boundary" % (fname, code.count("\n", 0, m.start()) + 1))
@@ -155,7 +155,7 @@ def check_sources():
         problems.append("vk_work.h's macros and RX_REC_CALLS differ: only in vk_work.h %s, only in vk_recorder.h %s"
                         % (sorted(set(macros) - set(calls)), sorted(set(calls) - set(macros))))
     for f, body in macros.items():
-        if "::mkwvk::rec::rx_%s(__VA_ARGS__)" % f not in body:
+        if "::nx2vk::rec::rx_%s(__VA_ARGS__)" % f not in body:
             problems.append("vk_work.h: %s does not call its packer: %s" % (f, body))
         if "::vkx::" in body:
             problems.append("vk_work.h: %s calls the driver directly" % f)
@@ -171,11 +171,11 @@ def check_sources():
     timed = {"vkWaitForFences": "fences", "vkWaitSemaphores": "timeline", "vkQueueWaitIdle": "idle",
              "vkDeviceWaitIdle": "idle", "vkGetQueryPoolResults": "queries"}
     bmacros = {f: (b, call) for f, b, call in re.findall(
-        r"^#define (\w+)\(\.\.\.\) \(::mkwvk::rec::boundary\(::mkwvk::rec::B_(\w+)\), (.+)\)$", work, re.M)}
+        r"^#define (\w+)\(\.\.\.\) \(::nx2vk::rec::boundary\(::nx2vk::rec::B_(\w+)\), (.+)\)$", work, re.M)}
     for f, k in bounds.items():
         q = "::vkx::" if k == "K" else "::"
         mask = ", VK_QUERY_RESULT_WAIT_BIT" if f == "vkGetQueryPoolResults" else ""
-        call = ("::mkwvk::gpu_wait_stats::%s(%s%s%s, __VA_ARGS__)" % (timed[f], q, f, mask)
+        call = ("::nx2vk::gpu_wait_stats::%s(%s%s%s, __VA_ARGS__)" % (timed[f], q, f, mask)
                 if f in timed else "%s%s(__VA_ARGS__)" % (q, f))
         if bmacros.get(f) != (f, call):
             problems.append("vk_work.h: %s does not drain first and call its own driver function" % f)
@@ -359,7 +359,7 @@ def unordered_too(rec, f):
 
 def no_wait(work_h, f):
     """vk_work.h with f's boundary macro calling the driver at once (no drain, no wait)"""
-    return broken(work_h, "#define %s(...) (::mkwvk::rec::boundary(::mkwvk::rec::B_%s), " % (f, f),
+    return broken(work_h, "#define %s(...) (::nx2vk::rec::boundary(::nx2vk::rec::B_%s), " % (f, f),
                   "#define %s(...) (" % f, f)
 
 

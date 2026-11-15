@@ -2,7 +2,7 @@
 #include "../gpu/vk/auto_settings.h"
 #include "../gpu/vk/display_modes.h"
 #include "../gpu/vk/upscaler_rows.h"
-namespace ur = mkwvk::upscaler_rows;
+namespace ur = nx2vk::upscaler_rows;
 
 #include <cstdio>
 #include <cstdlib>
@@ -225,7 +225,7 @@ int main() {
         expect(u.output_w == 0 && std::strstr(u.why, "needs tier 4"), "the same screen at Balanced: the game's");
     }
     {   // (a screen whose sides are not multiples of 8: its size as the menu offers it, each side rounded down to 8)
-        namespace dm = mkwvk::display_modes;
+        namespace dm = nx2vk::display_modes;
         const int screens[][4] = {{1366, 768, 1360, 768}, {1600, 900, 1600, 896}, {1680, 1050, 1680, 1048}};
         for (const auto& s : screens) {
             Hardware lap;

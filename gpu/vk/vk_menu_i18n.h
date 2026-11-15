@@ -6,7 +6,7 @@
 
 #include <string>
 
-namespace mkwvk::i18n {
+namespace nx2vk::i18n {
 
 /// The language now: an index into menu_i18n::kLangs (0 English)
 int lang_now();
@@ -38,4 +38,4 @@ bool set_game_language(int index);
 const char* tr(const char* s);
 std::string tr_text(const std::string& s);
 
-}  // namespace mkwvk::i18n
+}  // namespace nx2vk::i18n

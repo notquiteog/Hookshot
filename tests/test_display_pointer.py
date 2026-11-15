@@ -52,7 +52,7 @@ def main():
     end = sdl.index("                case HOS_SDL_EV_MOUSE_UP:", start)
     template = template.replace("/* ACTUAL_DOWN */", "void down(float x, float y) { HosSdlEvent e{};e.x=x;e.y=y;e.button=1; switch((int)HOS_SDL_EV_MOUSE_DOWN) {" + sdl[start:end] + "} pointer_update(0,0); }")
     if "static void pointer_update(" not in sdl:
-        template = template[:template.index("int main() {")] + "int main() { MkwVkPointer p{}; std::thread t([&] { int w, h; sdl::hos_mouse_pointer(&p); sdl::drawable_size(sdl::window, &w, &h); }); t.join(); }"
+        template = template[:template.index("int main() {")] + "int main() { NX2VkPointer p{}; std::thread t([&] { int w, h; sdl::hos_mouse_pointer(&p); sdl::drawable_size(sdl::window, &w, &h); }); t.join(); }"
     with tempfile.TemporaryDirectory(prefix="display-pointer-") as temp:
         unit, exe = Path(temp) / "fixture.cpp", Path(temp) / "fixture.exe"
         unit.write_text(template, encoding="utf-8")

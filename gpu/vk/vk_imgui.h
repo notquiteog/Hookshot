@@ -8,7 +8,7 @@
 struct ImFont;
 struct ImTextureData;
 
-namespace mkwvk::ui {
+namespace nx2vk::ui {
 
 struct Fonts {
     ImFont* body = nullptr;      // (rows, help, prompts)
@@ -35,4 +35,4 @@ void idle();
 /// every frame drawn, so ImGui does not let them go before the menu opens
 void prebake(const float* px, int n);
 
-} // namespace mkwvk::ui
+} // namespace nx2vk::ui

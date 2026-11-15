@@ -1,12 +1,12 @@
 // (hookshot) What the pipeline cache's files were made for (vk_draw.cpp's pcache_init), apart from Vulkan so that
 // tests/test_pcache_stamp.py can run it.
 //
-// mkw_vk_pipelines.bin is checked against the GPU, the driver and the cache UUID only. A new translator (or a switch that changes
+// The pipeline cache (hookshot_pipeline_cache.bin) is checked against the GPU, the driver and the cache UUID only. A new translator (or a switch that changes
 // what it makes) gives every program new SPIR-V: the program cache and the prepare record start over (program_cache_stamp), but
 // the pipeline cache kept every older translator's pipelines, none of which can be hit again. It only grew: 2.4 GB after a
 // few dozen test builds in one folder, read whole at every start and held by the driver, a working set of 18.7 GB in a field
 // walk against 14.2 GB with a fresh file (the same build, the same walk). Now the stamp the files were made with is kept beside
-// them in mkw_vk_pipelines.stamp, and files of another stamp are dropped before they are read.
+// them in hookshot_pipeline_cache.stamp, and files of another stamp are dropped before they are read.
 #pragma once
 
 #include <cstdint>
@@ -14,12 +14,68 @@
 #include <filesystem>
 #include <string>
 #include <system_error>
+#include <vector>
 
 namespace pcache_stamp {
 
-inline const char* kStampFile = "mkw_vk_pipelines.stamp";
-inline const char* kMainFile = "mkw_vk_pipelines.bin";
-inline const char* kPlayPrefix = "mkw_vk_pipelines_play_";
+// (hookshot) The files' names. Until the engine's names became NX2's (scripts/rename_nx2.py) they were mkw_vk_pipelines*, from
+// the game the engine was first made for; migrate() moves a folder's old files to these names at the cache's first open, so no
+// player loses a pipeline cache (up to ~1.2 GB, minutes of compiling) to the rename
+inline const char* kStampFile = "hookshot_pipeline_cache.stamp";
+inline const char* kMainFile = "hookshot_pipeline_cache.bin";
+inline const char* kPlayPrefix = "hookshot_pipeline_cache_play_";
+inline const char* kOldStampFile = "mkw_vk_pipelines.stamp";
+inline const char* kOldMainFile = "mkw_vk_pipelines.bin";
+inline const char* kOldPlayPrefix = "mkw_vk_pipelines_play_";
+
+/// A play file's number from its name after prefix (<n>.bin, n 1 to 9 digits), or -1
+inline long long play_number(const std::string& name, const std::string& prefix) {
+    const std::string suf = ".bin";
+    if (name.size() <= prefix.size() + suf.size() || name.compare(0, prefix.size(), prefix) ||
+        name.compare(name.size() - suf.size(), suf.size(), suf))
+        return -1;
+    const std::string num = name.substr(prefix.size(), name.size() - prefix.size() - suf.size());
+    if (num.size() > 9 || num.find_first_not_of("0123456789") != std::string::npos) return -1;
+    return std::stoll(num);
+}
+
+/// The old names' files in dir (kOld*) moved to the new names: a rename in the same folder, never a copy. When both names are
+/// there (a folder an older build ran in again), the newer file is kept under the new name and the other removed, so the cache
+/// is never held twice. Before anything reads the files (pcache_init: before the stamp's check). How many old files went
+inline size_t migrate(const std::string& dir) {
+    namespace fs = std::filesystem;
+    size_t moved = 0;
+    const auto move = [&](const std::string& from, const std::string& to) {
+        std::error_code ec;
+        const fs::path old_path = fs::path(dir + from), new_path = fs::path(dir + to);
+        if (!fs::is_regular_file(old_path, ec)) return;
+        if (fs::exists(new_path, ec)) {
+            std::error_code e1, e2;
+            const auto old_time = fs::last_write_time(old_path, e1), new_time = fs::last_write_time(new_path, e2);
+            if (e1 || e2 || old_time <= new_time) {
+                if (fs::remove(old_path, ec)) moved++;
+                return;
+            }
+        }
+        fs::rename(old_path, new_path, ec);   // (over the new name's older file, when there is one)
+        if (!ec) moved++;
+    };
+    move(kOldMainFile, kMainFile);
+    move(kOldStampFile, kStampFile);
+    std::error_code ec;
+    std::vector<std::string> plays;
+    for (fs::directory_iterator it(fs::path(dir), ec), end; !ec && it != end; it.increment(ec)) {
+        std::string name;
+        try {
+            name = it->path().filename().string();
+        } catch (...) {
+            continue;
+        }
+        if (play_number(name, kOldPlayPrefix) >= 0) plays.push_back(name);
+    }
+    for (const std::string& name : plays) move(name, kPlayPrefix + name.substr(std::string(kOldPlayPrefix).size()));
+    return moved;
+}
 
 /// The stamp kept in dir's stamp file; false: none (no file, or not 8 bytes)
 inline bool read(const std::string& dir, uint64_t* stamp) {
@@ -44,10 +100,15 @@ inline bool write(const std::string& dir, uint64_t stamp) {
     return ok && !ec;
 }
 
-/// Whether name is one of the pipeline cache's files: the main one, or a play file (mkw_vk_pipelines_play_<n>.bin, also .tmp)
+/// Whether name is one of the pipeline cache's files: the main one, or a play file (hookshot_pipeline_cache_play_<n>.bin, also
+/// .tmp); by the old names too (kOld*), which migrate() leaves only when it could not move them
+inline bool is_cache_file_named(const std::string& name, const char* main_file, const char* play_prefix);
 inline bool is_cache_file(const std::string& name) {
-    if (name == kMainFile || name == std::string(kMainFile) + ".tmp") return true;
-    const std::string pre = kPlayPrefix;
+    return is_cache_file_named(name, kMainFile, kPlayPrefix) || is_cache_file_named(name, kOldMainFile, kOldPlayPrefix);
+}
+inline bool is_cache_file_named(const std::string& name, const char* main_file, const char* play_prefix) {
+    if (name == main_file || name == std::string(main_file) + ".tmp") return true;
+    const std::string pre = play_prefix;
     if (name.size() <= pre.size() || name.compare(0, pre.size(), pre)) return false;
     const std::string rest = name.substr(pre.size());
     const size_t dot = rest.find('.');

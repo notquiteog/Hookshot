@@ -25,7 +25,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk::dlssnr_ngx {
+namespace nx2vk::dlssnr_ngx {
 
 /// Whether this build has an NGX SDK (HOOKSHOT_NGX) to compile this path against.
 [[nodiscard]] bool built_with_sdk();
@@ -52,9 +52,9 @@ void history_gap();
 /// Releases the feature and its images. Before the device goes.
 void shutdown();
 
-} // namespace mkwvk::dlssnr_ngx
+} // namespace nx2vk::dlssnr_ngx
 
-namespace mkwvk::nr {
+namespace nx2vk::nr {
 
 enum Backend : int { AUTO = 0, STREAMLINE = 1, NGX = 2, OPEN = 3 };   // (OPEN: OpenDLSS-NR, gpu/vk/vk_opennr.h)
 
@@ -79,4 +79,4 @@ enum Backend : int { AUTO = 0, STREAMLINE = 1, NGX = 2, OPEN = 3 };   // (OPEN: 
 /// Why the running backend cannot run, for the menu: "" while it can or is not known yet.
 [[nodiscard]] const char* why();
 
-} // namespace mkwvk::nr
+} // namespace nx2vk::nr

@@ -39,11 +39,11 @@
 #include "shaders/fsr3_shading_change_pyramid_nowave_comp_spv.h"
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk {
+namespace nx2vk {
 VkResult shared_compute_pipeline(const VkComputePipelineCreateInfo* ci, VkPipeline* out);   // (vk_draw.cpp: through the pipeline cache kept across runs)
 }
 
-namespace mkwvk::fsr3 {
+namespace nx2vk::fsr3 {
 namespace {
 
 /// A descriptor's kind, in the binding order each pass file declares. Every pass also takes the two
@@ -204,7 +204,7 @@ State g;
 void destroy_now(Image& t) {
     for (VkImageView v : t.levels) vkDestroyImageView(dev.device, v, nullptr);
     if (t.view) vkDestroyImageView(dev.device, t.view, nullptr);
-    if (t.image) mkwvk::destroy_image(t.image, t.memory);
+    if (t.image) nx2vk::destroy_image(t.image, t.memory);
     t = Image{};
 }
 
@@ -697,9 +697,9 @@ bool upscale(VkCommandBuffer cmd, const Inputs& in) {
 VkImage output_image() { return g.output.image; }
 VkImageView output_view() { return g.output.view; }
 
-} // namespace mkwvk::fsr3
+} // namespace nx2vk::fsr3
 
-namespace mkwvk {
+namespace nx2vk {
 
 extern std::atomic<bool> present_native_pq;   // (vk_replay.cpp do_present: the game presents its own HDR10 picture, Native)
 
@@ -953,4 +953,4 @@ bool fsr3_upscale(VkCommandBuffer cmd, uint64_t key, bool known, Texture* in, Vk
     return true;
 }
 
-} // namespace mkwvk
+} // namespace nx2vk

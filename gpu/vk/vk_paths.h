@@ -14,7 +14,7 @@
 #undef max
 #include <cstring>
 
-namespace mkwvk {
+namespace nx2vk {
 inline DWORD game_module_path(char* buf, DWORD size) {
     DWORD n = GetModuleFileNameA(nullptr, buf, size);
     if (!n || n >= size) return n;
@@ -34,4 +34,4 @@ inline DWORD game_module_path(char* buf, DWORD size) {
     std::memmove(buf + root, name, std::strlen(name) + 1);
     return (DWORD)std::strlen(buf);
 }
-}  // namespace mkwvk
+}  // namespace nx2vk

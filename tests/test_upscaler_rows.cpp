@@ -8,7 +8,7 @@
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
 int main() {
-    namespace ur = mkwvk::upscaler_rows;
+    namespace ur = nx2vk::upscaler_rows;
     using ur::DLAA;
     using ur::DLSS;
     using ur::GAME;
