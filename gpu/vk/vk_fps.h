@@ -10,7 +10,7 @@
 
 #include "fps_stats.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 /// What the counter shows (fps_stats::Level): set by the menu, read at every present
 extern std::atomic<int> fps_level_now;
@@ -45,4 +45,4 @@ fps_stats::Summary fps_summary(int64_t now, int64_t window, int64_t low_window);
 /// draws out; returns the slowest frame time shown
 float fps_graph(int64_t now, int count, fps_stats::Frame* frames, bool* marks);
 
-} // namespace mkwvk
+} // namespace nx2pc

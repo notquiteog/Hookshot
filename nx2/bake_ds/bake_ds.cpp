@@ -660,7 +660,7 @@ struct Answer {
     uint8_t type;
     bool image;
 };
-// (a layout mirror of mkwvk::Stage/Program for disk_stamp's sizeof(Program) word: the same members, types and
+// (a layout mirror of nx2pc::Stage/Program for disk_stamp's sizeof(Program) word: the same members, types and
 // order as vk_shader.h, with Vulkan's own handle types. A build whose struct differs is refused by the stamp
 // (all-or-nothing), never misread)
 struct StageLayout {

@@ -38,7 +38,7 @@ fixture = r'''
 #include <mutex>
 #include "hookshot_env.h"
 #include "gpu_wait_stats.h"
-namespace gpu_wait_stats = mkwvk::gpu_wait_stats;
+namespace gpu_wait_stats = nx2pc::gpu_wait_stats;
 using VkSwapchainKHR=uint64_t;using VkLatencyMarkerNV=int;
 constexpr uint64_t VK_NULL_HANDLE=0;
 constexpr int VK_SUCCESS=0,VK_STRUCTURE_TYPE_LATENCY_SLEEP_INFO_NV=1,

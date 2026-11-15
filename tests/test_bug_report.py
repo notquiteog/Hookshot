@@ -45,7 +45,7 @@ DRIVER = r'''#include "vk_bug_report.h"
 #include <filesystem>
 #include <string>
 #include <thread>
-using namespace mkwvk::bug_report;
+using namespace nx2pc::bug_report;
 static int fails;
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); fails++; } } while (0)
 static void say(const char* line) { std::printf("LOG %s\n", line); }
@@ -264,7 +264,7 @@ def main():
             "[hos host] hookshot " + VERSION + "\n"
             "[hos sead::MainThread] fs: mounted content: -> " + home + sep + "Games" + sep + "Hookshot" + sep + "romfs\n"
             "[hos sead::MainThread] fs: mounted save: -> " + home + "/Games/Hookshot/user\\save\\5a3c\n"
-            "[hos MainThread] vk: pipeline cache /run/media/" + user + "/SD/Hookshot/mkw_vk_pipelines.bin (1 KB)\n"
+            "[hos MainThread] vk: pipeline cache /run/media/" + user + "/SD/Hookshot/hookshot_pipeline_cache.bin (1 KB)\n"
             "[hos Main] map: KokiriForest_Child (child)\n"
             "[hos host] Malice and alice123 stay, as /x/alice123/ does\n"
             "[hos Main] map: HyruleField_Child (child)\n", encoding="utf-8")

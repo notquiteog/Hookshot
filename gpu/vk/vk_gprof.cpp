@@ -9,7 +9,7 @@
 #include "vk_gprof.h"
 #include "vk_work.h"   // (after the others: its timestamps go through RX_VK_RECORDER with the commands around them)
 
-namespace mkwvk {
+namespace nx2pc {
 namespace {
 
 constexpr int kSlots = 48;                // (vk_replay.cpp's kRecordings)
@@ -250,4 +250,4 @@ void gprof_report(int frames) {
     acc_frames = 0;
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

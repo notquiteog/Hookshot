@@ -5,7 +5,7 @@
 // and storage images as views of vk_texture.cpp's images, texel buffers), passes kept open while the targets stay,
 // and the draws themselves.
 //
-// Pipelines persist in a VkPipelineCache next to the executable (mkw_vk_pipelines.bin).
+// Pipelines persist in a VkPipelineCache next to the executable (hookshot_pipeline_cache.bin).
 #include <algorithm>
 #include "game_profile.h"   // (the program keys this game's renderer treats specially)
 #include <filesystem>
@@ -75,7 +75,7 @@
 #include "warm_bounded.h"
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk {
+namespace nx2pc {
 // (EvilOOT, RX_VK_DRAW_STATS: the pointer table's regions, vk_bank.cpp)
 struct PointerEntry { uint64_t addr, size; };
 const PointerEntry* pointer_table(const NvnState& s, int stage);
@@ -766,9 +766,9 @@ std::string pcache_dir;
 // added: NVIDIA's driver copies into the cache a pipeline is made with each pipeline it takes from its own disk cache, so a first
 // visit grew it at each new pipeline, and the save every 32 of them wrote 0.5-1.2 GB to add a few MB (497-539 MB written six times
 // in a 4-minute walk, 1.4-3.2 s each, 3 GB in all to keep 42 MB). In play a pipeline goes into the generation's own cache (or comes
-// from pcache, create_cached), and a save writes that generation alone, to mkw_vk_pipelines_play_<n>.bin, while play goes on into
+// from pcache, create_cached), and a save writes that generation alone, to hookshot_pipeline_cache_play_<n>.bin, while play goes on into
 // a new one. The next start merges those files into pcache as it reads it; at kPlayFilesKept of them they are written into
-// mkw_vk_pipelines.bin there, once, and removed. RX_VK_PLAY_CACHE=0: everything into pcache, as before
+// hookshot_pipeline_cache.bin there, once, and removed. RX_VK_PLAY_CACHE=0: everything into pcache, as before
 struct PlayCache {
     VkPipelineCache cache = VK_NULL_HANDLE;
     std::atomic<int> users{0};       // (pipelines being made with it now)
@@ -780,7 +780,7 @@ std::atomic<PlayCache*> play_cache{nullptr};   // (null before play, and without
 uint32_t play_seq = 0;                         // (the highest play file number read or written)
 constexpr size_t kPlayFilesKept = 16;
 std::string play_path(uint32_t n) {
-    return pcache_dir + "mkw_vk_pipelines_play_" + std::to_string(n) + ".bin";
+    return pcache_dir + pcache_stamp::kPlayPrefix + std::to_string(n) + ".bin";
 }
 /// A cache's data written whole to path, through a .tmp moved over it: its size, 0 when it is not in place
 size_t play_file_write(VkPipelineCache cache, const std::string& path) {
@@ -801,7 +801,7 @@ size_t play_files_merge() {
     VkPipelineCacheCreateInfo tci{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
     if (vkCreatePipelineCache(dev.device, &tci, nullptr, &together) != VK_SUCCESS) together = VK_NULL_HANDLE;
     std::error_code ec;
-    static const std::string pre = "mkw_vk_pipelines_play_", suf = ".bin";
+    static const std::string pre = pcache_stamp::kPlayPrefix, suf = ".bin";
     for (const auto& e : std::filesystem::directory_iterator(pcache_dir, ec)) {
         const std::string name = e.path().filename().string();
         if (name.size() <= pre.size() + suf.size() || name.compare(0, pre.size(), pre) ||
@@ -1013,7 +1013,23 @@ bool pcache_load_off() {
 /// read whole at every start and held by the driver (pcache_stamp.h). Once a run, before the first of pcache_init and
 /// prepare_run: whether files went, so that prepare_run makes the stage libraries the warm pass kept in them again
 /// (prepared_for.warmed), whatever its record says. RX_VK_PCACHE_STAMP=0: kept whatever made them, as before
+/// (hookshot) The files of the cache's old names (mkw_vk_pipelines*, from before scripts/rename_nx2.py) moved to its names, once a
+/// run, before anything reads them or their stamp (pcache_drop_stale, pcache_init), whatever RX_VK_PCACHE_LOAD and
+/// RX_VK_PCACHE_STAMP say: pcache_stamp.h migrate
+void pcache_migrate() {
+    static const bool done = [] {
+        char exe[MAX_PATH];
+        const DWORD n = game_module_path(exe, MAX_PATH);
+        std::string dir(exe, n);
+        dir = dir.substr(0, dir.find_last_of("\\/") + 1);
+        if (const size_t moved = pcache_stamp::migrate(dir))
+            logf("vk: pipeline cache: %zu files of its old names (mkw_vk_pipelines*) moved to %s*", moved, "hookshot_pipeline_cache");
+        return true;
+    }();
+    (void)done;
+}
 bool pcache_drop_stale() {
+    pcache_migrate();
     static const bool dropped = [] {
         static const bool by_stamp = [] { const char* e = getenv("RX_VK_PCACHE_STAMP"); return !e || !env_value_off(e); }();
         if (pcache_load_off() || !by_stamp) return false;
@@ -1037,7 +1053,8 @@ void pcache_init() {
     pcache_dir = dir = dir.substr(0, dir.find_last_of("\\/") + 1);
     if (const size_t removed = PipelineCacheFile::cleanup_temporaries(dir))
         logf("vk: pipeline cache: %zu old temporary files removed", removed);
-    pcache_path = dir + "mkw_vk_pipelines.bin";
+    pcache_migrate();
+    pcache_path = dir + pcache_stamp::kMainFile;
     const bool off = pcache_load_off();
     pcache_no_save = off;
     pcache_drop_stale();   // (before the files are read)
@@ -1423,7 +1440,7 @@ uint64_t program_wm_sig(const Program& p) {
 
 // ---- (hookshot) The precompile, as TotK Recomp's (runtime/vk_pipeline.c vk_pipeline_prewarm, keys in pipeline-keys.bin): each
 // pipeline the game asks for is noted in hookshot_pipelines.bin, by what built it; a release build, before the game starts,
-// makes every kept program ready and builds every noted pipeline on all the CPUs (the driver's own cache, mkw_vk_pipelines.bin,
+// makes every kept program ready and builds every noted pipeline on all the CPUs (the driver's own cache, hookshot_pipeline_cache.bin,
 // makes that quick), so that nothing is built during play. RX_VK_PRECOMPILE=1: in any build; =0: off. A build with
 // RX_RELEASE=1 (nx2/build.py) has it on. The notes are written in every build ----
 std::mutex note_mu;
@@ -4128,7 +4145,7 @@ TLS_OBJECT(pushed, std::array<Pushed, 2>)   // [graphics, compute]
 } // namespace
 std::string state_list_snapshot(bool* present) { return state_list_bytes(present); }   // (vk_draw.h: the menu's)
 /// (hookshot) A compute pipeline of the back end's own, made elsewhere (vk_fsr3.cpp), through the pipeline cache the game's are kept
-/// in across runs (mkw_vk_pipelines.bin), as theirs are: in play through the play caches (create_cached), so that it does not grow
+/// in across runs (hookshot_pipeline_cache.bin), as theirs are: in play through the play caches (create_cached), so that it does not grow
 /// the start's cache; before the cache is loaded, with none. (Outside the unnamed namespace: vk_fsr3.cpp links to it)
 VkResult shared_compute_pipeline(const VkComputePipelineCreateInfo* ci, VkPipeline* out) {
     return cached_compute(ci, out);
@@ -8866,7 +8883,7 @@ bool prepare_run(void (*progress)(size_t done, size_t total), bool background, b
         ci.layout = p.layout;
         if (env_on("RX_VK_NOOPT")) ci.flags |= VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
         VkPipeline pl = VK_NULL_HANDLE;
-        // (into the app's pipeline cache, saved to mkw_vk_pipelines.bin: without it the next start compiled them again in play
+        // (into the app's pipeline cache, saved to hookshot_pipeline_cache.bin: without it the next start compiled them again in play
         // where the driver's own cache missed them, AMD's 15 s culling compiles each time)
         if (guarded_compute(pcache, &ci, &pl) == VK_SUCCESS && pl) {
             vkDestroyPipeline(dev.device, pl, nullptr);
@@ -9359,7 +9376,7 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
 }
 
 // (hookshot) The pipelines the notes predict for the programs no note names (vk_predict.cpp), after a prepare that prepared: each built
-// once for the driver's own cache and let go. Not into ours (mkw_vk_pipelines.bin, read whole at every start: ~40000 more pipelines made
+// once for the driver's own cache and let go. Not into ours (hookshot_pipeline_cache.bin, read whole at every start: ~40000 more pipelines made
 // it 1.7 GB), nor kept: each program is borrowed from hookshot_programs.bin for its pipelines and let go
 /// (hookshot) The preparation's three parts as the files on disk count them before it runs: PrepareBar's guesses, so that the bar
 /// has every part in its total from the start. The seed's programs (its header); the pipelines the notes will predict, about one and
@@ -10468,9 +10485,9 @@ void pipeline_cache_save(bool force) {
     }
 }
 
-} // namespace mkwvk
+} // namespace nx2pc
 
-namespace mkwvk {
+namespace nx2pc {
 /// (hookshot) n bytes copied into the recording's stream, as a buffer binding (vk_memory.cpp gpu_buffer_bind: a read whose pool is
 /// still being imported in the background); empty when there is no recording or no room
 BufferRef stream_copy(const void* src, uint64_t n) {
@@ -10492,4 +10509,4 @@ UniformUpload uniform_upload(uint64_t size) {
     return {{cur->stream, at, size, 0}, cur->mapped + at, cur->stream_alloc};
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

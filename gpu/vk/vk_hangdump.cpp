@@ -19,7 +19,7 @@
 #include <cstdlib>
 #include <thread>
 
-namespace mkwvk {
+namespace nx2pc {
 extern int64_t presents_now;
 
 namespace {
@@ -126,7 +126,7 @@ void hang_watch_start() {
     if (!path || !*path || started.exchange(true)) return;
     const int sec = getenv("RX_VK_HANG_SEC") ? std::max(5, atoi(getenv("RX_VK_HANG_SEC"))) : 20;
     std::thread([path, sec] {
-        SetThreadDescription(GetCurrentThread(), L"mkw_vk hang watch");
+        SetThreadDescription(GetCurrentThread(), L"nx2pc hang watch");
         int64_t last = -1;
         int still = 0;
         bool dumped = false;
@@ -139,9 +139,9 @@ void hang_watch_start() {
     }).detach();
 }
 
-}  // namespace mkwvk
+}  // namespace nx2pc
 #else
-namespace mkwvk {
+namespace nx2pc {
 void hang_watch_start() {}   // (linux: no hang dump)
-}  // namespace mkwvk
+}  // namespace nx2pc
 #endif

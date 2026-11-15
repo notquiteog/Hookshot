@@ -1,6 +1,6 @@
 # Window-thread pointer samples
 
-The host publishes one `MkwVkPointer` sample: client position and client dimensions
+The host publishes one `Nx2pcVkPointer` sample: client position and client dimensions
 in physical pixels, held buttons, pending presses, and wheel motion. The renderer
 consumes it without querying the window system. This does not change API version 10.
 

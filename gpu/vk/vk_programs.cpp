@@ -31,7 +31,7 @@
 #include "load_default.h"
 #include "vk_programs.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 ProgramCensus census;
 thread_local UseCounters use_counters;
@@ -731,4 +731,4 @@ void programs_census_log(const char* when) {
              when, ids.size(), n(ids_learned.load()), n(c.load_by_id), n(c.load_by_id_cold));
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

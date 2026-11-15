@@ -5,7 +5,7 @@
 // confirming and the right one going back. Plain arithmetic: tests/test_menu_keys.py checks it with the real menu_tick's use.
 #pragma once
 
-namespace mkwvk::menu_keys {
+namespace nx2pc::menu_keys {
 
 // (the gamepad's face buttons by position, as vk_api.h's HOS_PAD_SOUTH ... HOS_PAD_NORTH)
 enum { kSouth = 0, kEast = 1, kWest = 2, kNorth = 3 };
@@ -27,4 +27,4 @@ inline int dot(int position) {
     }
 }
 
-} // namespace mkwvk::menu_keys
+} // namespace nx2pc::menu_keys

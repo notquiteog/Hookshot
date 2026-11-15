@@ -55,7 +55,7 @@ RULES = [
     (GAME_MODULES, r"^host_nn_fs", None, "os/filesystem"),
     (GAME_MODULES, r"^host_nn_libc", None, "os/libc"),
     (GAME_MODULES, r"^host_(nn_vi|nn_gs)", None, "os/display-and-pacing"),
-    (GAME_MODULES, r"^host_mkw_glue|^host_pgo_rt", r"sample|prof|pgo", "tooling/profilers"),
+    (GAME_MODULES, r"^host_nx2pc_glue|^host_pgo_rt", r"sample|prof|pgo", "tooling/profilers"),
     (GAME_MODULES, r"^host_", None, "os/other"),
 
     # ---- other code linked into the exe ----

@@ -50,7 +50,7 @@
 #endif
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk {
+namespace nx2pc {
 namespace {
 
 // Every raw imported-buffer destruction goes through here, including unpublished allocation rollback.
@@ -1691,7 +1691,7 @@ struct CopyHelpers {
     bool started = false;
 } copy_helpers;
 void copy_helper_main() {
-    SetThreadDescription(GetCurrentThread(), L"mkw_vk capture copy");
+    SetThreadDescription(GetCurrentThread(), L"nx2pc capture copy");
     for (;;) {
         CopyPart w;
         {
@@ -2174,7 +2174,7 @@ void bg_start() {   // (bg_mu held)
 }
 
 void bg_main() {
-    SetThreadDescription(GetCurrentThread(), L"mkw_vk imports");
+    SetThreadDescription(GetCurrentThread(), L"nx2pc imports");
     for (;;) {
         std::pair<uint64_t, uint64_t> r;
         {
@@ -4686,9 +4686,9 @@ void memory_stats(int64_t* mirrors, uint64_t* mirror_mb, int64_t* sync_bytes, in
     *mirrors = st_mirrors, *mirror_mb = mirror_bytes >> 20, *sync_bytes = st_sync_bytes, *sync_copies = st_sync_copies;
     *wb_bytes = st_wb_bytes;
 }
-} // namespace mkwvk
+} // namespace nx2pc
 
-namespace mkwvk {
+namespace nx2pc {
 void memory_pool_lock_reasons(int64_t* written, int64_t* cache_miss, int64_t* mirror) {
     *written = pool_lock_written.exchange(0, std::memory_order_relaxed);
     *cache_miss = pool_lock_cache_miss.exchange(0, std::memory_order_relaxed);

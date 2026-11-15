@@ -17,7 +17,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 struct Texture {
     VkImage image = VK_NULL_HANDLE;
@@ -242,4 +242,4 @@ bool texels_fit(const nvn_tex* t, const NVNcopyRegion* r, uint64_t row, uint64_t
 void texture_read_texels(const nvn_tex* t, unsigned level, unsigned layer0, const NVNcopyRegion* r, uint8_t* dst,
                          uint64_t row, uint64_t img, bool write);
 
-} // namespace mkwvk
+} // namespace nx2pc

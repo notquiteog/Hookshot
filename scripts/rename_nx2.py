@@ -50,7 +50,9 @@ THREADS = re.compile(r'(?<=["\'])mkw_vk(?=[ "\'])')
 STRNCMP = re.compile(r'"mkw_vk",\s*6\b')
 THREAD_TOKENS = {"mkw_vk_order": "nx2pc_order", "mkw_vk_capture_copy": "nx2pc_capture_copy"}
 FILES = {"host/mkw_glue.c": "host/nx2pc_glue.c", "nx2/rt/mkw_host.h": "nx2/rt/nx2pc_host.h"}
-SKIP = ("gpu/third_party/", "CHANGELOG.md", "docs/tested-configurations.md", "scripts/rename_nx2.py", ".release-please")
+# (upstream code; history; and the files that name the old names on purpose: this script, its test, the rename's docs)
+SKIP = ("gpu/third_party/", "CHANGELOG.md", "docs/tested-configurations.md", "scripts/rename_nx2.py", ".release-please",
+        "tests/test_engine_names.py", "docs/one-engine.md")
 TEXT = (".c", ".h", ".cpp", ".hpp", ".cs", ".xaml", ".py", ".md", ".json", ".txt", ".ps1", ".sh", ".bat", ".cmake", ".yml",
         ".yaml", ".def", ".rc", ".in", ".glsl", ".comp", ".frag", ".vert", "")
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")

@@ -52,7 +52,7 @@ extern const char hos_main_build_id[];                 /* (gen/hos_image.c: main
 int hos_game_is_mkw(void);
 int hos_game_profile_live(void);   /* the image is the build the game profile is for (hos_main.c) */
 #define HOS_GAME_TITLE "Hookshot"
-void hos_commit(uint64_t addr, uint64_t size);         /* (mkw_glue.c) guest pages made usable by host APIs */
+void hos_commit(uint64_t addr, uint64_t size);         /* (nx2pc_glue.c) guest pages made usable by host APIs */
 int hos_mem_region(uint64_t addr, uint64_t size);      /* (hos_mem.c) the control bridge: 0 if not wholly in mapped guest memory */
 #if defined(A64_WRITE_TRACK) && !defined(__EMSCRIPTEN__)
 void hos_mark_written(const void *p, size_t n);   /* (hos_mem.c: guest memory written by host code, native soft watch) */

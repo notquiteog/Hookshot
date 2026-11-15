@@ -14,7 +14,7 @@
 
 using Bytes = std::vector<unsigned char>;
 namespace fs = std::filesystem;
-using namespace mkwvk::game_font;
+using namespace nx2pc::game_font;
 
 static void put32(Bytes& b, uint32_t v) {
     for (int i = 0; i < 4; i++) b.push_back((unsigned char)(v >> (8 * i)));

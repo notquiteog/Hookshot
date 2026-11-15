@@ -11,7 +11,7 @@
 
 #include <cstdint>
 
-namespace mkwvk::reactive_policy {
+namespace nx2pc::reactive_policy {
 
 /// What a draw into the scene's target is to the mask
 enum Draw {
@@ -54,4 +54,4 @@ inline bool copy_before(Run& r, uint64_t frame, uint64_t target, Draw draw) {
     return true;
 }
 
-} // namespace mkwvk::reactive_policy
+} // namespace nx2pc::reactive_policy

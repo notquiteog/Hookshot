@@ -45,13 +45,13 @@ static uint32_t host_w = 0, host_h = 0;
 bool host_screen_size(uint32_t* w, uint32_t* h) {
     return host_w ? (*w = host_w, *h = host_h, true) : screen_size(w, h);
 }
-namespace mkwvk {
+namespace nx2pc {
 int up_now = 0;   // (the Upscaler shown: 0 the game's own, 1 DLSS, 2 DLAA)
 int upscaler() { return up_now; }
 }
 #include "gpu/vk/upscaler_rows.h"
 #include "gpu/vk/display_modes.h"
-using namespace mkwvk;
+using namespace nx2pc;
 namespace ur = upscaler_rows;
 // (the screen's display modes: none, so the sizes offered before them)
 std::vector<display_modes::Size> screen_modes() { return {}; }

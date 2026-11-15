@@ -12,15 +12,18 @@ anything made from them leave the PC. The [development guide](docs/development.m
 Dragoon, Donkey Kong Bananza), and the aim is one release and one launcher entry for all four. Before working on a fork
 or on anything shared, read [docs/one-engine.md](docs/one-engine.md). In short, an engine change (rendering,
 performance, the runtime, the lifter, the builder) goes to Hookshot `main` as its own pull request, every fork merges
-`main`, and a game's own code goes behind the game profile.
+`main`, and a game's own code goes behind the game profile. **Engine code takes general names:** the engine is NX2PC and
+the aim is to recompile any Switch 2 game, so a game's name appears only in its profile, its patch module and its docs (a
+switch one game needs is a profile field or setting with a general name). A fork runs `scripts/rename_nx2.py` on its
+branch before merging `main` past the rename to NX2PC names (docs/one-engine.md, *The rename to NX2PC names*).
 
 What CONTRIBUTING.md does not spell out, and agents trip on:
 
 - **Tests read the source.** Many checks in `tests/` cut a function out of a source file by its text and compile it
   with stubs (17 read `gpu/vk/vk_menu.cpp` alone). Renaming or reshaping a function can break a check far from your
   change: run `python -I -B tests/run_all.py` and update the check in the same PR rather than weakening it.
-- **The renderer's interface is versioned.** A change to `MkwVkHost` or `MkwVkRenderer` in `gpu/vk/vk_api.h` bumps
-  `MKWVK_API_VERSION`.
+- **The renderer's interface is versioned.** A change to `Nx2pcVkHost` or `Nx2pcVkRenderer` in `gpu/vk/vk_api.h` bumps
+  `NX2PCVK_API_VERSION`.
 - **Generated files are generated.** The SPIR-V headers in `gpu/vk/shaders/` (`*_spv.h`) are compiled from the shader
   beside them; regenerate them with glslang rather than editing them (the shaders' tests show the command).
 - **Two platforms.** Windows builds with llvm-mingw, Linux with clang/gcc. Keep host code portable, and paths UTF-8

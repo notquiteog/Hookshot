@@ -96,7 +96,7 @@ static LONG CALLBACK commit_on_touch(EXCEPTION_POINTERS *info) {
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
-/* A crash nothing handles: what, where (mkw.exe+offset: nx2/dllmap.py reads mkw.map the same way), and the guest
+/* A crash nothing handles: what, where (hookshot.exe+offset: nx2/dllmap.py reads hookshot_game.map the same way), and the guest
    state of the thread, as of its last call out of lifted code, with its frame chain from x29. */
 static uint64_t peek_guest(uint64_t a) {
     MEMORY_BASIC_INFORMATION mbi;
@@ -119,7 +119,7 @@ static LONG WINAPI report_crash(EXCEPTION_POINTERS *info) {
             (unsigned long long)addr, (unsigned long long)(addr - (uint64_t)A64_MEM), base ? base + 1 : name,
             (unsigned long long)(rip - (uint64_t)mod));
 #ifdef _WIN32
-    {   /* the host stack from the faulting frame (x64 unwind data), as module+offset (nx2/samap.py maps mkw.exe's) */
+    {   /* the host stack from the faulting frame (x64 unwind data), as module+offset (nx2/samap.py maps hookshot.exe's) */
         CONTEXT ctx = *info->ContextRecord;
         char hb[1024];
         int n = snprintf(hb, sizeof hb, "CRASH: host backtrace:");
@@ -303,8 +303,8 @@ static DWORD WINAPI prof_thread(void *p) {
     return 0;
 }
 /* HOS_SAMPLE=<thread name> (with HOS_PROFILE=<seconds>): that thread's instruction pointer sampled every millisecond;
-   every interval the most frequent places, as module+offset of the leaf and of the first frame in mkw.exe under it
-   (what of ours called into wgpu or the system). nx2/samap.py maps the mkw.exe offsets to functions. */
+   every interval the most frequent places, as module+offset of the leaf and of the first frame in hookshot.exe under it
+   (what of ours called into wgpu or the system). nx2/samap.py maps the hookshot.exe offsets to functions. */
 static DWORD WINAPI sample_thread(void *p) {
     const char *want = (const char *)p;
     const DWORD ms = (DWORD)atoi(getenv("HOS_PROFILE")) * 1000;
@@ -462,7 +462,7 @@ static DWORD WINAPI thread_times_thread(void *p) {
 }
 
 /* (hookshot) HOS_SAMPLE_ALL=<path> (with HOS_PROFILE): while <path>.go exists, every 2 ms every guest thread and the
-   renderer's threads (descriptions starting "mkw_vk") are sampled at the same instant: one line per thread,
+   renderer's threads (descriptions starting "nx2pc") are sampled at the same instant: one line per thread,
    "<ms> <name>|<frames>", the frames module+offset leaf first (16 at most). What each thread does while another waits:
    the frame's critical path (scripts/crit.py) */
 /* HOS_WATCH=<file> (diagnostic): when <file> exists (up to 4 guest addresses in hex), CPU data breakpoints on them on
@@ -601,7 +601,7 @@ static DWORD WINAPI sample_all_thread(void *p) {
                     char desc[64] = "";
                     if (SUCCEEDED(GetThreadDescription(h, &d)) && d) WideCharToMultiByte(CP_UTF8, 0, d, -1, desc, sizeof desc, NULL, NULL);
                     if (d) LocalFree(d);
-                    if (!strncmp(desc, "mkw_vk", 6)) snprintf(name, sizeof name, "%s", desc);
+                    if (!strncmp(desc, "nx2pc", 5)) snprintf(name, sizeof name, "%s", desc);
                 }
                 if (!name[0]) { CloseHandle(h); continue; }
                 for (char *q = name; *q; q++) if (*q == ' ' || *q == '|') *q = '_';

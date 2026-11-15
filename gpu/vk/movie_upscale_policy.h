@@ -3,7 +3,7 @@
 
 #include <cstring>
 
-namespace mkwvk::movie_upscale_policy {
+namespace nx2pc::movie_upscale_policy {
 
 enum class Mode { Automatic, Linear };
 
@@ -15,4 +15,4 @@ inline bool use_linear(Mode mode, bool automatic_fallback, bool keep_all, bool c
     return cooperative_matrix && !gameplay_network && !keep_all && (mode == Mode::Linear || automatic_fallback);
 }
 
-} // namespace mkwvk::movie_upscale_policy
+} // namespace nx2pc::movie_upscale_policy

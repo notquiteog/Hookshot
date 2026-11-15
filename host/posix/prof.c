@@ -1,4 +1,4 @@
-/* (linux) host/mkw_glue.c's profilers, with the same variables and the same lines in the log and files:
+/* (linux) host/nx2pc_glue.c's profilers, with the same variables and the same lines in the log and files:
    HOS_PROFILE=<seconds> (the busiest threads), HOS_THREAD_TIMES=<seconds> (threads over 5% of a core), HOS_SAMPLE=<thread
    name> + HOS_SAMPLE_FILE (one thread's stacks every millisecond), HOS_SAMPLE_ALL=<path> (every guest thread and the
    renderer's at once, every 2 ms, while <path>.go exists) and HOS_WATCH=<file> (data breakpoints on guest addresses).
@@ -321,7 +321,7 @@ static DWORD WINAPI sample_thread(void *p) {
 }
 
 /* HOS_SAMPLE_ALL=<path> (with HOS_PROFILE): while <path>.go exists, every 2 ms every guest thread and the renderer's
-   threads (names starting "mkw_vk") sampled one after another: a line per thread, "<ms> <name>|<frames>", 16 frames
+   threads (names starting "nx2pc") sampled one after another: a line per thread, "<ms> <name>|<frames>", 16 frames
    at most (scripts/crit.py, scripts/hotlist.py) */
 static DWORD WINAPI sample_all_thread(void *p) {
     const char *path = (const char *)p;
@@ -351,7 +351,7 @@ static DWORD WINAPI sample_all_thread(void *p) {
             const int n = tasks(all, 512);
             nt = 0;
             for (int i = 0; i < n && nt < MAXT; i++) {
-                if (all[i].tid == self || (!all[i].guest && strncmp(all[i].name, "mkw_vk", 6))) continue;
+                if (all[i].tid == self || (!all[i].guest && strncmp(all[i].name, "nx2pc", 5))) continue;
                 th[nt] = all[i].tid;
                 snprintf(tn[nt], sizeof tn[nt], "%s", all[i].name);
                 for (char *q = tn[nt]; *q; q++) if (*q == ' ' || *q == '|') *q = '_';

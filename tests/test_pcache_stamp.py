@@ -34,7 +34,15 @@ def check_source():
                    "pcache_stamp::check(dir, program_cache_stamp())", "return gone.files > 0;"):
         if needle not in drop:
             raise SystemExit("vk_draw.cpp: pcache_drop_stale() no longer has: " + needle)
+    # (the old names' files moved before anything reads them or their stamp, whatever the switches say)
+    migrate = block(draw, "void pcache_migrate()")
+    if "pcache_stamp::migrate(dir)" not in migrate:
+        raise SystemExit("vk_draw.cpp: pcache_migrate() no longer moves the old names' files")
+    if not drop.index("pcache_migrate();") < drop.index("if (pcache_load_off() || !by_stamp) return false;"):
+        raise SystemExit("vk_draw.cpp: pcache_drop_stale() checks the stamp before the old names' files are moved")
     init = block(draw, "void pcache_init()")
+    if not init.index("pcache_migrate();") < init.index("pcache_file_read(pcache_path)"):
+        raise SystemExit("vk_draw.cpp: pcache_init() reads the cache before the old names' files are moved")
     # (the stale files go before anything reads them: the main file here, the play files in play_files_merge)
     if not init.index("pcache_drop_stale();") < init.index("pcache_file_read(pcache_path)") < init.index("play_files_merge()"):
         raise SystemExit("vk_draw.cpp: pcache_init() reads the cache's files before it drops those of another translator")

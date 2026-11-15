@@ -38,7 +38,7 @@ FIXTURE = r'''
 #include <cstdlib>
 #include <memory>
 #include "vk_shader.h"
-namespace mkwvk {
+namespace nx2pc {
 static uint32_t handles[3]{};
 static uint8_t answers[4]{0,2,2,2};
 uint32_t driver_bank_word(const NvnState&, int, int, uint32_t offset) { return handles[offset/8]; }
@@ -60,7 +60,7 @@ static std::unique_ptr<Program> sampled(bool depth,bool integer=false){
  auto p=std::make_unique<Program>();p->stages.emplace_back();Shader::TextureDescriptor d{};d.type=Shader::TextureType::ColorArray2D;d.count=1;d.cbuf_index=2;d.is_depth=depth;d.is_integer=integer;p->stages[0].info.texture_descriptors.push_back(d);return p;
 }
 }
-int main(int argc, char** argv){using namespace mkwvk;auto s=std::make_unique<NvnState>();
+int main(int argc, char** argv){using namespace nx2pc;auto s=std::make_unique<NvnState>();
  if(argc>1){
   unbind();auto p=image(Shader::ImageFormat::R32_UINT);record_answers(*p,*s);auto hash=p->variant;
   check(p->answers[2].type==128,"strict UINT prepared metadata unchanged");bind();
@@ -149,7 +149,7 @@ def main():
         start = source.rfind('\n', 0, source.index(' answers_in =')) + 1
         functions = source[start:source.index(';', start) + 1] + '\n\n' + functions
     fixture = FIXTURE.replace('#include MATCHER_FUNCTIONS', functions)
-    flags = ['-std=c++20', '-include', ENV_ON_H, '-O1', '-w', '-DNDEBUG', '-DVK_NO_PROTOTYPES', '-DMKWVK_INCLUDES=2']
+    flags = ['-std=c++20', '-include', ENV_ON_H, '-O1', '-w', '-DNDEBUG', '-DVK_NO_PROTOTYPES', '-DNX2PCVK_INCLUDES=2']
     for header in ('algorithm', 'cstdio', 'cstdlib', 'cstring', 'functional', 'string', 'vector'):
         flags += ['-include', header]
     includes = [vk, vk / 'compat', args.source / 'gpu/compat', vk / 'eden',

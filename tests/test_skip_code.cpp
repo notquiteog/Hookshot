@@ -5,7 +5,7 @@
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
 int main() {
-    using mkwvk::skip_code::matches;
+    using nx2pc::skip_code::matches;
     // (a Kokiri Forest program on the Steam Deck: vertex/task/mesh stage keys as program_code_keys writes them, issue 817)
     const char* codes = " 1:9bcda2a743ed9704 6:2c56dc1006942f74 7:4797e4cd2b870a69";
 

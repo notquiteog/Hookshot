@@ -11,7 +11,7 @@
 #include <vector>
 #include "vk_present_rect.h"
 #include "vk_present_trace.h"
-using namespace mkwvk;
+using namespace nx2pc;
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); std::exit(1); } } while (0)
 using VkImage = uint64_t;
 using VkImageView = uint64_t;

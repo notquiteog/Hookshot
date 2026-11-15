@@ -14,7 +14,7 @@
 #include "vk_internal.h"
 #include "vk_draw.h"   // (ub_thread_off)
 
-namespace mkwvk {
+namespace nx2pc {
 namespace {
 
 std::mutex mu;
@@ -57,7 +57,7 @@ std::function<void()> with_failure(std::function<void()> fn, std::function<void(
 
 void worker() {
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
-    SetThreadDescription(GetCurrentThread(), L"mkw_vk worker");
+    SetThreadDescription(GetCurrentThread(), L"nx2pc worker");
     ub_thread_off();
     for (;;) {
         std::function<void()> fn;
@@ -107,7 +107,7 @@ void jobs_push_serial(std::function<void()> fn, std::function<void()> on_failure
         sstarted = true;
         std::thread([] {
             SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
-            SetThreadDescription(GetCurrentThread(), L"mkw_vk serial builds");
+            SetThreadDescription(GetCurrentThread(), L"nx2pc serial builds");
             ub_thread_off();
             for (;;) {
                 std::function<void()> fn;
@@ -183,4 +183,4 @@ int jobs_pending() {
     return pending.load();
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

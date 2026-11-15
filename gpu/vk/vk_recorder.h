@@ -58,10 +58,10 @@
 
 #include "vk_loader.h"
 
-namespace mkwvk {
+namespace nx2pc {
 void logf(const char* fmt, ...);        // (vk_main.cpp)
 extern std::atomic<bool> par_active;   // (vk_replay.cpp: a parallel replay's segments are being recorded)
-} // namespace mkwvk
+} // namespace nx2pc
 
 // The calls the recorder carries. V: value arguments only (handles, numbers, enums), one generic packer; A: arrays or structs behind
 // pointers, a packer of their own below. vk_work.h has a macro for each (the test checks the two lists agree).
@@ -98,7 +98,7 @@ extern std::atomic<bool> par_active;   // (vk_replay.cpp: a parallel replay's se
     K(vkDestroySurfaceKHR) K(vkDestroyDevice) K(vkDestroyInstance) K(vkFreeMemory)                                                 \
     M(vmaDestroyBuffer) M(vmaDestroyImage) M(vmaInvalidateAllocation)
 
-namespace mkwvk::rec {
+namespace nx2pc::rec {
 
 enum Op : uint16_t {
 #define RX_REC_OP(f) OP_##f,
@@ -192,15 +192,15 @@ inline int mode_init() {
     int was = -1;
     if (!g_mode.compare_exchange_strong(was, m, std::memory_order_relaxed)) return was;   // (another thread read it first)
     if (refused)   // (once: the thread that set the mode)
-        ::mkwvk::logf("vk: RX_VK_RECORDER=%s refused: RX_VK_PARALLEL=%s records a command buffer on several threads (deferred "
+        ::nx2pc::logf("vk: RX_VK_RECORDER=%s refused: RX_VK_PARALLEL=%s records a command buffer on several threads (deferred "
                       "packets are the recording thread's own); the recorder is off",
                       getenv("RX_VK_RECORDER"), getenv("RX_VK_PARALLEL"));
     else if (m == DEFER)
-        ::mkwvk::logf("vk: RX_VK_RECORDER=defer: vkCmd* packed and held, drained in order at each command buffer begin, end and "
+        ::nx2pc::logf("vk: RX_VK_RECORDER=defer: vkCmd* packed and held, drained in order at each command buffer begin, end and "
                       "reset, submit, wait, readback, destruction and replay lock release (serial replay only)%s",
                       g_poison.load(std::memory_order_relaxed) ? "; the arena poisoned after each drain" : "");
     else if (m == THREAD)
-        ::mkwvk::logf("vk: RX_VK_RECORDER=thread: vkCmd* packed on the replay thread and run in order by a recorder thread; the "
+        ::nx2pc::logf("vk: RX_VK_RECORDER=thread: vkCmd* packed on the replay thread and run in order by a recorder thread; the "
                       "replay waits for it at each command buffer begin, end and reset, submit, wait, readback, destruction and "
                       "replay lock release (serial replay only); ring %zu KB, spin %s%llu us%s",
                       g_ring_bytes >> 10, g_spin_ns ? "" : "adaptive 20-", (unsigned long long)(g_spin_ns ? g_spin_ns / 1000 : 200),
@@ -318,7 +318,7 @@ inline void (*g_test_idle_locked)() = nullptr;   // (tests: called in idle() wit
 /// The recorder thread cannot go on (an exception out of a driver call): logged, written to stderr and the process ended, as
 /// vk_replay.cpp's replay_fatal does (exit code 3). Never swallowed: a packet not run is a command lost
 [[noreturn]] inline void recorder_fatal(const char* why) {
-    ::mkwvk::logf("vk: FATAL: RX_VK_RECORDER=thread: the recorder thread: %s", why);
+    ::nx2pc::logf("vk: FATAL: RX_VK_RECORDER=thread: the recorder thread: %s", why);
     std::fprintf(stderr, "vk: FATAL: RX_VK_RECORDER=thread: the recorder thread: %s\n", why);
     std::fflush(stderr);
     std::_Exit(3);
@@ -400,7 +400,7 @@ struct Recorder {
         const uint64_t target = W.load(std::memory_order_acquire);
         if (idle_at(target)) return;
         if (!logged_foreign.exchange(true, std::memory_order_relaxed))
-            ::mkwvk::logf("vk: RX_VK_RECORDER=thread: a command buffer or recorded call on a thread without the replay lock while the "
+            ::nx2pc::logf("vk: RX_VK_RECORDER=thread: a command buffer or recorded call on a thread without the replay lock while the "
                           "recorder was busy: made after the recorder caught up (counted in the stats line; logged once)");
         const uint64_t t0 = now_ns();
         spin([&] { return idle_at(target); });
@@ -463,7 +463,7 @@ inline bool Recorder::start() {   // (the producer, its first packet)
         base = static_cast<uint8_t*>(::operator new(c, std::align_val_t(64), std::nothrow));
         if (!base) {
             broken.store(true);
-            ::mkwvk::logf("vk: RX_VK_RECORDER=thread: no memory for the recorder's ring (%zu KB): every call made directly", c >> 10);
+            ::nx2pc::logf("vk: RX_VK_RECORDER=thread: no memory for the recorder's ring (%zu KB): every call made directly", c >> 10);
             return false;
         }
         cap = c, mask = c - 1;
@@ -479,7 +479,7 @@ inline bool Recorder::start() {   // (the producer, its first packet)
         th = std::thread([this] { main(); });
     } catch (...) {
         broken.store(true);
-        ::mkwvk::logf("vk: RX_VK_RECORDER=thread: the recorder thread could not be started: every call made directly");
+        ::nx2pc::logf("vk: RX_VK_RECORDER=thread: the recorder thread could not be started: every call made directly");
         return false;
     }
     starts.fetch_add(1);
@@ -598,7 +598,7 @@ inline void Recorder::log_stats(double secs) {
         at += (size_t)c;
         n[best] = 0;
     }
-    ::mkwvk::logf("vk: recorder: %llu packets run in %.1f s (busy %.2f s, spun idle %.2f s, slept %llu times, %llu of them under 200 "
+    ::nx2pc::logf("vk: recorder: %llu packets run in %.1f s (busy %.2f s, spun idle %.2f s, slept %llu times, %llu of them under 200 "
                   "us), %llu calls made directly (no room); the replay waited for it %llu times, %.2f ms in all, the longest %.2f ms%s",
                   (unsigned long long)pk, secs, busy / 1e9, spun / 1e9, (unsigned long long)slept, (unsigned long long)short_slept,
                   (unsigned long long)dr, (unsigned long long)tot_n, tot_ns / 1e6, max_ns / 1e6, top);
@@ -785,7 +785,7 @@ struct Enc {
             if (md == DEFER) drain();   // (what is held first, in order; this call's partial copies let go with it)
             else a->rewind(m);
             if (a->failures++ == 0)
-                ::mkwvk::logf("vk: RX_VK_RECORDER: no arena memory for %s (%zu bytes held, %zu in chunks, hard budget %zu): the "
+                ::nx2pc::logf("vk: RX_VK_RECORDER: no arena memory for %s (%zu bytes held, %zu in chunks, hard budget %zu): the "
                               "held packets drained, the call made directly (logged once a thread)",
                               op_name(op), held, a->capacity, g_hard_budget);
             direct();
@@ -812,7 +812,7 @@ struct Enc {
             g->wait_idle(B_NOMEM);
             g->direct.fetch_add(1, std::memory_order_relaxed);
             if (!g->logged_direct.exchange(true, std::memory_order_relaxed))
-                ::mkwvk::logf("vk: RX_VK_RECORDER=thread: %s did not fit in the room a packet is given (%zu bytes): made directly once "
+                ::nx2pc::logf("vk: RX_VK_RECORDER=thread: %s did not fit in the room a packet is given (%zu bytes): made directly once "
                               "the recorder had run what was before it (logged once)",
                               op_name(op), g->room);
             direct();
@@ -1131,4 +1131,4 @@ RX_REC_PACKER void pk_vkCmdSetCheckpointNV(VkCommandBuffer cb, const void* marke
 }
 inline constexpr auto& rx_vkCmdSetCheckpointNV = Route<::vkx::vkCmdSetCheckpointNV, pk_vkCmdSetCheckpointNV>::call;
 
-} // namespace mkwvk::rec
+} // namespace nx2pc::rec

@@ -6,7 +6,7 @@
 
 #include "vk_texture.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 /// The frame being recorded is dumped
 bool dump_on();
@@ -29,4 +29,4 @@ void dump_write();
 /// Publish a complete PNG (vk_replay.cpp): rgba is w x h RGBA8, alpha left out. False preserves an old destination.
 bool write_png(const char* path, const uint8_t* rgba, uint32_t w, uint32_t h);
 
-} // namespace mkwvk
+} // namespace nx2pc

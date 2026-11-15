@@ -30,7 +30,7 @@ Host* host = &host_value;
 uint64_t max_import_size = UINT64_MAX;
 bool import_cooling = false;
 VkResult import_result = VK_SUCCESS;
-mkwvk::ImportHolds import_holds;
+nx2pc::ImportHolds import_holds;
 std::mutex import_holds_mu;
 int64_t now_ms = 100;
 int64_t import_now_ms() { return now_ms; }
@@ -189,7 +189,7 @@ void run(const std::string& route, const std::string& test) {
     if (route != "dma") {
         assert(import_holds.rows.size() == 1);
         unsigned prior = creates; fault = Fault::None; assert(!call(route, p) && import_cooling && creates == prior);
-        now_ms += mkwvk::ImportHolds::kGapMs; assert(call(route, p) && !import_cooling);
+        now_ms += nx2pc::ImportHolds::kGapMs; assert(call(route, p) && !import_cooling);
         assert(import_holds.rows.empty()); release(p);
     } else assert(import_holds.rows.empty());   // (a DMA failure must not suppress host fallback)
 }

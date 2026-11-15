@@ -14,7 +14,7 @@
 
 #include "vk_shader.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 struct DiskRecord { int64_t at; size_t size; uint32_t kind; };
 extern std::mutex disk_mu;
@@ -99,4 +99,4 @@ bool answers_fit(const Program& p, const std::vector<Program::Answer>& answers);
 extern std::mutex shader_mu;
 extern std::unordered_map<uint64_t, std::vector<std::unique_ptr<Program>>> programs;   // by the stages' code keys
 
-} // namespace mkwvk
+} // namespace nx2pc

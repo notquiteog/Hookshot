@@ -3,9 +3,9 @@
 test_leaf.py compiles the functions it picks into its own harness. This test picks the same way (self-contained
 functions, or with --calls whole call trees) and checks them in the real game library instead: built by
 nx2/build.py from the full lift, every chunk at -O1 with the loop-header polls on, reached only through the DLL's
-emulator ABI (nx2/rt/mkw_host.h: mkw_recomp_attach, mkw_recomp_lookup), the way Eglantine's ArmRecomp uses it.
+emulator ABI (nx2/rt/nx2pc_host.h: nx2pc_recomp_attach, nx2pc_recomp_lookup), the way Eglantine's ArmRecomp uses it.
 
-The host program maps the image and the scratch area at the DLL's guest window (MkwGameInfo::mem_base), attaches a
+The host program maps the image and the scratch area at the DLL's guest window (Nx2pcGameInfo::mem_base), attaches a
 host whose poll counts and whose trap raises an exception the case loop catches, sets every case's poll flag (so the
 first loop header of each function calls the host), and writes the same results as test_leaf's harness.
 
@@ -30,7 +30,7 @@ DLL = os.path.join(kit.WORK, "build", "hookshot_game.dll")
 
 HOST = r"""
 #include "a64.h"
-#include "mkw_host.h"
+#include "nx2pc_host.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
@@ -63,7 +63,7 @@ static void make_scratch(uint64_t seed, uint64_t *out) {
         out[i] = (z & 3) == 0 ? ((SCR_BASE + (z >> 12) %% (SCR_SIZE - 256)) & ~7ULL) : z;
     }
 }
-static int run(MkwFn f, Ctx *c) {
+static int run(Nx2pcFn f, Ctx *c) {
     __try { f((struct GuestContext *)c); } __except (EXCEPTION_EXECUTE_HANDLER) {
         DWORD code = GetExceptionCode(); return code == 0xE0000001 || code == 0xE0000002 ? 0 : (int)code; }
     return 0;
@@ -71,10 +71,10 @@ static int run(MkwFn f, Ctx *c) {
 int main(int argc, char **argv) {
     HMODULE dll = LoadLibraryA(argv[4]);
     if (!dll) { fprintf(stderr, "cannot load %%s\n", argv[4]); return 6; }
-    PFN_mkw_recomp_attach attach = (PFN_mkw_recomp_attach)GetProcAddress(dll, "mkw_recomp_attach");
-    PFN_mkw_recomp_lookup lookup = (PFN_mkw_recomp_lookup)GetProcAddress(dll, "mkw_recomp_lookup");
-    MkwHost host = {MKW_HOST_VERSION, sizeof(MkwGuestContext), NULL, h_svc, h_poll, h_trap, h_miss, h_cntpct};
-    MkwGameInfo info;
+    PFN_nx2pc_recomp_attach attach = (PFN_nx2pc_recomp_attach)GetProcAddress(dll, "nx2pc_recomp_attach");
+    PFN_nx2pc_recomp_lookup lookup = (PFN_nx2pc_recomp_lookup)GetProcAddress(dll, "nx2pc_recomp_lookup");
+    Nx2pcHost host = {NX2PC_HOST_VERSION, sizeof(Nx2pcGuestContext), NULL, h_svc, h_poll, h_trap, h_miss, h_cntpct};
+    Nx2pcGameInfo info;
     if (!attach || !lookup || attach(&host, &info)) { fprintf(stderr, "attach failed\n"); return 7; }
     fprintf(stderr, "dll: %%u functions, image %%#llx, guest window %%#llx, polls %%u, main %%s\n", info.functions,
             (unsigned long long)info.image_base, (unsigned long long)info.mem_base, info.polls, info.main_build_id);
@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
         memcpy(&c.fpcr, state + 264, 8); memcpy(&c.fpsr, state + 272, 8); memcpy(c.vreg, state + 280, 512);
         memcpy(&c.tpidr_el0, state + 792, 8); memcpy(&c.tpidrro_el0, state + 800, 8);
         c.poll = 1;
-        MkwFn f = lookup(roots[idx]);
+        Nx2pcFn f = lookup(roots[idx]);
         int fault = f ? run(f, &c) : -1;
         memcpy(state, c.x, 256); memcpy(state + 256, &c.n, 4);
         memcpy(state + 264, &c.fpcr, 8); memcpy(state + 272, &c.fpsr, 8); memcpy(state + 280, c.vreg, 512);

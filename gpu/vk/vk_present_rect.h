@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace mkwvk {
+namespace nx2pc {
 
 struct PresentSourceRect {
     uint32_t x, y, w, h;
@@ -72,4 +72,4 @@ constexpr PresentRect present_rect(uint32_t sw, uint32_t sh, const int crop[4], 
     return {0, (dh - h) / 2, dw, h ? h : 1};
 }
 
-}  // namespace mkwvk
+}  // namespace nx2pc

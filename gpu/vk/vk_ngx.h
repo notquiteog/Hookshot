@@ -25,7 +25,7 @@
 #include <nvsdk_ngx_helpers_vk.h>
 #include <nvsdk_ngx_vk.h>
 
-namespace mkwvk::ngx {
+namespace nx2pc::ngx {
 
 /// NGX's parameters through its C functions, never NVSDK_NGX_Parameter's virtual Set/Get. The object comes from NVIDIA's
 /// MSVC-built library, and its vtable is laid out by Microsoft's ABI, which llvm-mingw's Itanium-ABI calls do not follow:
@@ -98,6 +98,6 @@ size_t device_extensions(VkInstance instance, VkPhysicalDevice gpu, NVSDK_NGX_Fe
 /// started.
 void shutdown();
 
-} // namespace mkwvk::ngx
+} // namespace nx2pc::ngx
 
 #endif // HOOKSHOT_NGX

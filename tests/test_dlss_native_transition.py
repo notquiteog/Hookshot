@@ -12,7 +12,7 @@ FIXTURE = r'''
 #include <cstdint>
 #include <cstdio>
 #include "gpu/vk/upscaler_rows.h"
-namespace ur = mkwvk::upscaler_rows;
+namespace ur = nx2pc::upscaler_rows;
 
 struct TestEngine {
     const char* name = "fixture";

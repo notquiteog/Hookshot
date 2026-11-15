@@ -104,10 +104,10 @@ def main():
     sys.path.insert(0, str(SCRIPTS))
     import prof
     symbols = [
-        "mkwvk::(anonymous namespace)::build_descriptors(int)",
-        "mkwvk::(anonymous namespace)::texture_view_of(unsigned int)",
-        "mkwvk::Recorder::operator()(int)",
-        "mkwvk::Recorder::operator()(float)",
+        "nx2pc::(anonymous namespace)::build_descriptors(int)",
+        "nx2pc::(anonymous namespace)::texture_view_of(unsigned int)",
+        "nx2pc::Recorder::operator()(int)",
+        "nx2pc::Recorder::operator()(float)",
     ]
     output = "\n".join("%016x t %s" % (0x1000 + i * 16, name)
                        for i, name in enumerate(symbols))

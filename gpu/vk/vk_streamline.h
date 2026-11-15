@@ -25,7 +25,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk::streamline {
+namespace nx2pc::streamline {
 
 /// Whether this build has Streamline's headers at all. Compile-time, so the menu can say "this
 /// build was made without it" rather than "your GPU cannot do it", which are different problems
@@ -76,4 +76,4 @@ bool attach_device(VkInstance instance, VkPhysicalDevice gpu, VkDevice device,
 /// Ends the session. Safe when nothing was started; call before the device is destroyed.
 void stop();
 
-} // namespace mkwvk::streamline
+} // namespace nx2pc::streamline

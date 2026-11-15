@@ -213,7 +213,7 @@ int hos_sdl_refresh_hz(void) {
 
 int hos_sdl_desktop_size(int *width, int *height) {
     /* (hookshot) no SDL loaded (a windowless start: HOS_HEADLESS), so the screen is unknown. The menu asks while it runs
-       (MkwVkHost.screen_size, rx_backend.c), and SDL2's branch below would call an empty slot */
+       (Nx2pcVkHost.screen_size, rx_backend.c), and SDL2's branch below would call an empty slot */
     if (!version) return 0;
     if (version == 3) {   /* (SDL_DisplayMode: displayID, format, w and h at 8 and 12 in screen units, pixel_density at
                              16: in pixels, as SDL2 gave them) */

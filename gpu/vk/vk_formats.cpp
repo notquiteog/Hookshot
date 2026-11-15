@@ -3,7 +3,7 @@
 // desktop GPUs do not sample, is decoded to RGBA8 (astc: the block size).
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 
 // ASTC (NVN 0x79..0x94): desktop GPUs sample it (textureCompressionASTC_LDR), so the blocks are uploaded as they are
@@ -159,4 +159,4 @@ int nvn_block_size(int format, int* bw, int* bh) {
     return bpb;
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

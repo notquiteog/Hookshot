@@ -20,7 +20,7 @@
 #include <windows.h>
 #endif
 
-namespace mkwvk {
+namespace nx2pc {
 
 class ImportFence {
 #ifndef __linux__
@@ -56,4 +56,4 @@ public:
     ImportFence& operator=(const ImportFence&) = delete;
 };
 
-} // namespace mkwvk
+} // namespace nx2pc

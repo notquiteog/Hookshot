@@ -34,7 +34,7 @@ target_include_directories(global_load_16_ir PRIVATE
     "${SPIRV_HEADERS_ROOT}/include")
 
 target_compile_definitions(global_load_16_ir PRIVATE
-    NDEBUG MKWVK_INCLUDES=2 VK_NO_PROTOTYPES)
+    NDEBUG NX2PCVK_INCLUDES=2 VK_NO_PROTOTYPES)
 
 if(MSVC)
     target_compile_options(global_load_16_ir PRIVATE /W0 /O1 /EHsc)

@@ -2,7 +2,7 @@
 
 The Linux guest window is mapped readable and writable whole (host/hos_main.c), so before the guard a game's null
 reads and writes went into guest page 0 silently and its crash came later and elsewhere. Windows never commits guest
-addresses below 1 MB (host/mkw_glue.c commit_on_touch), so a null pointer faults where it is used.
+addresses below 1 MB (host/nx2pc_glue.c commit_on_touch), so a null pointer faults where it is used.
 
 This compiles host/hos_main.c's real guest_null_guard against a window of its own, then checks in child processes
 that a read at guest 0x58 (a null object's field) dies of SIGSEGV, that a read at guest 1 MB does not, and that every

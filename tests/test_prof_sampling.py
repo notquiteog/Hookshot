@@ -25,7 +25,7 @@ FIXTURE = r'''
 #include <random>
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); std::exit(1); } } while (0)
 static int64_t now_ns, clock_reads;
-namespace mkwvk {
+namespace nx2pc {
 enum ProfPhase { PROF_SUBMIT, PROF_PRESENT, PROF_DRAW, PROF_DESC, PROF_TEXGET, PROF_UPLOAD, PROF_PIPE, PROF_PROGRAM,
                  PROF_CMDS, PROF_DISPATCH, PROF_MEMSYNC, PROF_QSUBMIT, PROF_SLOTWAIT, PROF_COUNT };
 int64_t prof_ns[PROF_COUNT];
@@ -33,7 +33,7 @@ inline int64_t prof_now() { return clock_reads++, now_ns; }
 @SCOPES@
 }
 @MACROS@
-using namespace mkwvk;
+using namespace nx2pc;
 
 static int64_t truth[PROF_COUNT];   // (each phase's true time, from the clock itself)
 struct Truth {
@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
 def scopes(source):
     """The sampled timers, from their comment to the namespace's end, and the PROF macros"""
     start = source.index("// (hookshot) The per-draw phases (PROF_HOT)")
-    end = source.index("} // namespace mkwvk", start)
+    end = source.index("} // namespace nx2pc", start)
     macros = [line for line in source[end:].splitlines() if line.startswith("#define PROF")]
     if len(macros) != 3:
         raise SystemExit("PROF, PROF_HOT and PROF_EXACT are not all defined after the scopes")

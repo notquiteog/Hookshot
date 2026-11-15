@@ -23,7 +23,7 @@
 #include <cstring>
 #include <initializer_list>
 
-namespace mkwvk::framegen_methods {
+namespace nx2pc::framegen_methods {
 
 // (AUTO and BUILTIN are upstream's 0 and 1: an ini written by either build reads the same in the other)
 enum { AUTO = 0, BUILTIN = 1, FSR4 = 2, FSR3 = 3, kMethods = 4 };
@@ -88,4 +88,4 @@ inline int from_name(const char* name) {
 /// 4 Built-in), as this row's: DLSS is Auto's own here
 inline int from_old(int old) { return old == 2 ? FSR4 : old == 3 ? FSR3 : old == 4 ? BUILTIN : AUTO; }
 
-} // namespace mkwvk::framegen_methods
+} // namespace nx2pc::framegen_methods

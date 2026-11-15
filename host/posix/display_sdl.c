@@ -1,7 +1,7 @@
 /* (linux) The game's window on SDL (host/hos_sdl.c: SDL3, Wayland when there is one, else X11; or SDL2): what
    host/display.c is on Windows. The window lives on the process's main thread, as SDL wants it (hos_main.c runs the
    game on a thread of its own on Linux); the Vulkan back end makes its surface through SDL (gpu/vk/vk_api.h
-   MkwVkWindow), on a thread of its own so the window keeps answering while the shaders are prepared.
+   Nx2pcVkWindow), on a thread of its own so the window keeps answering while the shaders are prepared.
 
    The keyboard's state goes to hos_posix_keys (GetAsyncKeyState, for nn_hid.c and the Insert menu), the window's focus
    and the screen's size to hos_posix_window (GetForegroundWindow, GetSystemMetrics).
@@ -50,20 +50,20 @@ void hos_mouse_give_back(int32_t dx, int32_t dy) {
     InterlockedExchangeAdd(&mouse_dy, dy);
 }
 
-/* ---- the free mouse, for the Insert menu (gpu/vk/vk_api.h MkwVkPointer): set on the main thread, read on the renderer's ---- */
+/* ---- the free mouse, for the Insert menu (gpu/vk/vk_api.h Nx2pcVkPointer): set on the main thread, read on the renderer's ---- */
 static HosPointer pointer = HOS_POINTER_INIT;
 static int ptr_in;
 static uint32_t ptr_held;
 static int menu_open;   /* window-thread only */
 static void *window;
-int hos_mouse_pointer(MkwVkPointer *out) { return hos_pointer_take(&pointer, out); }
+int hos_mouse_pointer(Nx2pcVkPointer *out) { return hos_pointer_take(&pointer, out); }
 
 /* SDL's window/mouse queries belong on the main thread, never on the renderer's pointer callback. */
 static void pointer_publish_at(float x, float y, uint32_t pressed, int wheel) {
     int ww = 0, wh = 0, pw = 0, ph = 0;
     hos_sdl_window_size(window, &ww, &wh);
     hos_sdl_pixel_size(window, &pw, &ph);
-    MkwVkPointer sample = {0};
+    Nx2pcVkPointer sample = {0};
     sample.width = pw, sample.height = ph;
     const double px = ww > 0 ? floor((double)x * pw / ww) : 0;
     const double py = wh > 0 ? floor((double)y * ph / wh) : 0;
@@ -133,7 +133,7 @@ static void desktop_size(void *w, int *width, int *height) {
     (void)w;
     *width = __atomic_load_n(&desktop_w, __ATOMIC_RELAXED), *height = __atomic_load_n(&desktop_h, __ATOMIC_RELAXED);
 }
-static MkwVkWindow vk_window = {MKWVK_WINDOW_VERSION, create_surface, drawable_size, NULL, refresh_mhz, desktop_size};
+static Nx2pcVkWindow vk_window = {NX2PCVK_WINDOW_VERSION, create_surface, drawable_size, NULL, refresh_mhz, desktop_size};
 
 /* Esc let the captured mouse go just before it opened the Insert menu (Menu shortcut "Insert, F1 or Esc"):
    the capture that comes back when the menu closes. Spent by the next capture or menu */

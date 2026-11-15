@@ -18,7 +18,7 @@ int hos_control_input(uint64_t *buttons, int32_t stick[4]);
 void hos_control_log(const char *line);
 extern volatile int hos_control_on;
 
-/* One of the Insert menu's settings (gpu/vk/vk_api.h MkwVkSetting's fields) */
+/* One of the Insert menu's settings (gpu/vk/vk_api.h Nx2pcVkSetting's fields) */
 typedef struct HosControlSetting {
     char key[32], name[48], text[64], tab[16];
     int value, lo, hi, step;

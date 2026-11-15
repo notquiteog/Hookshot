@@ -22,7 +22,7 @@ static bool enabled = true, producer_queued, producer_done;
 static bool require_no_lease = true, need_producer;
 static int vulkan_calls, fallback_calls;
 static uint64_t want_gpu = 0x123456789abULL, want_size = 0x100002345ULL;
-static const MkwVkRenderer* vk;
+static const Nx2pcVkRenderer* vk;
 
 static int hos_vcores_on() { return enabled; }
 static void vc_release(HosThread* t) {
@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
     // A separate case demonstrates producer starvation on the original wrapper, beyond the entry invariant.
     require_no_lease = std::strcmp(name, "producer") != 0;
     if (!std::strcmp(name, "zero")) want_gpu = want_size = 0;
-    MkwVkRenderer backend{};
+    Nx2pcVkRenderer backend{};
     backend.nvn_invalidate = vulkan_invalidate;
     vk = fallback ? nullptr : &backend;
     HosThread caller, producer;

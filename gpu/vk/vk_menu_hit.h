@@ -3,7 +3,7 @@
 // drift apart, at any size. Plain arithmetic, no Vulkan or ImGui: tests/test_menu_hit.cpp checks it.
 #pragma once
 
-namespace mkwvk::menu_hit {
+namespace nx2pc::menu_hit {
 
 enum Part {
     kNone,      // off the menu's controls (still over the menu: a click does nothing)
@@ -121,4 +121,4 @@ struct Map {
     }
 };
 
-} // namespace mkwvk::menu_hit
+} // namespace nx2pc::menu_hit

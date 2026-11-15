@@ -11,7 +11,7 @@
 
 #include <vulkan/vulkan_core.h>
 
-namespace mkwvk {
+namespace nx2pc {
 
 struct VendorFacts {
     uint32_t vendor_id = 0;
@@ -70,4 +70,4 @@ template <class Get> void vendor_fixes_env(VendorFixes& x, Get get) {
     over("RX_VK_GATHER_OFFSET", x.gather_offset);
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

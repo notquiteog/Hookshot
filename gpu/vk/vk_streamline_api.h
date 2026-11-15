@@ -13,7 +13,7 @@
 #include <sl_core_api.h>
 #include <sl_helpers_vk.h>
 
-namespace mkwvk::streamline {
+namespace nx2pc::streamline {
 
 /// What this renderer calls. Resolved once, when the interposer is loaded; every pointer here is
 /// non-null for the life of a started session, because start() fails if any one of them is missing.
@@ -45,6 +45,6 @@ template <typename T>
     return reinterpret_cast<T*>(function);
 }
 
-} // namespace mkwvk::streamline
+} // namespace nx2pc::streamline
 
 #endif

@@ -6,9 +6,9 @@
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
 int main() {
-    using mkwvk::movie_upscale_policy::Mode;
-    using mkwvk::movie_upscale_policy::parse;
-    using mkwvk::movie_upscale_policy::use_linear;
+    using nx2pc::movie_upscale_policy::Mode;
+    using nx2pc::movie_upscale_policy::parse;
+    using nx2pc::movie_upscale_policy::use_linear;
 
     CHECK("unset defaults to automatic", parse(nullptr) == Mode::Automatic);
     CHECK("explicit auto uses automatic", parse("auto") == Mode::Automatic);

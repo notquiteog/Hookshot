@@ -24,7 +24,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk::dlssnr {
+namespace nx2pc::dlssnr {
 
 /// Whether this build has Streamline's headers at all (compile-time). The menu says "this build was
 /// made without it" rather than "your card cannot do it", which are different problems.
@@ -57,4 +57,4 @@ void history_gap();
 /// Releases the feature's resources. Before the device goes.
 void shutdown();
 
-} // namespace mkwvk::dlssnr
+} // namespace nx2pc::dlssnr

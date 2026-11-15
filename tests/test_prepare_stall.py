@@ -209,11 +209,11 @@ WATCH_HEAD = r'''
 #else
 static void Sleep(unsigned ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 #endif
-struct MkwVkHost { void (*log)(const char*); void (*log_flush)(void); };
+struct Nx2pcVkHost { void (*log)(const char*); void (*log_flush)(void); };
 static void host_log(const char* s) { std::printf("[log] %s\n", s); std::fflush(stdout); }
 static void host_flush() { std::fflush(stdout); }
-static const MkwVkHost host_v{host_log, host_flush};
-const MkwVkHost* host = &host_v;
+static const Nx2pcVkHost host_v{host_log, host_flush};
+const Nx2pcVkHost* host = &host_v;
 static int faults;
 static bool left;
 int driver_faults() { return faults; }

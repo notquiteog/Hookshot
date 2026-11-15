@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <string>
 
-namespace mkwvk {
+namespace nx2pc {
 
 /// The time left, from the rate over the last few seconds, not from the start: a start after one that was closed part-way skips
 /// what is on disk already in a second or two, and that burst would have promised the rest at the same speed. Nothing is said
@@ -208,4 +208,4 @@ inline StartupView startup_view(const StartupState& s) {
     return v;
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

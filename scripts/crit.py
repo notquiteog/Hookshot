@@ -1,4 +1,4 @@
-"""The frame's critical path from an all-thread sample (host/mkw_glue.c HOS_SAMPLE_ALL): every 2 ms each guest thread
+"""The frame's critical path from an all-thread sample (host/nx2pc_glue.c HOS_SAMPLE_ALL): every 2 ms each guest thread
 and renderer thread, "<ms> <name>|<frames>" (module+offset, leaf first).
 
     python -I scripts/crit.py work/runs/<run>_all.txt [top]
@@ -61,7 +61,7 @@ def main():
         print("  %5.1f%%  %s" % (100.0 * c / seen[th], th))
 
     def is_game(th):
-        return not th.startswith("mkw_vk")
+        return not th.startswith("nx2pc")
 
     def guest_frame(frames):
         """the innermost game function (f_...) and the import it called, if any"""

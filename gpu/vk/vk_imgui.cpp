@@ -30,7 +30,7 @@
 extern const unsigned hookshot_font_body_size, hookshot_font_strong_size, hookshot_font_heading_size;
 extern const unsigned char hookshot_font_body[], hookshot_font_strong[], hookshot_font_heading[];
 
-namespace mkwvk::ui {
+namespace nx2pc::ui {
 namespace {
 
 bool tried = false, ready = false;
@@ -534,4 +534,4 @@ void record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     record_to(cmd, has ? dev.swap_images[index] : VK_NULL_HANDLE, has ? dev.swap_views[index] : VK_NULL_HANDLE, w, h);
 }
 
-} // namespace mkwvk::ui
+} // namespace nx2pc::ui

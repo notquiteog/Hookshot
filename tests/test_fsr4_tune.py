@@ -202,9 +202,9 @@ def source_problems():
     if "void fsr4_close() { tune::close(); }" not in src or src.count("void fsr4_close()") != 2:
         problems.append("fsr4_close is not defined in both builds (with and without FSR)")
     main_cpp = (VK / "vk_main.cpp").read_text(encoding="utf-8")
-    closer = function_body(main_cpp, "void mkwvk_close_asked(void)")
+    closer = function_body(main_cpp, "void nx2pc_close_asked(void)")
     if "fsr4_close();" not in closer or closer.find("fsr4_close();") > closer.find("pipeline_cache_close();"):
-        problems.append("mkwvk_close_asked does not stop FSR 4's builds before the pipeline cache's save")
+        problems.append("nx2pc_close_asked does not stop FSR 4's builds before the pipeline cache's save")
     return problems
 
 

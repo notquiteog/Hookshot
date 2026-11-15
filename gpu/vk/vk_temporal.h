@@ -10,7 +10,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 struct Texture;
 
@@ -83,7 +83,7 @@ int temporal_status(char* b, size_t n);
 /// engine's scale (dlss_jitter_phases, HOS_OPT_DLSS_JITTER_PHASES)
 uint32_t temporal_jitter_size(int axis);
 /// One completed sample shared by DLSS, FSR 4 and FSR 3.1 on the chain; all zero while inactive.
-MkwVkJitter temporal_jitter_sample();
+Nx2pcVkJitter temporal_jitter_sample();
 
 // ---- what an engine is given and does ----
 
@@ -145,4 +145,4 @@ struct TemporalEngine {
 /// Runs f a few frames on, to free what work in flight may still use. Called by the engines with the chain's lock held
 void temporal_later(std::function<void()> f);
 
-} // namespace mkwvk
+} // namespace nx2pc

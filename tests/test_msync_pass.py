@@ -67,7 +67,7 @@ enum { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO = 1000244001 };
 struct VkBufferCopy { uint64_t srcOffset, dstOffset, size; };
 struct VkBufferDeviceAddressInfo { int sType; const void* pNext; VkBuffer buffer; };
 
-namespace mkwvk {
+namespace nx2pc {
 static void logf(const char*, ...) {}
 struct { VkDevice device; } dev{};
 std::map<VkBuffer, VkDeviceAddress> addresses;   // (a buffer's device address; 0 for one without)
@@ -86,8 +86,8 @@ std::vector<WbdChunk> msync_chunks;
 @MSYNC_COPY@;
 std::vector<MsyncCopy> msync_copies;
 @PASS_ADD@
-}  // namespace mkwvk
-using namespace mkwvk;
+}  // namespace nx2pc
+using namespace nx2pc;
 
 static int failures;
 #define CHECK(ok, ...) do { if (!(ok)) { std::fprintf(stderr, "failed: %s: ", #ok); std::fprintf(stderr, __VA_ARGS__); \

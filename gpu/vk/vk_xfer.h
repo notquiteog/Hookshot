@@ -11,7 +11,7 @@
 #include "vk_internal.h"
 #include "vk_state.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 /// buffer <-> texture level (nvn_p_copy_bt); to_image: buffer to texture, else texture to buffer
 void copy_b2t(VkCommandBuffer cmd, NvnState& s, const nvn_p_copy_bt& p, bool to_image);
@@ -20,4 +20,4 @@ void copy_t2t(VkCommandBuffer cmd, NvnState& s, const nvn_p_copy_tt& p);
 /// a whole level to a value (nvn_p_clear_tex)
 void clear_tex(VkCommandBuffer cmd, NvnState& s, const nvn_p_clear_tex& p);
 
-} // namespace mkwvk
+} // namespace nx2pc

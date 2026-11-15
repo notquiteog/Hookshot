@@ -63,7 +63,7 @@ PROGRAM = r"""
 #include <cstdio>
 #include <cmath>
 #include "NR_PLAN_H"   // (the Passes row's count, as vk_menu.h includes it)
-using namespace mkwvk;
+using namespace nx2pc;
 static int bad;
 #define CHECK(c) do { if (!(c)) { std::printf("FAIL: %s\n", #c); ++bad; } } while (0)
 

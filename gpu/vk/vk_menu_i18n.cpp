@@ -23,7 +23,7 @@
 #include "vk_menu.h"
 #include "vk_paths.h"
 
-namespace mkwvk::i18n {
+namespace nx2pc::i18n {
 
 namespace {
 
@@ -294,4 +294,4 @@ const char* tr(const char* s) {
     return it->second == s ? s : it->second.c_str();
 }
 
-}  // namespace mkwvk::i18n
+}  // namespace nx2pc::i18n

@@ -6,7 +6,7 @@
 
 #include "vk_api.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 /// NVN's stages: vertex 0, fragment 1, geometry 2, tessellation 3 / 4, compute 5; NVN2's task 6 and mesh 7
 constexpr int kNvnStages = 8;
@@ -92,4 +92,4 @@ void driver_bank_fill(const NvnState& s, int bank, int stage, uint8_t* d, uint32
 /// A driver bank whole (0xA00 bytes)
 void driver_bank(const NvnState& s, int bank, int stage, uint8_t d[0xA00]);
 
-} // namespace mkwvk
+} // namespace nx2pc

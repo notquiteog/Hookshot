@@ -27,10 +27,10 @@
 
 typedef struct VmaAllocation_T* VmaAllocation;   // (vk_mem_alloc.h's handle)
 
-namespace mkwvk {
+namespace nx2pc {
 
 extern std::vector<std::string> gpu_device_names;
-extern const MkwVkHost* host;
+extern const Nx2pcVkHost* host;
 void logf(const char* fmt, ...);
 // (hookshot) A line at another level than info, as host/hos.h's hos_log_at: "[trace] " leads its text, after the host's thread tag
 enum LogLevel : int { log_error, log_warn, log_info, log_debug, log_trace };
@@ -410,14 +410,14 @@ bool prepare_stopped();
 int driver_faults();   // (hookshot, vk_draw.cpp) the driver faults the pipeline compiles caught so far (guarded_graphics, guarded_compute)
 void prepare_left_workers_note();   // (hookshot, vk_draw.cpp) predict_run or precompile_run left workers inside the driver
 bool prepare_left_workers();
-void fill_replay_table(MkwVkRenderer& t);     // vk_replay.cpp
+void fill_replay_table(Nx2pcVkRenderer& t);     // vk_replay.cpp
 // the game profile's program keys: the runtime's (HOOKSHOT_PROFILE_*), else the built-in header's (vk_draw.cpp)
 const char* profile_keys(const char* runtime, const char* built);
 
-} // namespace mkwvk
+} // namespace nx2pc
 
 // ---- a scoped timer per phase of the replay (logged per frame with the frame statistics) ----
-namespace mkwvk {
+namespace nx2pc {
 enum ProfPhase { PROF_SUBMIT, PROF_PRESENT, PROF_DRAW, PROF_DESC, PROF_TEXGET, PROF_UPLOAD, PROF_PIPE, PROF_PROGRAM,
                  PROF_CMDS, PROF_DISPATCH, PROF_MEMSYNC, PROF_QSUBMIT, PROF_SLOTWAIT, PROF_COUNT };
 extern int64_t prof_ns[PROF_COUNT];
@@ -509,7 +509,7 @@ struct ProfScopeHot {
         t.open--;
     }
 };
-} // namespace mkwvk
-#define PROF(phase) ::mkwvk::ProfScope prof_scope_##phase(::mkwvk::phase)
-#define PROF_HOT(phase) ::mkwvk::ProfScopeHot prof_scope_##phase(::mkwvk::phase)   // (the per-draw phases: sampled, above)
-#define PROF_EXACT() ::mkwvk::ProfScope prof_scope_exact(-1)   // (a slow, rare path inside them: timed exactly, above)
+} // namespace nx2pc
+#define PROF(phase) ::nx2pc::ProfScope prof_scope_##phase(::nx2pc::phase)
+#define PROF_HOT(phase) ::nx2pc::ProfScopeHot prof_scope_##phase(::nx2pc::phase)   // (the per-draw phases: sampled, above)
+#define PROF_EXACT() ::nx2pc::ProfScope prof_scope_exact(-1)   // (a slow, rare path inside them: timed exactly, above)

@@ -1,6 +1,6 @@
 # Temporal jitter sample
 
-The host asks the renderer for one `MkwVkJitter` per host frame. Width, height and
+The host asks the renderer for one `Nx2pcVkJitter` per host frame. Width, height and
 sequence length belong to the same completed upscale; inactive samples contain
 three zeros. The renderer callback was appended in host/backend API 14, so both
 binaries must be rebuilt together. A renderer without the callback supplies no jitter.

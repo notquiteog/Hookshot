@@ -23,7 +23,7 @@ ENV_ON_H = str(VK / "compat" / "hookshot_env.h")
 
 def build_and_run(cxx):
     sources = sorted((VK / "eden" / "shader_recompiler" / "frontend" / "ir").glob("*.cpp"))
-    flags = ["-std=c++20", "-include", ENV_ON_H, "-O1", "-D_CRT_SECURE_NO_WARNINGS", "-DMKWVK_INCLUDES=2"]
+    flags = ["-std=c++20", "-include", ENV_ON_H, "-O1", "-D_CRT_SECURE_NO_WARNINGS", "-DNX2PCVK_INCLUDES=2"]
     for header in ("algorithm", "cstdio", "cstdlib", "cstring", "functional", "string", "vector"):
         flags += ["-include", header]
     flags += ["-I" + str(p) for p in (VK / "compat", ROOT / "gpu" / "compat", VK / "eden", ROOT / "gpu" / "third_party" / "suyu")]

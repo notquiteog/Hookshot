@@ -21,7 +21,7 @@
 #include "fsr3_math.h"
 #include "vk_internal.h"
 
-namespace mkwvk::fsr3fi {
+namespace nx2pc::fsr3fi {
 
 /// One made frame's inputs.
 ///
@@ -79,4 +79,4 @@ struct Inputs {
 /// Forgets the sequence, so the next frame is made with the reset flag set: a cut, a load, a resize.
 void reset();
 
-} // namespace mkwvk::fsr3fi
+} // namespace nx2pc::fsr3fi

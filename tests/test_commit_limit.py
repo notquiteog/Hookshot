@@ -50,7 +50,7 @@ def main():
     if tex.find("commit_headroom(&commit_free)") > tex.find("vram_compact::rule_target(total_bytes, size_budget, rule_budget)"):
         raise SystemExit("FAIL: the commit rule comes after rule_target reads rule_budget")
 
-    glue = (ROOT / "host" / "mkw_glue.c").read_text(encoding="utf-8")
+    glue = (ROOT / "host" / "nx2pc_glue.c").read_text(encoding="utf-8")
     wait = block(glue, "static int commit_wait(void *p, SIZE_T size)")
     if "Sleep(50)" not in wait or "ERROR_COMMITMENT_LIMIT" not in wait or "i < 100" not in wait:
         raise SystemExit("FAIL: commit_wait does not retry for up to 5 s while the limit refuses")

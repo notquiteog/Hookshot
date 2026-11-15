@@ -33,7 +33,7 @@
 #endif
 #include "vk_work.h"   // (after the others: its commands through the recorder, counted as work for full_barrier)
 
-namespace mkwvk::dlssnr_ngx {
+namespace nx2pc::dlssnr_ngx {
 namespace {
 
 /// The same switch as the Streamline path's (dlssnr::asked), read live every call: the row the player just changed has to
@@ -637,9 +637,9 @@ void shutdown() {}
 
 #endif
 
-} // namespace mkwvk::dlssnr_ngx
+} // namespace nx2pc::dlssnr_ngx
 
-namespace mkwvk::nr {
+namespace nx2pc::nr {
 
 // (the open backend, OpenDLSS-NR, is in every build: so is the Neural tab)
 bool built() { return true; }
@@ -730,4 +730,4 @@ const char* why() {
     return streamline::nr_why();
 }
 
-} // namespace mkwvk::nr
+} // namespace nx2pc::nr

@@ -131,11 +131,11 @@ bool create_device_buffer(uint64_t, VkBufferUsageFlags, VkBuffer& buffer, VmaAll
 }
 uint64_t vkGetBufferDeviceAddress(VkDevice, const VkBufferDeviceAddressInfo* info) { return info->buffer; }
 void logf(const char*, ...) {}
-namespace mkwvk {   // (the functions as vk_memory.cpp has them: there they are in mkwvk, which finds vram_pressure)
+namespace nx2pc {   // (the functions as vk_memory.cpp has them: there they are in nx2pc, which finds vram_pressure)
 ''' + helper + r'''
-}   // namespace mkwvk
-using mkwvk::shadow_make;
-using mkwvk::shadows_check_room;
+}   // namespace nx2pc
+using nx2pc::shadow_make;
+using nx2pc::shadows_check_room;
 const uint64_t MB = 1ull << 20;
 void vram(uint64_t used, uint64_t allowed) { vram_used = used, vram_allowed = allowed, vram_block_free = 0; }
 void vram3(uint64_t used, uint64_t allowed, uint64_t block_free) {

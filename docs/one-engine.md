@@ -48,6 +48,28 @@ agents who work on any of the four.
    than inventing its own.
 6. **Fixes in the shared engine are measured in more than one game where they can be.** At least, say which games a
    change was run in and which not.
+7. **Engine code takes general names.** The engine is NX2PC, and the aim is to recompile any Switch 2 game, so a game's
+   name appears only in its profile (`nx2/game_profile.py`), its patch module (`nx2/oot_patches.py` and the like) and its
+   docs. A switch one game needs is a profile field or a setting with a general name, keyed by the profile, as
+   `video_catchup` and `vk_parallel` are; not `hos_game_is_<game>` or `HOS_<GAME>_...`. `tests/test_engine_names.py`
+   holds the renamed names to it.
+
+## The rename to NX2PC names
+
+The engine kept the names of the game it was first made for: `MkwVkHost`, the namespace `mkwvk`, `mkw_host.h`,
+`mkw_glue.c`, the renderer's threads "mkw_vk ...". `scripts/rename_nx2.py` renamed them to NX2PC names by whole
+identifier (`Nx2pcVkHost`, `nx2pc`, `nx2pc_host.h`, `nx2pc_glue.c`, threads "nx2pc ..."; `NX2PCVK_API_VERSION` 23). The
+pipeline cache's files became `hookshot_pipeline_cache*`; a game folder's old `mkw_vk_pipelines*` files are moved at the
+first start, so no player compiles their cache again.
+
+**A fork, before merging `main` past the rename:** run the script on your branch and commit it, then merge.
+
+    python -I scripts/rename_nx2.py --check   # what it would change
+    python -I scripts/rename_nx2.py           # change it (git mv for the two renamed files)
+    git commit -am "chore: the engine's names from MKW to NX2PC (scripts/rename_nx2.py)"
+
+Without it, nearly every engine file conflicts. The script touches only the engine's renamed identifiers, so a fork's
+own game names (its profile key, its patches) are left alone; it is safe to run again.
 
 ## The converged profile
 

@@ -15,7 +15,7 @@
 #include "vk_internal.h"
 #include "vk_state.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 struct Stage {
     int nvn_stage = 0;   // 0 vertex, 1 fragment, 5 compute (what its banks are read for)
@@ -183,4 +183,4 @@ uint64_t program_created_key(uint64_t serial, const uint32_t vattr[16], const ui
 void program_created_forget(uint64_t serial);
 int64_t shader_translated();   // (programs translated so far, by any thread)
 
-} // namespace mkwvk
+} // namespace nx2pc

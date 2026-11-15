@@ -5,7 +5,7 @@
 
 #include <string>
 
-namespace mkwvk::menu_restart {
+namespace nx2pc::menu_restart {
 
 constexpr int kMax = 16;   // (rows that take a restart: the menu has ten; a row past kMax would have no slot)
 
@@ -67,4 +67,4 @@ inline std::string names(const char* const* names, int n, unsigned mask, const c
     return s;
 }
 
-} // namespace mkwvk::menu_restart
+} // namespace nx2pc::menu_restart

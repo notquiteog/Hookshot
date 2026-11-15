@@ -5,7 +5,7 @@
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
 int main() {
-    namespace rp = mkwvk::reactive_policy;
+    namespace rp = nx2pc::reactive_policy;
     // which draws: (colour written, blend, depth test, depth write)
     CHECK("a depth pass's draw is neither", rp::classify(false, false, true, true) == rp::kNothing &&
                                                 rp::classify(false, true, true, false) == rp::kNothing);

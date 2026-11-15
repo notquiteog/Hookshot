@@ -11,7 +11,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 struct Program;
 struct PipeNote;
@@ -63,9 +63,9 @@ struct PipelineSource {
 PipelineSource& pipeline_source();
 
 // ---- the game's side (its own threads) ----
-/// The game gave a program its shaders (MkwVkRenderer::nvn_program_created): its stages are in the game's memory now
+/// The game gave a program its shaders (Nx2pcVkRenderer::nvn_program_created): its stages are in the game's memory now
 void programs_created(const nvn_prog* p);
-/// The game frees a program, or gives it other shaders (MkwVkRenderer::nvn_program_released, before the replay hears of it)
+/// The game frees a program, or gives it other shaders (Nx2pcVkRenderer::nvn_program_released, before the replay hears of it)
 void programs_freed(const nvn_prog* p);
 /// The game presents a frame (vk_replay.cpp present, the presenting thread)
 void programs_presented();
@@ -152,4 +152,4 @@ struct ProgramUse {
 void programs_play_begin();
 extern std::atomic<bool> programs_in_play;
 
-} // namespace mkwvk
+} // namespace nx2pc

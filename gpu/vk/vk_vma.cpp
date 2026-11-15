@@ -17,7 +17,7 @@
 #include "vram_compact.h"
 #include "vk_work.h"   // (last: RX_VK_RECORDER=defer drains before the destructions and the invalidate below)
 
-namespace mkwvk {
+namespace nx2pc {
 
 VmaAllocator vma;
 
@@ -394,4 +394,4 @@ bool system_heap_usage(uint64_t* used, uint64_t* budget) {
     return dev.memory_budget && t != 0;
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

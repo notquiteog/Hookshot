@@ -108,7 +108,7 @@ static int io_remove(const char* p){if(refuse(CLEANUP)){errno=EACCES;return -1;}
 int main(int argc,char** argv){
     CHECK(argc==2);std::string path=std::string(argv[1])+"/fault-cache.bin";
     auto valid=[](const uint8_t* p,uint64_t n){return n==64&&p[0]==42;};
-    auto seed=[&](){auto f=mkwvk::PipelineCacheFile::writable(path,64);if(f.empty())return false;memset(f.data(),42,64);return f.publish(64);};
+    auto seed=[&](){auto f=nx2pc::PipelineCacheFile::writable(path,64);if(f.empty())return false;memset(f.data(),42,64);return f.publish(64);};
     CHECK(seed());int cases=0;
     for(Fault f:{CREATE,RESIZE,ALLOCATE,LOCK,MAP,VIEW,FLUSH,UNMAP,MODE,TOUCH,SYNC,CLOSE,REPLACE,TRUNCATE}){
 #ifdef _WIN32
@@ -122,7 +122,7 @@ int main(int argc,char** argv){
         bool acquisition=f==CREATE||f==RESIZE||f==ALLOCATE||f==LOCK||f==MAP||f==VIEW;
         fault=acquisition?f:NONE;injected=false;
         {
-            auto output=mkwvk::PipelineCacheFile::writable(path,128);
+            auto output=nx2pc::PipelineCacheFile::writable(path,128);
             if(acquisition){CHECK(output.empty());}
             else {CHECK(!output.empty());memset(output.data(),99,128);fault=f;CHECK(!output.publish(96));}
 #ifndef _WIN32
@@ -130,7 +130,7 @@ int main(int argc,char** argv){
 #endif
         }
         CHECK(injected);fault=NONE;
-        auto old=mkwvk::PipelineCacheFile::read(path,valid);CHECK(!old.empty());CHECK(old.data()[63]==42);old.reset();
+        auto old=nx2pc::PipelineCacheFile::read(path,valid);CHECK(!old.empty());CHECK(old.data()[63]==42);old.reset();
         CHECK(seed()); // Same output can be saved again after cleanup.
         for(const auto& e:std::filesystem::directory_iterator(argv[1]))CHECK(e.path().filename().string().find(".tmp-")==std::string::npos);
         ++cases;
@@ -141,15 +141,15 @@ int main(int argc,char** argv){
     fault=VIEW;
 #endif
     injected=false;
-    auto unavailable=mkwvk::PipelineCacheFile::read(path,valid);
+    auto unavailable=nx2pc::PipelineCacheFile::read(path,valid);
     CHECK(injected&&unavailable.empty()&&!unavailable.rejected());
-    fault=NONE;CHECK(!mkwvk::PipelineCacheFile::read(path,valid).empty());
+    fault=NONE;CHECK(!nx2pc::PipelineCacheFile::read(path,valid).empty());
 #ifndef _WIN32
     fault=CREATE;injected=false;
-    {auto direct=mkwvk::PipelineCacheFile::read(path,valid);CHECK(!direct.empty()&&!injected);}
+    {auto direct=nx2pc::PipelineCacheFile::read(path,valid);CHECK(!direct.empty()&&!injected);}
     fault=NONE; // Reads do not create or write a sibling snapshot.
 #endif
-    auto abandoned=mkwvk::PipelineCacheFile::writable(path,128);CHECK(!abandoned.empty());
+    auto abandoned=nx2pc::PipelineCacheFile::writable(path,128);CHECK(!abandoned.empty());
     fault=CLEANUP;injected=false;CHECK(!abandoned.reset()&&injected);
     fault=NONE;CHECK(abandoned.reset());
     for(const auto& e:std::filesystem::directory_iterator(argv[1]))CHECK(e.path().filename().string().find(".tmp-")==std::string::npos);

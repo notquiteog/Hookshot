@@ -190,7 +190,7 @@ static float host_aspect_ratio(void) { return hos_aspect_ratio; }
 #ifndef _WIN32
 int hos_sdl_desktop_size(int *width, int *height);   /* hos_sdl.c */
 #endif
-/* (hookshot) the main screen's size, as host/hos_main.c takes its shape (MkwVkHost.screen_size) */
+/* (hookshot) the main screen's size, as host/hos_main.c takes its shape (Nx2pcVkHost.screen_size) */
 static int host_screen_size(int *width, int *height) {
 #ifdef _WIN32
     const int w = GetSystemMetrics(SM_CXSCREEN), h = GetSystemMetrics(SM_CYSCREEN);
@@ -201,7 +201,7 @@ static int host_screen_size(int *width, int *height) {
     return hos_sdl_desktop_size(width, height);
 #endif
 }
-static float host_wide_menus(uint32_t keep_mask) {   /* (MkwVkHost.wide_menus) */
+static float host_wide_menus(uint32_t keep_mask) {   /* (Nx2pcVkHost.wide_menus) */
     extern volatile uint32_t hos_wide_keep_mask;
     extern volatile float hos_wide_margin;
     static const char *forced;
@@ -211,7 +211,7 @@ static float host_wide_menus(uint32_t keep_mask) {   /* (MkwVkHost.wide_menus) *
     return hos_wide_margin;
 }
 float hos_wide_cover(void);   /* hos_main.c */
-int hos_mouse_pointer(MkwVkPointer *out);   /* display.c, posix/display_sdl.c */
+int hos_mouse_pointer(Nx2pcVkPointer *out);   /* display.c, posix/display_sdl.c */
 int hos_sdl_gyro_status(void);   /* pad_sdl.c */
 extern const char *hos_romfs_dir;   /* nn_fs.c, set by hos_main.c */
 static const char *host_romfs_dir(void) { return hos_romfs_dir; }
@@ -240,8 +240,8 @@ static void host_slept_ns(int64_t out[2]) {
     out[1] = hos_slept_ns[1] + __atomic_load_n(&hos_acquire_slept_ns, __ATOMIC_RELAXED);
 }
 
-static const MkwVkHost vk_host = {
-    MKWVK_API_VERSION, host_log, hos_guest_base, hos_guest_size, hos_gpu_ptr, nvn_gpu_guest, nvn_gpu_read,
+static const Nx2pcVkHost vk_host = {
+    NX2PCVK_API_VERSION, host_log, hos_guest_base, hos_guest_size, hos_gpu_ptr, nvn_gpu_guest, nvn_gpu_read,
     nvn_gpu_write, host_collect, host_free_pages, host_mark_written, hos_ticks, hos_now_ns, nvn_tex_layout,
     nvn_tex_level_offset, nvn_fmt_bpb, nvn_tex_level_tiles, nvn_tex_linear_stride, nvn_depth_minus_w, hos_gpu_pools,
     hos_gpu_maps_generation, nvn_vmap_generation, hos_reserved_cpus, host_collect_in, host_guest_alloc,
@@ -251,7 +251,7 @@ static const MkwVkHost vk_host = {
     hos_wide_cover,
 };
 
-static const MkwVkRenderer *vk;   /* the Vulkan back end, when it was chosen and started */
+static const Nx2pcVkRenderer *vk;   /* the Vulkan back end, when it was chosen and started */
 static HMODULE vk_module;   /* (the last back end loaded: rx_close_asked) */
 
 /* The game registers its first textures and samplers before the window's thread starts the renderer (NVN is up
@@ -315,7 +315,7 @@ static void flush_early(void) {
 }
 
 /* dll: hookshot_vk.dll (hookshot_vk.so on Linux), the Vulkan back end: one export */
-static const MkwVkRenderer *load_vulkan(const char *dll) {
+static const Nx2pcVkRenderer *load_vulkan(const char *dll) {
     char path[MAX_PATH];
     const DWORD n = GetModuleFileNameA(NULL, path, MAX_PATH);
     char *slash = n ? (strrchr(path, '\\') ? strrchr(path, '\\') : strrchr(path, '/')) : NULL;   /* (linux: '/') */
@@ -331,18 +331,18 @@ static const MkwVkRenderer *load_vulkan(const char *dll) {
         return NULL;
     }
     vk_module = m;
-    mkwvk_init_fn init = (mkwvk_init_fn)(void *)GetProcAddress(m, "mkwvk_init");
+    nx2pc_init_fn init = (nx2pc_init_fn)(void *)GetProcAddress(m, "nx2pc_init");
     if (!init) {
-        hos_log("rx: %s has no mkwvk_init: WebGPU", path);
+        hos_log("rx: %s has no nx2pc_init: WebGPU", path);
         return NULL;
     }
-    const MkwVkRenderer *r = init(&vk_host);
+    const Nx2pcVkRenderer *r = init(&vk_host);
     if (!r) {
-        hos_log("rx: mkwvk_init returned NULL: WebGPU");
+        hos_log("rx: nx2pc_init returned NULL: WebGPU");
         return NULL;
     }
-    if (r->version != MKWVK_API_VERSION) {
-        hos_log("rx: mkwvk_init version mismatch (%u vs %u): WebGPU", r->version, MKWVK_API_VERSION);
+    if (r->version != NX2PCVK_API_VERSION) {
+        hos_log("rx: nx2pc_init version mismatch (%u vs %u): WebGPU", r->version, NX2PCVK_API_VERSION);
         return NULL;
     }
     return r;
@@ -352,7 +352,7 @@ int rx_start(void *hwnd) {
     const char *b = getenv("RX_BACKEND");
     if (!b || !_stricmp(b, "vulkan")) {   /* (hookshot: Vulkan unless told otherwise; a started game has no RX_BACKEND) */
         const char *dll = "hookshot_vk.dll";
-        const MkwVkRenderer *r = load_vulkan(dll);
+        const Nx2pcVkRenderer *r = load_vulkan(dll);
         if (r && r->start(hwnd)) {
             vk = r;
             hos_log("rx: renderer: Vulkan (%s)", dll);
@@ -368,14 +368,14 @@ int rx_start(void *hwnd) {
 /* (hookshot) hookshot --prepare-shaders: the Vulkan back end started with no window and no game, which prepares
    every shader in its start (gpu/vk/vk_main.cpp started_up) and is then let go. 0 when there is no usable Vulkan */
 int rx_prepare_shaders(void) {
-    const MkwVkRenderer *r = load_vulkan("hookshot_vk.dll");
+    const Nx2pcVkRenderer *r = load_vulkan("hookshot_vk.dll");
     return r && r->start(NULL);
 }
 /* (hookshot) the window is being closed: a back end still preparing its shaders stops and keeps what it made first (a few
    seconds at most). One without the export (an older one) has nothing to keep */
 void rx_close_asked(void) {
     if (!vk_module) return;
-    void (*close_asked)(void) = (void (*)(void))(void *)GetProcAddress(vk_module, "mkwvk_close_asked");
+    void (*close_asked)(void) = (void (*)(void))(void *)GetProcAddress(vk_module, "nx2pc_close_asked");
     if (close_asked) close_asked();
 }
 void rx_resize(int width, int height) { vk ? vk->resize(width, height) : wgr_resize(width, height); }
@@ -415,13 +415,13 @@ void rx_nvn_present(const nvn_tex *t, const int crop[4]) {
 int hos_dlss_jitter_clip(uint64_t projection, float out[2]) {
     static SRWLOCK lock = SRWLOCK_INIT;
     static LONG at = -1;
-    static MkwVkJitter jitter;
-    MkwVkJitter sample;
+    static Nx2pcVkJitter jitter;
+    Nx2pcVkJitter sample;
     AcquireSRWLockExclusive(&lock);
     const LONG frame = presents;
     if (frame != at) {   /* (asked once a frame: the renderer's lock is not taken for every view) */
         at = frame;
-        jitter = (MkwVkJitter){0};
+        jitter = (Nx2pcVkJitter){0};
         if (vk && vk->jitter_sample) vk->jitter_sample(&jitter);
     }
     sample = jitter;
@@ -544,22 +544,22 @@ int rx_control_frame_info(int64_t *presents, int64_t *draws, int *width, int *he
 int rx_control_shot(const char *path, int64_t after, void (*done)(void *ctx, int64_t present, int ok), void *ctx) {
     return vk && vk->shot ? vk->shot(path, after, done, ctx) : 0;
 }
-#define CTL_SAME(f) (sizeof ((HosControlSetting *)0)->f == sizeof ((MkwVkSetting *)0)->f)
+#define CTL_SAME(f) (sizeof ((HosControlSetting *)0)->f == sizeof ((Nx2pcVkSetting *)0)->f)
 _Static_assert(CTL_SAME(key) && CTL_SAME(name) && CTL_SAME(text) && CTL_SAME(tab), "control.h and vk_api.h: one setting");
-static void control_setting_copy(HosControlSetting *to, const MkwVkSetting *from) {   /* (the same fields, field by field) */
+static void control_setting_copy(HosControlSetting *to, const Nx2pcVkSetting *from) {   /* (the same fields, field by field) */
     memcpy(to->key, from->key, sizeof to->key), memcpy(to->name, from->name, sizeof to->name);
     memcpy(to->text, from->text, sizeof to->text), memcpy(to->tab, from->tab, sizeof to->tab);
     to->value = from->value, to->lo = from->lo, to->hi = from->hi, to->step = from->step;
     to->restart = from->restart, to->fixed = from->fixed;
 }
 int rx_control_setting(int index, HosControlSetting *out) {
-    MkwVkSetting s;
+    Nx2pcVkSetting s;
     if (!vk || !vk->setting || !vk->setting(index, &s)) return 0;
     control_setting_copy(out, &s);
     return 1;
 }
 int rx_control_setting_set(const char *key, int value, HosControlSetting *out) {
-    MkwVkSetting s;
+    Nx2pcVkSetting s;
     memset(&s, 0, sizeof s);
     const int r = vk && vk->setting_set ? vk->setting_set(key, value, &s) : 0;
     if (r) control_setting_copy(out, &s);

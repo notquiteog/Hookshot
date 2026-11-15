@@ -59,7 +59,7 @@ void env_release(const int*) {}   // (the environment's hold on a row: none here
 void vram_budget_sync() {}
 constexpr int kVramMinimumOnly = 1;
 bool row_fixed(const int*) { return false; }
-namespace ur = mkwvk::upscaler_rows;
+namespace ur = nx2pc::upscaler_rows;
 int upscaler() { return opts.dlss; }
 unsigned upscalers_available() { return ur::bit(ur::GAME) | ur::dlss_bits(true); }
 // (hookshot fork: the Frame generation by row's choice, which set_row calls: upstream's two values here)

@@ -19,7 +19,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk::ffx {
+namespace nx2pc::ffx {
 
 /// One frame generation's inputs: vk_fsr3fi.h's, with the images the API needs.
 struct FrameInputs {
@@ -69,4 +69,4 @@ void reset();
 /// Frees the context, the images and the DLL. Safe when nothing was made.
 void shutdown();
 
-} // namespace mkwvk::ffx
+} // namespace nx2pc::ffx

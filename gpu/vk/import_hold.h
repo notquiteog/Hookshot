@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace mkwvk {
+namespace nx2pc {
 
 struct ImportHolds {
     static constexpr int64_t kGapMs = 2000;
@@ -38,4 +38,4 @@ struct ImportHolds {
     }
 };
 
-} // namespace mkwvk
+} // namespace nx2pc

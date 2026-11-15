@@ -25,7 +25,7 @@
 #include "vk_streamline_api.h"
 #include "vk_work.h"   // (after the others: its commands through the recorder, counted as work for full_barrier)
 
-namespace mkwvk::dlssnr {
+namespace nx2pc::dlssnr {
 namespace {
 
 // One viewport: the window's, and there is only ever one.
@@ -387,14 +387,14 @@ VkImage apply(VkCommandBuffer cmd, VkImage src, uint32_t sw, uint32_t sh,
                 stage = "slSetTagForFrame";
                 // (Streamline records into cmd itself, which vk_work.h does not see: what this thread recorded through it
                 // reaches cmd first, and Streamline's commands count as work for the barrier after them)
-                ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);
+                ::nx2pc::rec::boundary(::nx2pc::rec::B_DIRECT);
                 result = streamline::api().set_tag_for_frame(*token, viewport, tags, 4, command_buffer);
                 note_work();
             }
             if (result == sl::Result::eOk) {
                 stage = "slEvaluateFeature";
                 const sl::BaseStructure* inputs[] = {&viewport};
-                ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);
+                ::nx2pc::rec::boundary(::nx2pc::rec::B_DIRECT);
                 result = streamline::api().evaluate_feature(sl::kFeatureDLSS_NR, *token, inputs, 1,
                                                             command_buffer);
                 note_work();
@@ -445,11 +445,11 @@ void shutdown() {
     s.scene_cleared = false;
 }
 
-} // namespace mkwvk::dlssnr
+} // namespace nx2pc::dlssnr
 
 #else // no Streamline headers, or not Windows
 
-namespace mkwvk::dlssnr {
+namespace nx2pc::dlssnr {
 
 bool built_with_sdk() { return false; }
 bool capable() { return false; }
@@ -458,6 +458,6 @@ VkImage apply(VkCommandBuffer, VkImage, uint32_t, uint32_t, VkImageView*) { retu
 void history_gap() {}
 void shutdown() {}
 
-} // namespace mkwvk::dlssnr
+} // namespace nx2pc::dlssnr
 
 #endif

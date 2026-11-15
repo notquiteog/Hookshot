@@ -80,7 +80,7 @@ extern char** environ;
 #define HOOKSHOT_VERSION "unknown"
 #endif
 
-namespace mkwvk {
+namespace nx2pc {
 int display_refresh_mhz();   // (vk_main.cpp: the window's display, asked once a second at most: the FPS counter's V-Sync target)
 HWND app_window();
 
@@ -399,7 +399,7 @@ const char* tx_percent(int v) {
     return b;
 }
 /// The host's screen: the main one, whose shape host/hos_main.c gives a 16:9 Output resolution at the start with ultrawide=1
-/// (Windows: the primary's size; Linux: SDL's primary desktop, MkwVkHost.screen_size): false where it is not known
+/// (Windows: the primary's size; Linux: SDL's primary desktop, Nx2pcVkHost.screen_size): false where it is not known
 bool host_screen_size(uint32_t* w, uint32_t* h) {
 #ifdef _WIN32
     const int sw = GetSystemMetrics(SM_CXSCREEN), sh = GetSystemMetrics(SM_CYSCREEN);
@@ -4625,11 +4625,11 @@ void menu_option_set(int id, int value) {
 // hookshot_options.ini (ini_key), which stays the same while rows come and go or are renamed. The bridge calls these from
 // its own thread: menu_mu keeps them apart from menu_tick (the present's thread) and from menu_option_set (the game's)
 bool bridge_row(int i) { return rows[i].value && !rows[i].heading && rows[i].cheat < 0 && row_shown(i); }
-void bridge_fill(int i, MkwVkSetting* out) {
+void bridge_fill(int i, Nx2pcVkSetting* out) {
     static const char* const tabs[] = {"graphics", "audio", "gameplay", "controls", "neural", "debug", "motion", "controls"};
     static_assert(sizeof tabs / sizeof tabs[0] == TAB_PAGE + 1, "a name for each MenuTab");
     const Row& r = rows[i];
-    *out = MkwVkSetting{};
+    *out = Nx2pcVkSetting{};
     snprintf(out->key, sizeof out->key, "%s", ini_key(r));
     snprintf(out->name, sizeof out->name, "%s", r.name);
     snprintf(out->tab, sizeof out->tab, "%s", r.tab >= 0 && r.tab <= TAB_PAGE ? tabs[r.tab] : "");
@@ -4642,7 +4642,7 @@ void bridge_fill(int i, MkwVkSetting* out) {
 // it; this way only the bridge's thread waits, and once answered the questions return at once)
 static void bridge_probe_first() { (void)upscalers_available(), (void)dlss_why(); }
 /// The index-th settings row (an enumeration, for listing them; the index is not a name: rows come and go). 0: past the last
-int menu_setting(int index, MkwVkSetting* out) {
+int menu_setting(int index, Nx2pcVkSetting* out) {
     bridge_probe_first();
     std::lock_guard lk(menu_mu);
     for (int i = 0, n = 0; i < kRows; i++)
@@ -4741,7 +4741,7 @@ void menu_auto_tune(double gpu_ms, double draws, double fps) {
 /// through a list of their own (the Upscaler, Render resolution, the output resolution) are walked to value: walk_to. out: the
 /// row as it is now. 1 set, 0 no such row, -1 nothing to choose on this PC (row_fixed), -2 none of a list row's steps reach
 /// value here (the row and the rest as they were)
-int menu_setting_set(const char* key, int value, MkwVkSetting* out) {
+int menu_setting_set(const char* key, int value, Nx2pcVkSetting* out) {
     bridge_probe_first();
     std::lock_guard lk(menu_mu);
     int i = 0;
@@ -4789,7 +4789,7 @@ int menu_setting_set(const char* key, int value, MkwVkSetting* out) {
 /// (hookshot) the mouse on the inventory: a section tab chooses it, a card the item (a click selects it, it does not edit),
 /// the page arrows turn the page with the choice, the action button and the amount's halves act; the wheel turns the page
 /// shown and leaves the choice where it is; a right click goes back
-void inventory_mouse(const MkwVkPointer& ptr, int mx, int my, bool* press, bool& changed) {
+void inventory_mouse(const Nx2pcVkPointer& ptr, int mx, int my, bool* press, bool& changed) {
     const menu_hit::Hit hit = hits.at((float)mx, (float)my);
     if (ptr.pressed & HOS_MOUSE_LEFT) {
         if (hit.part == menu_hit::kRow && hit.index >= 0 && hit.index <= kItemSections) choose_inventory_filter(hit.index), changed = true;
@@ -4809,7 +4809,7 @@ void inventory_mouse(const MkwVkPointer& ptr, int mx, int my, bool* press, bool&
 }
 /// (hookshot) the mouse on the teleport list: a click on a card selects it (Travel, or confirm, goes), the Travel button
 /// goes; the wheel scrolls the cards and leaves the choice where it is; a right click goes back
-void teleport_mouse(const MkwVkPointer& ptr, int mx, int my, bool* press, bool& changed) {
+void teleport_mouse(const Nx2pcVkPointer& ptr, int mx, int my, bool* press, bool& changed) {
     const menu_hit::Hit hit = hits.at((float)mx, (float)my);
     if (ptr.pressed & HOS_MOUSE_LEFT) {
         if (hit.part == menu_hit::kListLine && hit.index >= 0 && hit.index < kTeleports)
@@ -5052,7 +5052,7 @@ void menu_tick() {
     menu_refresh = false;
     // (hookshot) the mouse, while the menu is open: the cursor in the window image's pixels (mx, my), tested against the
     // controls as last drawn (hits, vk_menu_hit.h), whether it moved since the last frame, and its clicks and wheel since then
-    MkwVkPointer ptr{};
+    Nx2pcVkPointer ptr{};
     int mx = -1, my = -1;
     bool mouse = false, moved = false;
     if (open_now.load() && host && host->pointer) {
@@ -5418,7 +5418,7 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
         if (prebake_needed(w, h) && ui::begin(w, h)) {
             ui::Ctx c = ui_ctx(w, h);
             prebake(c);
-            ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
+            ::nx2pc::rec::boundary(::nx2pc::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
             ui::record(cmd, index, w, h);
             return;
         }
@@ -5437,7 +5437,7 @@ void menu_record(VkCommandBuffer cmd, uint32_t index, uint32_t w, uint32_t h) {
     if (start) draw_startup(c);   // (under the menu)
     if (open) draw_menu(c);
     if (fps) draw_fps(c, open);
-    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
+    ::nx2pc::rec::boundary(::nx2pc::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
     ui::record(cmd, index, w, h);
 }
 
@@ -5452,8 +5452,8 @@ void menu_record_image(VkCommandBuffer cmd, VkImage image, VkImageView view, uin
     ui::Ctx c = ui_ctx(w, h);
     if (open) draw_menu(c);
     if (fps) draw_fps(c, open);
-    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
+    ::nx2pc::rec::boundary(::nx2pc::rec::B_DIRECT);   // (Dear ImGui records into cmd directly, its backend through its own pointers: what this thread recorded through vk_work.h reaches cmd first)
     ui::record_to(cmd, image, view, w, h);
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

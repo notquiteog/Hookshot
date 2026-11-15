@@ -26,7 +26,7 @@
 #include "vk_paths.h"   // (game_module_path: the game folder, where the release puts AMD's files)
 #include "vk_work.h"    // (after the others: the commands here go through the recorder, and AMD's own are told to it)
 
-namespace mkwvk::ffx {
+namespace nx2pc::ffx {
 namespace {
 
 int env_int(const char* name, int fallback) {
@@ -445,7 +445,7 @@ bool generate(VkCommandBuffer cmd, const FrameInputs& in) {
         prep.cameraPosition[c] = in.camera_position[c];
     }
     whole_barrier(cmd);
-    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (ffxDispatch records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
+    ::nx2pc::rec::boundary(::nx2pc::rec::B_DIRECT);   // (ffxDispatch records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
     const ffxReturnCode_t prepared = guarded_dispatch(s.dispatch, &s.fg, &prep.header);
     note_work();   // (AMD's dispatches: the barrier after them is recorded)
     if (const ffxReturnCode_t r = prepared; r != FFX_API_RETURN_OK) {
@@ -466,7 +466,7 @@ bool generate(VkCommandBuffer cmd, const FrameInputs& in) {
     d.minMaxLuminance[0] = 0.0f, d.minMaxLuminance[1] = 1.0f;
     d.generationRect = {0, 0, (int32_t)in.width, (int32_t)in.height};
     d.frameID = s.frame_id;
-    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);   // (ffxDispatch records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
+    ::nx2pc::rec::boundary(::nx2pc::rec::B_DIRECT);   // (ffxDispatch records into cmd itself: what this thread recorded through vk_work.h reaches cmd first)
     const ffxReturnCode_t r = guarded_dispatch(s.dispatch, &s.fg, &d.header);
     note_work();   // (AMD's dispatches: the barrier after them is recorded)
     whole_barrier(cmd);
@@ -494,11 +494,11 @@ void shutdown() {
     s = State{};
 }
 
-} // namespace mkwvk::ffx
+} // namespace nx2pc::ffx
 
 #else // not Windows: AMD's FSR 4 runtime is Windows DLLs
 
-namespace mkwvk::ffx {
+namespace nx2pc::ffx {
 
 bool built() { return false; }
 void probe() {}
@@ -509,6 +509,6 @@ VkImage made_image(uint32_t) { return VK_NULL_HANDLE; }
 void reset() {}
 void shutdown() {}
 
-} // namespace mkwvk::ffx
+} // namespace nx2pc::ffx
 
 #endif

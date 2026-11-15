@@ -6,9 +6,9 @@
 
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); std::exit(1); } } while (0)
 
-using mkwvk::vram_pressure::allocated;
-using mkwvk::vram_pressure::shadow_fits;
-using mkwvk::vram_pressure::shadows_go;
+using nx2pc::vram_pressure::allocated;
+using nx2pc::vram_pressure::shadow_fits;
+using nx2pc::vram_pressure::shadows_go;
 
 int main() {
     const uint64_t MB = 1 << 20;

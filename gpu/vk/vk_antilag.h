@@ -7,7 +7,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 /// The extension it needs (VK_AMD_anti_lag), added to `want` when the device has it
 void antilag_device_extensions(std::vector<const char*>& want, const std::vector<VkExtensionProperties>& all);
@@ -33,4 +33,4 @@ uint64_t antilag_frame();
 /// After the present: the next frame's input stage, where the driver waits until that frame should start
 void antilag_input();
 
-} // namespace mkwvk
+} // namespace nx2pc

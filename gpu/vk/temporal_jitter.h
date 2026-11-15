@@ -5,24 +5,24 @@
 
 #include "vk_api.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 class TemporalJitter {
     std::mutex mu;
-    MkwVkJitter sample{};
+    Nx2pcVkJitter sample{};
     uint64_t frame = 0;
 
 public:
     void publish(uint32_t width, uint32_t height, uint32_t phases, uint64_t at) {
         std::lock_guard lock(mu);
-        sample = width && height && phases ? MkwVkJitter{width, height, phases} : MkwVkJitter{};
+        sample = width && height && phases ? Nx2pcVkJitter{width, height, phases} : Nx2pcVkJitter{};
         frame = at;
     }
 
-    MkwVkJitter read(uint64_t now) {
+    Nx2pcVkJitter read(uint64_t now) {
         std::lock_guard lock(mu);
-        return frame && now - frame <= 30 ? sample : MkwVkJitter{};
+        return frame && now - frame <= 30 ? sample : Nx2pcVkJitter{};
     }
 };
 
-} // namespace mkwvk
+} // namespace nx2pc

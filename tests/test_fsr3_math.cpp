@@ -8,7 +8,7 @@
 
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
-namespace fm = mkwvk::fsr3_math;
+namespace fm = nx2pc::fsr3_math;
 
 static bool near(double a, double b, double tol) { return std::fabs(a - b) <= tol * std::max(1.0, std::fabs(b)); }
 
@@ -60,13 +60,13 @@ int main() {
         for (int i = 0; i < 16; i++) q[i] = p[i];
         q[2] += 0.0004f, q[6] -= 0.0007f;   // (P[0][2], P[1][2] as the host adds them)
         const float clip[2] = {-q[2], -q[6]};   // (the jitter as vk_fsr3_inputs.cpp reads it back: -P[0][2], -P[1][2])
-        mkwvk::dlss_math::unjitter(q, clip);
+        nx2pc::dlss_math::unjitter(q, clip);
         fm::Camera a, b;
         CHECK("jittered projection", fm::camera_from_projection(p, a) && fm::camera_from_projection(q, b));
         CHECK("same camera without its jitter", near(a.near_plane, b.near_plane, 1e-6) && near(a.fov_y, b.fov_y, 1e-6) &&
                                                     std::fabs(q[2]) < 1e-9f && std::fabs(q[6]) < 1e-9f);
         float px[2];
-        mkwvk::dlss_math::jitter_to_pixels(clip, 1536, 864, px);
+        nx2pc::dlss_math::jitter_to_pixels(clip, 1536, 864, px);
         CHECK("its jitter in FSR's render pixels: x right, y down", near(px[0], -0.0004 * 768, 1e-4) && near(px[1], -0.0007 * 432, 1e-4));
     }
     {   // what is not a scene's projection

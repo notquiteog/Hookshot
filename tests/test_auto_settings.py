@@ -82,7 +82,7 @@ def check_source():
         raise SystemExit("vk_main.cpp: dev.mesh_capable must be read before the Mesh shaders mode is applied")
     need("vk_replay.cpp", (ROOT / "gpu/vk/vk_replay.cpp").read_text(encoding="utf-8"), ["menu_auto_tune(gpu_ms, draws, 120.0 / secs);"])
     api = (ROOT / "gpu/vk/vk_api.h").read_text(encoding="utf-8")
-    need("vk_api.h", api, ["#define MKWVK_WINDOW_VERSION 3", "void (*desktop_size)(void *window, int *width, int *height);"])
+    need("vk_api.h", api, ["#define NX2PCVK_WINDOW_VERSION 3", "void (*desktop_size)(void *window, int *width, int *height);"])
     host = (ROOT / "host/posix/display_sdl.c").read_text(encoding="utf-8")
     need("host/posix/display_sdl.c", host, ["refresh_mhz, desktop_size};"])
 

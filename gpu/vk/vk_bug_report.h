@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-namespace mkwvk::bug_report {
+namespace nx2pc::bug_report {
 
 /// What a report is made of: the menu's part (version, gpu, options, game_dir) and this process's (fill_here)
 struct Inputs {
@@ -56,4 +56,4 @@ std::string shown();
 /// it (picture_wait_ms) is removed again, as the report says it has none
 void picture_written(uint64_t ticket, bool ok);
 
-}  // namespace mkwvk::bug_report
+}  // namespace nx2pc::bug_report

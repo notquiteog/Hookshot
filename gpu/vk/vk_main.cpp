@@ -25,7 +25,7 @@
 #include "vk_framegen.h"
 #include "vk_internal.h"
 #include "presenter_queue.h"
-static_assert(mkwvk::kQueueGraphics == VK_QUEUE_GRAPHICS_BIT && mkwvk::kQueueCompute == VK_QUEUE_COMPUTE_BIT);
+static_assert(nx2pc::kQueueGraphics == VK_QUEUE_GRAPHICS_BIT && nx2pc::kQueueCompute == VK_QUEUE_COMPUTE_BIT);
 #include "gpu_choice.h"
 #include "vk_menu.h"
 #include "vk_streamline.h"
@@ -83,12 +83,12 @@ void load_device(VkDevice device) {
 }
 } // namespace vkx
 
-namespace mkwvk {
+namespace nx2pc {
 
 int display_refresh_mhz();   // (below, outside the unnamed namespace)
 
 std::vector<std::string> gpu_device_names;
-const MkwVkHost* host;
+const Nx2pcVkHost* host;
 int64_t prof_ns[PROF_COUNT];
 Device dev;
 PFN_vkGetInstanceProcAddr instance_proc() { return vkx::instance_proc_addr(); }
@@ -1226,7 +1226,7 @@ void prepare_watchdog() {
 // (precompile_run): a minute and more, before the game's first frame. They run on a thread of their own while this one, the
 // renderer's start, shows the window at once with what they are doing on it, and keeps it shown and sized; on Windows it is also
 // the window's thread, and handles its messages meanwhile (it would not answer otherwise). Closing the window stops them
-// (mkwvk_close_asked): what was made is kept, the next start goes on from there. RX_VK_STARTUP_SCREEN=0: as before, all
+// (nx2pc_close_asked): what was made is kept, the next start goes on from there. RX_VK_STARTUP_SCREEN=0: as before, all
 // of it before the window shows anything (and a console with the count on Windows)
 std::atomic<int> prep_stage{0};   // 0 the programs, 1 the pipelines the notes predict (a first start), 2 the noted pipelines
 std::atomic<size_t> prep_done{0}, prep_total{0};
@@ -1236,7 +1236,7 @@ std::atomic<bool> prep_skip[3]{};
 std::atomic<bool> prep_running{false}, prep_finished{false};
 HANDLE prep_ended = nullptr;
 #ifndef _WIN32
-const MkwVkWindow* prep_window = nullptr;   // (its size)
+const Nx2pcVkWindow* prep_window = nullptr;   // (its size)
 #endif
 void prep_progress(size_t done, size_t total) {
     prep_done.store(done, std::memory_order_relaxed);
@@ -1517,7 +1517,7 @@ bool open_window_surface(bool log_failure) {
     si.hwnd = main_window;
     if (!IsWindow(main_window) || vkCreateWin32SurfaceKHR(dev.instance, &si, nullptr, &surface) != VK_SUCCESS) return false;
 #else
-    const MkwVkWindow* w = prep_window;
+    const Nx2pcVkWindow* w = prep_window;
     if (!w || !w->create_surface(w->window, (void*)dev.instance, (void*)&surface)) {
         if (log_failure)
             logf("vk: SDL_Vulkan_CreateSurface failed; check SDL_VIDEODRIVER and the Vulkan window-system extensions");
@@ -1580,7 +1580,7 @@ void auto_profile() {
 #else
     const long pages = sysconf(_SC_PHYS_PAGES), page = sysconf(_SC_PAGE_SIZE);
     if (pages > 0 && page > 0) hw.ram_mb = (uint32_t)(((uint64_t)pages * (uint64_t)page) >> 20);
-    const MkwVkWindow* w = (const MkwVkWindow*)main_window;
+    const Nx2pcVkWindow* w = (const Nx2pcVkWindow*)main_window;
     if (w && w->version >= 3 && w->desktop_size) w->desktop_size(w->window, &hw.screen_w, &hw.screen_h);
 #endif
     if (main_window || !hw.refresh_hz) hw.refresh_hz = (display_refresh_mhz() + 500) / 1000;
@@ -1605,10 +1605,10 @@ int start(void* hwnd) {
     GetClientRect((HWND)hwnd, &r);
     if (!create_swapchain((uint32_t)(r.right - r.left), (uint32_t)(r.bottom - r.top))) return 0;
 #else
-    const MkwVkWindow* w = (const MkwVkWindow*)hwnd;
+    const Nx2pcVkWindow* w = (const Nx2pcVkWindow*)hwnd;
     prep_window = w;
-    if (w->version < 1 || w->version > MKWVK_WINDOW_VERSION) {   // (1: no refresh_mhz)
-        logf("vk: unsupported SDL window bridge version %u (expected %u)", w->version, MKWVK_WINDOW_VERSION);
+    if (w->version < 1 || w->version > NX2PCVK_WINDOW_VERSION) {   // (1: no refresh_mhz)
+        logf("vk: unsupported SDL window bridge version %u (expected %u)", w->version, NX2PCVK_WINDOW_VERSION);
         return 0;
     }
     if (!open_window_surface(true)) return 0;
@@ -1644,10 +1644,10 @@ const char* describe() {
     return d.c_str();
 }
 
-MkwVkRenderer table;
+Nx2pcVkRenderer table;
 
 } // namespace
-} // namespace mkwvk
+} // namespace nx2pc
 
 // (hookshot) The window is being closed (host/display.c, host/posix/display_sdl.c, before they end the process): while the
 // shaders are prepared, their workers are stopped and what they made is kept first (10 s at most: a driver can take longer on one
@@ -1658,8 +1658,8 @@ __declspec(dllexport)
 #else
 __attribute__((visibility("default")))
 #endif
-void mkwvk_close_asked(void) {
-    using namespace mkwvk;
+void nx2pc_close_asked(void) {
+    using namespace nx2pc;
     programs_census_log("close");
     module_ids_flush();
     fsr4_close();             // (AMD FSR 4's tuned layers: their background builds stopped first, what they made then saved below)
@@ -1678,11 +1678,11 @@ __declspec(dllexport)
 #else
 __attribute__((visibility("default")))
 #endif
-const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
-    using namespace mkwvk;
+const Nx2pcVkRenderer* nx2pc_init(const Nx2pcVkHost* h) {
+    using namespace nx2pc;
     if (!h) return nullptr;
-    if (h->version != MKWVK_API_VERSION) {
-        std::fprintf(stderr, "vk: host version mismatch: host has %u, expected %u\n", h->version, MKWVK_API_VERSION);
+    if (h->version != NX2PCVK_API_VERSION) {
+        std::fprintf(stderr, "vk: host version mismatch: host has %u, expected %u\n", h->version, NX2PCVK_API_VERSION);
         return nullptr;
     }
     host = h;
@@ -1722,7 +1722,7 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
         }).detach();
 #endif
     }
-    table.version = MKWVK_API_VERSION;
+    table.version = NX2PCVK_API_VERSION;
     table.start = start;
     table.resize = resize;
     table.describe = describe;
@@ -1730,7 +1730,7 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
     return &table;
 }
 
-namespace mkwvk {
+namespace nx2pc {
 HWND app_window() { return main_window; }   // (hookshot: the Insert menu's Fullscreen row)
 
 /// (hookshot) The refresh rate of the display the window is on, in mHz; 0 when not known (frame generation's Auto). Asked
@@ -1756,10 +1756,10 @@ int display_refresh_mhz() {
         mhz = (dm.dmDisplayFrequency + 1) % 6 == 0 ? (int)((dm.dmDisplayFrequency + 1) * 1000000ull / 1001)
                                                     : (int)dm.dmDisplayFrequency * 1000;
 #else
-    const MkwVkWindow* w = (const MkwVkWindow*)main_window;
+    const Nx2pcVkWindow* w = (const Nx2pcVkWindow*)main_window;
     if (w && w->version >= 2 && w->refresh_mhz) mhz = w->refresh_mhz(w->window);
 #endif
     cached.store(mhz, std::memory_order_relaxed);
     return mhz;
 }
-} // namespace mkwvk
+} // namespace nx2pc

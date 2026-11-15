@@ -8,7 +8,7 @@ through one connection, with replies. Presses are timed in frames, and every rep
 - The game side is `host/control.c`. Hooks: `host/nn_hid.c` (the controller's read), `gpu/vk/vk_replay.cpp` (shots at a
   present), `gpu/vk/vk_menu.cpp` (the Insert menu's settings, through its own setter), `host/hos_thread.c` (log lines),
   `host/hos_main.c` (the start, and for OoT the current map and the debug teleport), `host/hos_mem.c` (guest memory's
-  bounds), `host/nn_fs.c` (the save folder), `host/rx_backend.c` (the renderer's side, `MkwVkRenderer`).
+  bounds), `host/nn_fs.c` (the save folder), `host/rx_backend.c` (the renderer's side, `Nx2pcVkRenderer`).
 - The client is `scripts/hookshot_ctl.py` (standard library only).
 - Tests: `tests/test_control.py` (the bridge against a fake game) and `tests/test_hookshot_ctl.py` (the client against a
   fake bridge).

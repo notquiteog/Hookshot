@@ -15,7 +15,7 @@
 #endif
 #include "vk_work.h"   // (after the others: counts the commands that do GPU work, for full_barrier)
 
-namespace mkwvk {
+namespace nx2pc {
 namespace {
 
 /// One side of a copy: the texture's level, layers (or 3D slices), and the region of it in texels
@@ -459,4 +459,4 @@ void clear_tex(VkCommandBuffer cmd, NvnState& st, const nvn_p_clear_tex& p) {
     s.tex->only_cleared = fresh && s.tex->aspect == VK_IMAGE_ASPECT_COLOR_BIT;
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

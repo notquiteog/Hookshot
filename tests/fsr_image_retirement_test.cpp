@@ -30,7 +30,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyImageView(VkDevice, VkImageView v, const VkA
     need(!b.image, "view must precede its image");
     b.views++;
 }
-namespace mkwvk {
+namespace nx2pc {
 void destroy_image(VkImage image, VmaAllocation) {
     auto& b = bundles[reinterpret_cast<uintptr_t>(image)];
     need(gpu_done >= b.required, "image destroyed while GPU use is pending");

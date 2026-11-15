@@ -22,7 +22,7 @@
 #include "sha256.h"
 #include "vk_context.h"
 
-namespace mkwvk::opennr_net {
+namespace nx2pc::opennr_net {
 namespace {
 
 /// A file's bytes, when it is `most` bytes or fewer: the size is asked before anything is allocated (the folder is the
@@ -303,4 +303,4 @@ void destroy(Network* n) {
     delete n;
 }
 
-} // namespace mkwvk::opennr_net
+} // namespace nx2pc::opennr_net

@@ -21,7 +21,7 @@ c = collections.Counter()
 total = 0
 for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
     head, _, st = line.rstrip("\n").partition("|")
-    if not st or head.split(" ", 1)[-1].startswith("mkw_vk"):
+    if not st or head.split(" ", 1)[-1].startswith("nx2pc"):
         continue
     frames = st.split(";")
     if not frames[0].startswith(game + "+"):

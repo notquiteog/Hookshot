@@ -50,7 +50,7 @@
 #define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
 #endif
 
-namespace mkwvk {
+namespace nx2pc {
 int display_refresh_mhz();   // (vk_main.cpp: the window's display, mHz; outside the unnamed namespace, where it is defined)
 extern std::atomic<uint32_t> present_kind;   // (vk_replay.cpp: the frame log's)
 namespace {
@@ -441,7 +441,7 @@ static bool present_ahead_wanted(bool env_on, bool pace, int shown, uint32_t spa
 thread_local bool wide_cover_in_frame = false;
 void display_main() {
     wide_cover_in_frame = true;
-    SetThreadDescription(GetCurrentThread(), L"mkw_vk display");
+    SetThreadDescription(GetCurrentThread(), L"nx2pc display");
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
     int64_t interval = 16666667, last_at = 0;
     struct { int on_time, late, skipped; int64_t since; } stat{};
@@ -1110,4 +1110,4 @@ float wide_cover_sample() {
     return wide_cover_held(host && host->wide_cover && wide_possible.load(std::memory_order_relaxed) ? host->wide_cover() : 0.0f);
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

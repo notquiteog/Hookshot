@@ -19,7 +19,7 @@
 
 #include "vk_streamline_api.h"
 
-namespace mkwvk::streamline {
+namespace nx2pc::streamline {
 namespace {
 
 // A custom engine names itself with its own project id rather than an application id from NVIDIA.
@@ -441,11 +441,11 @@ void stop() {
     logf("vk: NVIDIA Streamline stopped (result 0x%x)", (unsigned)r);
 }
 
-} // namespace mkwvk::streamline
+} // namespace nx2pc::streamline
 
 #else // no Streamline headers, or not Windows
 
-namespace mkwvk::streamline {
+namespace nx2pc::streamline {
 
 bool built_with_sdk() { return false; }
 bool start() { return false; }
@@ -457,6 +457,6 @@ bool nr_available() { return false; }
 const char* nr_why() { return ""; }
 void stop() {}
 
-} // namespace mkwvk::streamline
+} // namespace nx2pc::streamline
 
 #endif

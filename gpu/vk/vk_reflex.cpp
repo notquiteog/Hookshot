@@ -43,7 +43,7 @@
 #include "vk_menu.h"
 #include "vk_work.h"   // (last: RX_VK_RECORDER=defer drains before the latency-sleep wait; =thread does not need to, the driver signals it)
 
-namespace mkwvk {
+namespace nx2pc {
 
 namespace {
 
@@ -319,4 +319,4 @@ void reflex_sleep() {
     r.frame_marked = true;
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

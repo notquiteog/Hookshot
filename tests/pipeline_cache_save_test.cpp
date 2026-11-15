@@ -149,7 +149,7 @@ static int cache_replace(const char* from, const char* to) {
 #define rename cache_replace
 #endif
 #include "pipeline_cache_file.h"
-using mkwvk::PipelineCacheFile;
+using nx2pc::PipelineCacheFile;
 #ifdef _WIN32
 #undef FlushViewOfFile
 #undef MoveFileExW

@@ -21,7 +21,7 @@
 
 #include "vk_menu.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 namespace {
 
@@ -135,4 +135,4 @@ void antilag_input() {
     a.frame_marked = true;
 }
 
-} // namespace mkwvk
+} // namespace nx2pc

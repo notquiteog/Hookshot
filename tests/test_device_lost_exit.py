@@ -5,7 +5,7 @@ go, and system memory filled until the window was closed. Every VK_ERROR_DEVICE_
 device_lost(), and none to checkpoints_report() alone. device_lost() is cut into a fixture with checkpoints_report() and
 replay_fatal() as spies, and called from several threads at once: the report must be written exactly once, and the
 process must end (exit code 3) only after it is done, whichever thread gets there first.
-replay_fatal must write out the host's queued log (MkwVkHost.log_flush, host/rx_backend.c) before it ends the process:
+replay_fatal must write out the host's queued log (Nx2pcVkHost.log_flush, host/rx_backend.c) before it ends the process:
 on Windows the report's lines are queued, and _Exit dropped them.
 
 python -I -B tests/test_device_lost_exit.py [--cxx g++]
@@ -85,9 +85,9 @@ def main():
     if "host->log_flush()" not in fatal or fatal.index("host->log_flush()") > fatal.index("std::_Exit("):
         raise SystemExit("FAIL: replay_fatal ends the process without writing out the host's queued log")
     backend = (ROOT / "host" / "rx_backend.c").read_text(encoding="utf-8")
-    # (in MkwVkHost's order, right after gyro_status; later fields may follow it)
+    # (in Nx2pcVkHost's order, right after gyro_status; later fields may follow it)
     if not re.search(r"hos_sdl_gyro_status,\s*hos_log_flush,", backend):
-        raise SystemExit("FAIL: host/rx_backend.c does not give the back end hos_log_flush (MkwVkHost.log_flush)")
+        raise SystemExit("FAIL: host/rx_backend.c does not give the back end hos_log_flush (Nx2pcVkHost.log_flush)")
     with tempfile.TemporaryDirectory(prefix="device-lost-") as tmp:
         src, exe = Path(tmp) / "fixture.cpp", Path(tmp) / "fixture.exe"
         src.write_text(FIXTURE, encoding="utf-8")

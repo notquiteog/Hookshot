@@ -11,7 +11,7 @@
 
 #include "vk_internal.h"
 
-namespace mkwvk {
+namespace nx2pc {
 
 bool gprof_on();
 /// A recording begins in slot (its earlier work is done: its timings are collected first); the upload command buffer is the
@@ -47,4 +47,4 @@ struct GprofSpan {
     GprofSpan& operator=(const GprofSpan&) = delete;
 };
 
-} // namespace mkwvk
+} // namespace nx2pc

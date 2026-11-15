@@ -9,7 +9,7 @@
 #include <thread>
 #include <type_traits>
 
-using namespace mkwvk;
+using namespace nx2pc;
 using Fn = std::function<void()>;
 using namespace std::chrono_literals;
 

@@ -6,7 +6,7 @@
 
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
-namespace dc = mkwvk::dlss_checks;
+namespace dc = nx2pc::dlss_checks;
 
 /// The menu's size for a share of the output in twelfths (gpu/vk/vk_menu.cpp game_size): what the game draws the 3D at
 static void game_size(unsigned ow, unsigned oh, int k, unsigned& w, unsigned& h) { w = (ow * k + 11) / 12, h = oh * k / 12; }

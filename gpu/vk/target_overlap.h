@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 
-namespace mkwvk::target_overlap {
+namespace nx2pc::target_overlap {
 
 /// The spans of a render target's storage [lo, hi), last used at frame `last_used`, that newer render targets have drawn
 /// over, merged: one from another start covers its share, one written before the last use covers nothing, and the ones over
@@ -37,4 +37,4 @@ struct DrawnOver {
     bool an_eighth(uint64_t size) const { return size && (bytes + (open ? end - start : 0)) * 8 >= size; }
 };
 
-} // namespace mkwvk::target_overlap
+} // namespace nx2pc::target_overlap

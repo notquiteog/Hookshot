@@ -7,7 +7,7 @@
 
 #define CHECK(name, condition) do { if (!(condition)) { std::fprintf(stderr, "FAIL %s at line %d\n", name, __LINE__); return 1; } } while (0)
 
-namespace cv = mkwvk::camera_vectors;
+namespace cv = nx2pc::camera_vectors;
 
 static bool near(double a, double b, double tol) { return std::fabs(a - b) <= tol * std::max(1.0, std::fabs(b)); }
 

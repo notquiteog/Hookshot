@@ -50,8 +50,8 @@ FIXTURE = r"""
 #include "hos_wide_size.h"
 #include "upscaler_rows.h"
 #include "display_modes.h"
-namespace ur = mkwvk::upscaler_rows;
-using namespace mkwvk;
+namespace ur = nx2pc::upscaler_rows;
+using namespace nx2pc;
 // (the screen's display modes: none, so the sizes offered before them, 16:9 but 5120x1440, 32:9)
 std::vector<display_modes::Size> screen_modes() { return {}; }
 bool screen_size(uint32_t*, uint32_t*) { return false; }   // (the main screen: not known here)
