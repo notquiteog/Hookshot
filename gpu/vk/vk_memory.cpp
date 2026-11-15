@@ -3206,6 +3206,30 @@ uint64_t gpu_pool_start(uint64_t gpu) {   // (EvilOOT) where it begins
     const Pool* p = pool_of(gpu, 1);
     return p ? p->lo : 0;
 }
+/// (hookshot) How much of [gpu, gpu + n) from gpu on one import can hold: up to the end of the game pool holding gpu, since
+/// pool_lookup takes a range inside one pool only (and for a virtual pool's address, from 1 TB, only as far as the host maps it
+/// on). in_pool false: no pool holds gpu, so no import does, up to the next pool's start. Never 0 for n > 0 (vk_replay.cpp
+/// gpu_piece_bind: the replay's own writes go on a piece at a time)
+uint64_t gpu_pool_piece(uint64_t gpu, uint64_t n, bool& in_pool) {
+    in_pool = false;
+    uint64_t guest = gpu;
+    if (gpu >= (1ull << 40)) {
+        uint64_t avail = 0;
+        if (!host->gpu_ptr(gpu, &avail) || !avail) return n;
+        n = std::min(n, avail);
+        guest = host->gpu_guest(gpu);
+    }
+    if (!n) return 0;
+    ParLock plk;   // (before pools_mu, always)
+    std::lock_guard lk(pools_mu);
+    // (pool_lookup's pool: the last one starting at or below guest)
+    const auto it = std::upper_bound(guest_pools.begin(), guest_pools.end(), guest, [](uint64_t a, const GuestPool& p) { return a < p.lo; });
+    if (it != guest_pools.begin() && guest < (it - 1)->hi) {
+        in_pool = true;
+        return std::min(n, (it - 1)->hi - guest);
+    }
+    return it == guest_pools.end() ? n : std::min(n, it->lo - guest);
+}
 
 // (pools leaving, a mirror made, or the next submission: a remembered read binding is looked up again)
 uint64_t gpu_bind_stamp() {
