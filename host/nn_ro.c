@@ -22,7 +22,7 @@ extern const uint64_t hos_nro_base[], hos_nro_init[];
 #define RO_RESULT_NOT_FOUND (22 | (1u << 9))    /* (ro module 22; a module this lift does not have) */
 #define RO_RESULT_NO_SYMBOL (22 | (2u << 9))    /* (ro module 22; no such symbol in the module) */
 
-static volatile LONG nro_inited[64];
+static int nro_inited[64];   /* (each module's DT_INIT run once: an atomic flag) */
 
 HLE(_ZN2nn2ro10InitializeEv) { RET(0); }
 HLE(_ZN2nn2ro8FinalizeEv) { RET(0); }
@@ -73,7 +73,9 @@ HLE(_ZN2nn2ro10LoadModuleEPNS0_6ModuleEPKvPvmi) {
     G32(out) = RO_MODULE_MAGIC;
     G32(out + 4) = (uint32_t)i;
     G64(out + 8) = hos_nro_base[i];
-    if (i < (int)(sizeof nro_inited / sizeof *nro_inited) && !InterlockedCompareExchange(&nro_inited[i], 1, 0)) {
+    int unset = 0;
+    if (i < (int)(sizeof nro_inited / sizeof *nro_inited) &&
+        __atomic_compare_exchange_n(&nro_inited[i], &unset, 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
         hos_log("ro: LoadModule %s at %#llx (lr %#llx)%s", hos_nro_name[i], (unsigned long long)hos_nro_base[i],
                 (unsigned long long)c->x[30], hos_nro_init[i] ? ", its DT_INIT run" : "");
         if (hos_nro_init[i]) {
