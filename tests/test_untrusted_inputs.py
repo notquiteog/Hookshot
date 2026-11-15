@@ -22,8 +22,13 @@ from unittest import mock
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
+try:   # (lz4 unpacks NSO segments: nothing here does, and a runner without it still runs these checks)
+    import lz4.block  # noqa: F401
+except ImportError:
+    import types
+    sys.modules["lz4"] = types.ModuleType("lz4")
+    sys.modules["lz4.block"] = sys.modules["lz4"].block = types.ModuleType("lz4.block")
 sys.path[:0] = [str(ROOT / "third_party" / "a64-kit" / "tools"), str(ROOT / "scripts"), str(ROOT / "nx2" / "bake_ds")]
-RUN_ALL_MODULES = ["lz4"]
 
 
 class Nso(unittest.TestCase):

@@ -13,6 +13,12 @@ import unittest
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
+try:   # (lz4 unpacks NSO segments: nothing here does, and a runner without it still runs these checks)
+    import lz4.block  # noqa: F401
+except ImportError:
+    import types
+    sys.modules["lz4"] = types.ModuleType("lz4")
+    sys.modules["lz4.block"] = sys.modules["lz4"].block = types.ModuleType("lz4.block")
 sys.path[:0] = [str(ROOT / "nx2"), str(ROOT / "third_party" / "a64-kit" / "tools"), str(ROOT / "third_party" / "a64-kit" / "hos")]
 import standalone  # noqa: E402
 import nx_image  # noqa: E402
