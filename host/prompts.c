@@ -475,7 +475,9 @@ static void add_run(Run **runs, size_t *nruns, size_t *cap, uint32_t off, uint32
    u32 runs; each run: u32 offset, u32 length, the bytes; a later entry over an earlier). Written again only when the face, the
    controls or the blocks changed (prompts/Common.key) */
 /* out: the game's file (game) with the runs written over it (a later one over an earlier where they meet), as raw zstd blocks;
-   written again only when its key (keypath: the hash h of what chose the runs) changed */
+   written again only when its key (keypath: the hash h of what chose the runs) changed. Written beside it first (out.tmp), and
+   moved over it with the key removed until then: a failed write leaves the last good file and its key, a stop between the
+   steps leaves no key (written again at the next start) */
 static int write_patched(const char *game, const char *out, const char *keypath, uint64_t h, Run *runs, size_t nruns) {
     qsort(runs, nruns, sizeof *runs, run_cmp);
     char keyline[32] = "", want[32];
@@ -487,7 +489,9 @@ static int write_patched(const char *game, const char *out, const char *keypath,
     snprintf(want, sizeof want, "%016llx", (unsigned long long)h);
     int ok = !strcmp(keyline, want) && GetFileAttributesA(out) != INVALID_FILE_ATTRIBUTES;
     if (!ok) {   /* the game's file through, the chosen runs written over it, out as raw zstd blocks */
-        FILE *in = fopen(game, "rb"), *o = fopen(out, "wb");
+        char tmp[MAX_PATH + 8];
+        snprintf(tmp, sizeof tmp, "%s.tmp", out);
+        FILE *in = fopen(game, "rb"), *o = fopen(tmp, "wb");
         uint8_t *chunk = (uint8_t *)malloc(131072);
         ok = in && o && chunk;
         if (ok) {
@@ -522,6 +526,9 @@ static int write_patched(const char *game, const char *out, const char *keypath,
         if (in) fclose(in);
         if (o) ok &= fclose(o) == 0;
         free(chunk);
+        ok = ok && (GetFileAttributesA(keypath) == INVALID_FILE_ATTRIBUTES || DeleteFileA(keypath)) &&
+             MoveFileExA(tmp, out, MOVEFILE_REPLACE_EXISTING);
+        if (!ok) DeleteFileA(tmp);
         if (ok && (f = fopen(keypath, "w"))) {
             fputs(want, f);
             fclose(f);
