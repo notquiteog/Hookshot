@@ -102,6 +102,26 @@ def check_sources():
     for rel in ("gpu/vk/eden", "gpu/third_party/suyu"):
         isberd = text(rel + "/shader_recompiler/frontend/maxwell/translate/impl/internal_stage_buffer_entry_read.cpp")
         check(isberd.count('throw NotImplementedException("ISBERD') == 3, rel + "'s ISBERD does not refuse its shift and sizes")
+    # (the audit's F1/F2/F4: every consumer of an immediate constant buffer index refuses one past the 18; a handle's shift of 32
+    # or more is not tracked; a program's memory sizes and mesh output counts past any GPU's are refused)
+    gm = text("gpu/vk/eden/shader_recompiler/ir_opt/global_memory_to_storage_buffer_pass.cpp")
+    track = block(gm, "std::optional<StorageBufferAddr> Track(const IR::Value& value, const Bias* bias, bool skip_c1 = false) {")
+    check("if (index.U32() >= Info::MAX_CBUFS) {" in track, "the storage buffer pass tracks a constant buffer index past the 18")
+    tex = text("gpu/vk/eden/shader_recompiler/ir_opt/texture_pass.cpp")
+    get = block(tex, "std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environment& env, const HostTranslateInfo& host_info, const IR::Block* block) {")
+    check("if (index.U32() >= Info::MAX_CBUFS) {" in get, "the texture pass tracks a constant buffer index past the 18")
+    check("if (shift.U32() >= 32) {" in get and "if (op2.U32() == 0) {" in get, "the texture pass keeps a handle shift of 32 or more")
+    emit = text("gpu/vk/eden/shader_recompiler/backend/spirv/spirv_emit_context.cpp")
+    check("cbufs[" not in emit.replace("cbufs[i].*member_ptr", ""), "the SPIR-V back end indexes cbufs[] unchecked")
+    check("ctx.cbufs.at(binding.U32())" in text("gpu/vk/eden/shader_recompiler/backend/spirv/emit_spirv_context_get_set.cpp"),
+          "GetCbuf indexes cbufs[] unchecked")
+    tp = text("gpu/vk/eden/shader_recompiler/frontend/maxwell/translate_program.cpp")
+    check('throw NotImplementedException("Local memory of {} bytes"' in tp and 'throw NotImplementedException("Shared memory of {} bytes"' in tp,
+          "translate_program takes any local or shared memory size")
+    check("if (program.mesh.max_vertices == 0 || program.mesh.max_primitives == 0) {" in tp, "translate_program takes a mesh of no outputs")
+    check("want > 0xFFFFFFFFull ? 0xFFFFFFFFu" in text("gpu/vk/vk_shader.cpp"), "vk_shader.cpp truncates the header's local memory size")
+    for rel in ("gpu/vk/compat/common/div_ceil.h", "gpu/third_party/suyu/common/div_ceil.h"):
+        check("(static_cast<D>(number) + divisor - 1) / divisor" not in text(rel), rel + " wraps near the type's top")
     prog = text("gpu/vk/vk_progcache.cpp")
     check("bool ok = !r.bad && n >= 1 && n <= 8;" in prog, "vk_progcache.cpp takes a program record with no stages")
     draw = text("gpu/vk/vk_draw.cpp")
