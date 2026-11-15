@@ -344,7 +344,7 @@ class NupCacheTests(unittest.TestCase):
         dump = self.root / "dump"
         (dump / "exefs").mkdir(parents=True)
         (dump / "exefs" / "main").write_bytes(module_bytes(supported=supported, payload=payload))
-        (dump / "romfs").mkdir()
+        self.game_files(dump / "romfs")   # (what check_romfs_folder looks for)
         (dump / "romfs" / "dump-only.txt").write_bytes(b"authored dump asset")
         return dump / "romfs", dump / "exefs"
 
@@ -374,6 +374,54 @@ class NupCacheTests(unittest.TestCase):
         self.assertEqual(self.extractions, [self.old_nup])
         self.assertEqual((self.out / ".hookshot_exefs" / "main").read_bytes(), module_bytes())
 
+    def game_files(self, romfs):
+        """What the build reads from a chosen romfs folder (check_romfs_folder), as authored stand-ins"""
+        (romfs / "Pack").mkdir(parents=True)
+        (romfs / "Pack" / "ZsDic.pack.zs").write_bytes(b"\x28\xb5\x2f\xfd" + b"authored dictionary stand-in")
+        (romfs / "System" / "Resource").mkdir(parents=True)
+
+    def test_romfs_folder_without_the_game_files_is_refused_before_the_build(self):
+        # (issue 467: another tool's packed copy, index.json and one romfs.bin, was built for 15 minutes, then the game
+        # stopped at boot)
+        shutil.rmtree(self.out)
+        exefs = self.root / "dump" / "exefs"
+        exefs.mkdir(parents=True)
+        (exefs / "main").write_bytes(module_bytes())
+        packed, empty, half = self.root / "dump" / "packed", self.root / "dump" / "empty", self.root / "dump" / "half"
+        packed.mkdir()
+        (packed / "index.json").write_text("{}")
+        (packed / "romfs.bin").write_bytes(b"authored packed stand-in")
+        empty.mkdir()
+        self.game_files(half)
+        (half / "System" / "Resource").rmdir()
+        for romfs, said, packed_copy in ((packed, "no Pack/ZsDic.pack.zs", True), (empty, "no Pack/ZsDic.pack.zs", False),
+                                         (half, "no System/Resource", False)):
+            with self.subTest(romfs=romfs.name):
+                with self.assertRaises(SystemExit) as result:
+                    self.run_to_lift(self.new_nup, folders=(romfs, exefs))
+                self.assertEqual(result.exception.code, 1)
+                self.assertIn("does not hold the game's files (%s): choose the extracted RomFS." % said, self.output)
+                self.assertEqual("a packed copy" in self.output, packed_copy)
+                self.assertFalse(self.out.exists())
+                self.assertFalse((self.work / "exefs").exists())
+
+    def test_romfs_folder_is_looked_at_as_a_long_path(self):
+        # (Windows: a dump's Pack/ZsDic.pack.zs past 260 characters is found only through long_path, as the copy reads it)
+        romfs = self.root / "dump" / "romfs"
+        self.game_files(romfs)
+        named = str(self.root / "dump" / "named-only-through-long-path")
+        with mock.patch.object(make_game, "long_path", side_effect=lambda p: str(romfs) if p == named else p):
+            make_game.check_romfs_folder(named)
+
+    def test_romfs_folder_with_the_game_files_reaches_lift(self):
+        romfs, exefs = self.root / "dump" / "romfs", self.root / "dump" / "exefs"
+        self.game_files(romfs)
+        exefs.mkdir(parents=True)
+        (exefs / "main").write_bytes(module_bytes())
+        with self.assertRaises(Prepared):
+            self.run_to_lift(self.new_nup, folders=(romfs, exefs))
+        self.assertTrue((self.out / "romfs" / "Pack" / "ZsDic.pack.zs").is_file())
+
     def test_reparse_cache_is_rejected_before_extraction_or_replacement(self):
         before = self.cache()
         original_lstat = os.lstat
@@ -394,6 +442,7 @@ class NupCacheTests(unittest.TestCase):
         source_romfs = self.root / "source-romfs"
         source_romfs.mkdir()
         (source_romfs / "new.bin").write_bytes(b"authored source asset")
+        self.game_files(source_romfs)
         source_exefs = self.root / "source-exefs"
         source_exefs.mkdir()
         (source_exefs / "main").write_bytes(module_bytes())
