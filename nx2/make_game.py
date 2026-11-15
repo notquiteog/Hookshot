@@ -1620,17 +1620,41 @@ def copy_writable(src, dst):
     shutil.copyfile(src, dst)
 
 
-def check_romfs_folder(romfs):
-    """A chosen romfs folder holds what the build reads from it (prompt_assets.py, shader_census.py: Pack/ZsDic.pack.zs and
-    System/Resource), said before the game folder is made. Issue 467: another tool's packed copy (index.json and one romfs.bin) was
-    built for 15 minutes into 27 GB, and the game stopped at boot without its system files"""
+# What a romfs must hold for the build and the game's start, each as (any one of its names, test): the build reads
+# Pack/ZsDic.pack.zs and System/Resource (prompt_assets.py, shader_census.py), and the game cannot start without its heap
+# definition, which it opens as Product. then Default. (#689 and a v3.0.0-rc.4 player: a romfs with no System folder crashed
+# at boot every time, "write 0x100000000000, guest 0", its heaps set up without their sizes; that file alone missing does too)
+ROMFS_NEEDED = ((("Pack/ZsDic.pack.zs",), os.path.isfile), (("System/Resource",), os.path.isdir),
+                (("System/HeapSize/Product.Nin_Ounce_NVN2.HeapDef.byml.zs",
+                  "System/HeapSize/Default.Nin_Ounce_NVN2.HeapDef.byml.zs"), os.path.isfile))
+
+
+def romfs_missing(romfs):
+    """The first of ROMFS_NEEDED that romfs lacks (its first name), or None"""
     folder = long_path(romfs)   # (a dump's deepest paths pass 260 characters: #1468)
-    missing = next((name for name, there in (("Pack/ZsDic.pack.zs", os.path.isfile), ("System/Resource", os.path.isdir))
-                    if not there(os.path.join(folder, *name.split("/")))), None)
+    return next((names[0] for names, there in ROMFS_NEEDED
+                 if not any(there(os.path.join(folder, *name.split("/"))) for name in names)), None)
+
+
+def check_romfs_folder(romfs):
+    """A chosen romfs folder holds what the build and the game's start need (ROMFS_NEEDED), said before the game folder is
+    made. Issue 467: another tool's packed copy (index.json and one romfs.bin) was built for 15 minutes into 27 GB, and the
+    game stopped at boot without its system files"""
+    folder = long_path(romfs)
+    missing = romfs_missing(romfs)
     if missing:
         packed = (" It holds a romfs.bin, a packed copy of the game's files: extract it first."
                   if os.path.isfile(os.path.join(folder, "romfs.bin")) else "")
         fail("The romfs folder %s does not hold the game's files (no %s): choose the extracted RomFS.%s" % (romfs, missing, packed))
+
+
+def check_unpacked_romfs(romfs, source):
+    """The same for a romfs this builder unpacked from a .nup, or kept in the game folder for an update (source says which):
+    a game built from it could not start. Before the build, as for a chosen folder"""
+    missing = romfs_missing(romfs)
+    if missing:
+        fail("%s does not hold all of the game's files (no %s): a game built from it could not start. Dump the game again and "
+             "choose the complete dump in Longshot Builder." % (source, missing))
 
 
 def refuse_dump_links(folder):
@@ -2438,6 +2462,7 @@ def main(a=None):
             fail("This game folder has no copy of the game files to update from: it was built before updates came in. Choose your game files "
                  "in Hookshot Builder and build into the same folder once; updates after that work by themselves.")
         check_cache_paths(out, (kept, romfs))
+        check_unpacked_romfs(romfs, "This game folder's copy of the game files (%s)" % romfs)
         shutil.copytree(kept, exefs)
         check_modules(exefs)
         stand_in_damaged_files(out, romfs)   # (a folder unpacked by an earlier builder from a 23.3 GB dump)
@@ -2459,6 +2484,7 @@ def main(a=None):
             same = read_stamp(good).strip() == stamp
         if same:
             print("the game was read from this .nup before: reading it again is skipped", flush=True)
+            check_unpacked_romfs(romfs, "Your .nup file %s" % a.nup)   # (unpacked by a builder before this check)
             shutil.copytree(kept, exefs)
         else:
             shutil.rmtree(game, ignore_errors=True)
@@ -2472,6 +2498,7 @@ def main(a=None):
                 check_supported_build(staged_exefs)
                 if not os.path.isdir(os.path.join(game, "romfs")):
                     fail("The package did not contain a romfs folder.")
+                check_unpacked_romfs(os.path.join(game, "romfs"), "Your .nup file %s" % a.nup)
             except (OSError, SystemExit):
                 try:
                     shutil.rmtree(game)
