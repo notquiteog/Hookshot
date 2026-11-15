@@ -144,6 +144,19 @@ class Release(unittest.TestCase):
         check = rel[rel.index("scripts/release_files.sh check"):rel.index("x86_64.AppImage.zsync")]
         self.assertIn('"Hookshot-$TAG-Windows-x64-full-setup.zip"', check)
 
+    def test_every_run_installs_it_with_the_network_off(self):
+        wb = (ROOT / ".github" / "workflows" / "windows-builder.yml").read_text(encoding="utf-8")
+        job = wb[wb.index("  offline:\n"):wb.index("  vulkan:\n")]
+        self.assertIn("needs: [package]", job)
+        self.assertIn("python -I scripts/make_full_setup.py dist --fetch", job)   # (with the network: the reused parts)
+        blocked = job.index("Set-NetFirewallProfile -All -Enabled True -DefaultOutboundAction Block")
+        self.assertLess(job.index("make_full_setup.py"), blocked)
+        self.assertLess(blocked, job.index("Invoke-WebRequest https://github.com"))   # (the block proven first)
+        self.assertLess(job.index("Invoke-WebRequest https://github.com"), job.index("HookshotBuilder.exe"))
+        self.assertLess(job.index("HookshotBuilder.exe"), job.index("-DefaultOutboundAction Allow"))
+        for check in ("installed.txt", "no Visual Studio needed", "not a NUP package", "Could not reach GitHub"):
+            self.assertIn(check, job)
+
     def test_the_table_names_it_for_a_release_only(self):
         env = dict(os.environ, GH_REPO="o/r")
         run = lambda tag: subprocess.run(["bash", str(ROOT / "scripts" / "release_files.sh"), "table", tag], capture_output=True,
