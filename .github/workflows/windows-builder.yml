@@ -444,7 +444,7 @@ jobs:
       - name: Every part in the setup list downloads
         run: |
           bad=0
-          while read -r kind sha size _ _ _ url; do
+          while read -r kind _ _ _ _ _ url; do
             [ "$kind" = part ] || continue
             code=$(curl -s -o /dev/null -w '%{http_code}' -L -r 0-0 --retry 3 --retry-delay 5 "$url")
             case $code in 200|206) echo "ok   $url" ;; *) echo "::error::$code $url"; bad=1 ;; esac
