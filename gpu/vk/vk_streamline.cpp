@@ -64,21 +64,44 @@ void log_from_streamline(sl::LogType type, const char* message) {
     else if (log_level() > 0) logf("vk: streamline: %s", text.c_str());
 }
 
+/// A folder as UTF-8, for the log (never through the ANSI code page: tests/test_utf8_paths.py)
+std::string narrow(const std::wstring& w) {
+    std::string out;
+    const int n = WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(), nullptr, 0, nullptr, nullptr);
+    if (n > 0) {
+        out.resize((size_t)n);
+        WideCharToMultiByte(CP_UTF8, 0, w.data(), (int)w.size(), out.data(), n, nullptr, nullptr);
+    }
+    return out;
+}
+
 /// Where sl.interposer.dll may be: RX_VK_STREAMLINE_DIR, then a `streamline` folder beside the
-/// executable, then the executable's own folder. A player who drops NVIDIA's DLLs next to the game
-/// should not also have to set an environment variable.
+/// executable, then the executable's own folder; and, for a game the Builder installed (the real
+/// hookshot.exe in bin\\ beside image.bin, with a small launcher of the same name in the game folder),
+/// the game folder's `streamline` folder and the game folder itself: where the readme says to put them.
+/// A player who drops NVIDIA's DLLs next to the game should not also have to set an environment variable.
 std::vector<std::wstring> search_dirs() {
     std::vector<std::wstring> dirs;
     wchar_t env[1024];
     if (const DWORD n = GetEnvironmentVariableW(L"RX_VK_STREAMLINE_DIR", env, 1024); n && n < 1024)
         dirs.emplace_back(env);
-    wchar_t exe[MAX_PATH];
-    if (const DWORD n = GetModuleFileNameW(nullptr, exe, MAX_PATH); n && n < MAX_PATH) {
+    std::wstring exe(32768, L'\0');   // (GetModuleFileNameW's long form: a game folder deep in a path still resolves)
+    if (const DWORD n = GetModuleFileNameW(nullptr, exe.data(), (DWORD)exe.size()); n && n < exe.size()) {
+        exe.resize(n);
         std::wstring dir{exe};
         if (const size_t cut = dir.find_last_of(L"\\/"); cut != std::wstring::npos) {
             dir.resize(cut);
             dirs.push_back(dir + L"\\streamline");
             dirs.push_back(dir);
+            // (bin\\hookshot.exe beside ..\\image.bin: vk_dlss.cpp's game_dir rule, the folder above bin)
+            const size_t up = dir.find_last_of(L"\\/");
+            if (up != std::wstring::npos && !_wcsicmp(dir.c_str() + up + 1, L"bin")) {
+                const std::wstring game = dir.substr(0, up);
+                if (GetFileAttributesW((game + L"\\image.bin").c_str()) != INVALID_FILE_ATTRIBUTES) {
+                    dirs.push_back(game + L"\\streamline");
+                    dirs.push_back(game);
+                }
+            }
         }
     }
     return dirs;
@@ -291,8 +314,10 @@ bool start() {
             }
         }
         if (found.empty()) {
-            logf("vk: no sl.interposer.dll beside the game or in RX_VK_STREAMLINE_DIR: DLSS 5 "
-                 "neural rendering is unavailable (readme.md says which files to put there)");
+            std::string looked;
+            for (const std::wstring& d : search_dirs()) looked += (looked.empty() ? "" : ", ") + narrow(d);
+            logf("vk: no sl.interposer.dll in %s: DLSS 5 neural rendering through Streamline is unavailable (readme.md says "
+                 "which files to put there)", looked.c_str());
             return false;
         }
         if (!load(s, found)) return false;
