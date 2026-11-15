@@ -516,6 +516,9 @@ void release() {
     for (Image* t : all_images()) drop_image(*t);   // (retired: freed once the GPU's uses of them are done)
     g.render_width = g.render_height = g.upscale_width = g.upscale_height = 0;
     free_dead();
+    // (what the GPU still uses is freed by the chain a few frames on: otherwise only FSR 3.1's next upscale freed it, and
+    // after the row went back to the game's upscaler its images stayed for the session)
+    if (!g.dead.empty()) temporal_later([] { free_dead(); });
 }
 
 bool upscale(VkCommandBuffer cmd, const Inputs& in) {
