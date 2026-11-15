@@ -501,7 +501,7 @@
     {
       "id": "compile_shaders",
       "label": "Compile shaders",
-      "help": "All: also builds the predicted pipelines, about 40% longer, for pipelines play almost never uses. Most (recommended): every shader and the pipelines the game is known to use. Applies at the next build, update or preparation.",
+      "help": "All (the default): every shader, the pipelines the game is known to use and the predicted ones. Most: without the predicted pipelines, about 30% shorter; what that costs in play is not measured yet. Applies at the next build, update or preparation.",
       "choices": [
         {
           "label": "All",
@@ -510,14 +510,14 @@
           }
         },
         {
-          "label": "Most (recommended)",
+          "label": "Most",
           "set": {
             "compile_shaders": "0"
           }
         }
       ],
       "defaults": {
-        "compile_shaders": "0"
+        "compile_shaders": "1"
       }
     }
   ],

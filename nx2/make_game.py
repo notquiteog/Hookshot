@@ -1371,8 +1371,8 @@ def not_prepared(why, then=FIRST_START):
 
 
 # (Compile shaders, the builders' and the launcher's choice: compile_shaders= in the game folder's hookshot_options.ini, the
-# number the game reads (gpu/vk/vk_draw.cpp compile_all). Most, the default: every shader program and the pipelines the lists
-# name, before the title. All: the predicted pipelines too, about 40 % more time for pipelines play almost never draws)
+# number the game reads (gpu/vk/vk_draw.cpp compile_all). All, the default (as before the choice): every shader program, the pipelines the lists name and the predicted
+# ones. Most: without the predicted pipelines, about 30 % less time; what that costs in play is not measured yet)
 COMPILE_LEVELS = {"most": 0, "all": 1}
 COMPILE_KEY = "compile_shaders"
 
@@ -1389,7 +1389,7 @@ def folder_compile_level(out):
                 key, eq, value = line.strip().partition("=")
                 if eq and key == COMPILE_KEY:
                     n = int(value) if value.strip().lstrip("-").isdigit() else 0
-                    return next((name for name, v in COMPILE_LEVELS.items() if v == n), "most")
+                    return next((name for name, v in COMPILE_LEVELS.items() if v == n), "all")
     except OSError:
         pass
     return None
@@ -1413,7 +1413,7 @@ def write_compile_level(out, level):
 
 def compile_level(a, out):
     """This build's Compile shaders: --compile-shaders, else the folder's own choice, else Most"""
-    return getattr(a, "compile_shaders", None) or (folder_compile_level(out) if out else None) or "most"
+    return getattr(a, "compile_shaders", None) or (folder_compile_level(out) if out else None) or "all"
 
 
 def prepare_skipped(a, environ=None):

@@ -111,10 +111,10 @@ The build prepares the game's shaders at its end, which takes a while. Later sta
 **Compile shaders** (the Builder, the launcher's settings, `make_game.py --compile-shaders`) chooses what that
 preparation builds:
 
-- **Most** (recommended, the default): every shader and the pipelines the game is known to use (the shipped list and
-  what your own play noted).
-- **All**: the predicted pipelines too, about 50,000 guesses at pipelines no list names. The preparation takes about 40%
-  longer (415 s against 292 s on an RTX 3090 with a 12-core CPU), and play almost never uses them.
+- **All** (the default, as before): the predicted pipelines too, about 50,000 guesses at pipelines no list names. The preparation takes about 40%
+  longer (415 s against 292 s on an RTX 3090 with a 12-core CPU), and how often play draws them is not measured yet.
+- **Most**: every shader and the pipelines the game is known to use (the shipped list and what your own play noted),
+  without the predicted ones. What leaving them out costs in play has not been measured yet, so it is not the default.
 
 A preparation the game runs at a launch (after "Prepare shaders now" was unticked, or after an update or a new GPU driver
 changed what the shaders are translated for) follows the same choice, kept as `compile_shaders` in

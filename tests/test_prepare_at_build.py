@@ -193,8 +193,11 @@ class CompileShadersTests(unittest.TestCase):
         self.assertEqual(self.ini(), "options_version=6\nfullscreen=1\ncompile_shaders=1\n")
         self.assertEqual(make_game.folder_compile_level(self.out), "all")
 
-    def test_the_level_given_else_the_folders_else_most(self):
+    def test_the_level_given_else_the_folders_else_all(self):
+        # (hookshot: All, as before the choice, until Most is measured in play)
         a = SimpleNamespace(no_prepare_shaders=False, compile_shaders=None)
+        self.assertEqual(make_game.compile_level(a, self.out), "all")
+        make_game.write_compile_level(self.out, "most")
         self.assertEqual(make_game.compile_level(a, self.out), "most")
         make_game.write_compile_level(self.out, "all")
         self.assertEqual(make_game.compile_level(a, self.out), "all")

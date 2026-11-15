@@ -9,12 +9,12 @@ static class ShaderStep
     public const string Id = "shaders";
     public const string Later = "--no-prepare-shaders";
     /// "Compile shaders" (make_game.py --compile-shaders, kept in the folder's hookshot_options.ini as compile_shaders=, which the
-    /// launcher's setting writes too): All builds the predicted pipelines too, Most (the default) every shader and the pipelines
+    /// launcher's setting writes too): All (the default) builds the predicted pipelines too, Most every shader and the pipelines
     /// the lists name
     public const string Compile = "--compile-shaders";
     public static readonly string[] Levels = { "all", "most" };
-    public const string DefaultLevel = "most";
-    public const string Tip = "All: also builds the predicted pipelines, about 40% longer, for pipelines play almost never uses. Most (recommended): every shader and the pipelines the game is known to use.";
+    public const string DefaultLevel = "all";   // (hookshot: as before Compile shaders; Most is the choice until measured in play)
+    public const string Tip = "All (the default): every shader, the pipelines the game is known to use and the predicted ones. Most: without the predicted pipelines, about 30% shorter; what that costs in play is not measured yet.";
     public static string Level(string? saved) => saved != null && Array.IndexOf(Levels, saved) >= 0 ? saved : DefaultLevel;
     // (make_game.py NOT_PREPARED: a plain line, so a builder that does not know it only shows it)
     static readonly Regex NotPrepared = new(@"^the shaders were not prepared now \((.*)\): (.*)$");

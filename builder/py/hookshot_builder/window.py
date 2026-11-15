@@ -35,9 +35,9 @@ SHADERS_LATER = "--no-prepare-shaders"
 # launcher's setting writes too. ShaderStep.cs)
 COMPILE_SHADERS = "--compile-shaders"
 COMPILE_LEVELS = ("all", "most")
-COMPILE_NAMES = ("All", "Most (recommended)")
-COMPILE_TIP = ("All: also builds the predicted pipelines, about 40% longer, for pipelines play almost never uses. Most (recommended): "
-               "every shader and the pipelines the game is known to use.")
+COMPILE_NAMES = ("All", "Most")
+COMPILE_TIP = ("All (the default): every shader, the pipelines the game is known to use and the predicted ones. Most: without "
+               "the predicted pipelines, about 30% shorter; what that costs in play is not measured yet.")
 NOT_PREPARED = re.compile(r"^the shaders were not prepared now \((.*)\): (.*)$")   # (make_game.py NOT_PREPARED)
 FIRST_START = "the game prepares them at its first start"   # (make_game.py FIRST_START)
 
@@ -1093,7 +1093,7 @@ class Window(QWidget):
         self.prepare_tick.setChecked(not s.get("PrepareLater"))
         self.compile_box.blockSignals(True)   # (not saved back from here: the rest of the settings are not applied yet)
         self.compile_box.setCurrentIndex(COMPILE_LEVELS.index(s.get("CompileShaders") if s.get("CompileShaders") in COMPILE_LEVELS
-                                                              else "most"))
+                                                              else "all"))
         self.compile_box.blockSignals(False)
         r, x, n = s.get("Romfs"), s.get("Exefs"), s.get("Nup")
         if r and x and os.path.isdir(r) and os.path.isfile(os.path.join(x, "main")):

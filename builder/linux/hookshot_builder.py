@@ -106,9 +106,9 @@ def dlss_args(dlss):
 
 
 COMPILE_LEVELS = ("all", "most")
-COMPILE_NAMES = ("All", "Most (recommended)")
-COMPILE_TIP = ("All: also builds the predicted pipelines, about 40% longer, for pipelines play almost never uses. Most (recommended): "
-               "every shader and the pipelines the game is known to use.")
+COMPILE_NAMES = ("All", "Most")
+COMPILE_TIP = ("All (the default): every shader, the pipelines the game is known to use and the predicted ones. Most: without "
+               "the predicted pipelines, about 30% shorter; what that costs in play is not measured yet.")
 
 
 def make_game_env(dlss, environ=None):
@@ -536,7 +536,7 @@ class Builder(tk.Tk):
         self.prepare = tk.BooleanVar(value=self.cfg.get("prepare", "1") != "0")   # (make_game.py's last step: off, at the first start)
         # (Compile shaders, make_game.py --compile-shaders, kept in the folder's hookshot_options.ini)
         self.compile_shaders = tk.StringVar(value=COMPILE_NAMES[COMPILE_LEVELS.index(
-            self.cfg.get("compile_shaders") if self.cfg.get("compile_shaders") in COMPILE_LEVELS else "most")])
+            self.cfg.get("compile_shaders") if self.cfg.get("compile_shaders") in COMPILE_LEVELS else "all")])
         self.dlss = tk.BooleanVar(value=self.cfg.get("dlss", "0") == "1")
         self.check_text = tk.StringVar()
         self.space_text = tk.StringVar()
@@ -1060,7 +1060,7 @@ class Builder(tk.Tk):
     def compile_level(self):
         """The Compile shaders box's choice, as make_game.py takes it"""
         name = self.compile_shaders.get()
-        return COMPILE_LEVELS[COMPILE_NAMES.index(name)] if name in COMPILE_NAMES else "most"
+        return COMPILE_LEVELS[COMPILE_NAMES.index(name)] if name in COMPILE_NAMES else "all"
 
     def on_dlss_changed(self):
         if self.dlss.get() and not messagebox.askyesno("NVIDIA DLSS", DLSS_LICENSE):

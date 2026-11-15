@@ -9168,18 +9168,18 @@ bool predict_pending() {
     return true;
 }
 // (hookshot) Compile shaders, the Builder's, make_game.py's and the launcher's choice (compile_shaders= in hookshot_options.ini:
-// 0 Most, the default; 1 All; any other number is Most). All builds the predicted pipelines too: about 50,000 for the driver's own cache, over 40 % more time (a full preparation on an RTX
-// 3090 with 24 threads: 415 and 413 s against 292 s without them), for pipelines play almost never draws ("vk: predicted
-// pipelines met in play"). RX_VK_COMPILE_SHADERS=all or most over the file (the game's --compile-shaders sets it, host/hos_main.c).
+// 1 All, the default, as before the choice; 0 Most; any other number is All). All builds the predicted pipelines too: about 50,000 for the driver's own cache, over 40 % more time (a full preparation on an RTX
+// 3090 with 24 threads: 415 and 413 s against 292 s without them), for pipelines Longshot found play rarely draws (the log counts them: "vk: predicted
+// pipelines met in play"; what Most costs in play is not measured yet, so All stays the default). RX_VK_COMPILE_SHADERS=all or most over the file (the game's --compile-shaders sets it, host/hos_main.c).
 // Asked only where a prediction would run: on Most it says so in the log, and takes away what an earlier preparation on All left
 // (the marker of one not finished, its sample and its keys), which would otherwise speak of pipelines this preparation did not
 // build
 bool compile_all() {
     static const bool all = [] {
         const char* why = "the default";
-        int v = 0;
+        int v = 1;   // (hookshot: All, as before Compile shaders: Most is the choice until it is measured in play)
         if (const char* e = getenv("RX_VK_COMPILE_SHADERS")) {
-            v = !strcmp(e, "all") || !strcmp(e, "1") ? 1 : 0;
+            v = !strcmp(e, "most") || !strcmp(e, "0") ? 0 : 1;
             why = "RX_VK_COMPILE_SHADERS";
         } else {
             char exe[MAX_PATH];
@@ -9190,7 +9190,7 @@ bool compile_all() {
                 char line[80];
                 while (fgets(line, sizeof line, f))
                     if (!strncmp(line, "compile_shaders=", 16)) {
-                        v = atoi(line + 16) == 1 ? 1 : 0;
+                        v = atoi(line + 16) == 0 ? 0 : 1;
                         why = "compile_shaders in hookshot_options.ini";
                         break;
                     }

@@ -202,11 +202,11 @@
               <!-- (make_game.py's compile-shaders option: what that preparation builds, and every one the game runs later. ShaderStep.cs) -->
               <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                 <TextBlock x:Name="CompileLabel" Style="{StaticResource Label}" Text="COMPILE SHADERS" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                <ComboBox x:Name="CompileBox" Width="170" Style="{StaticResource Choice}" IsEditable="False" SelectedIndex="1"
+                <ComboBox x:Name="CompileBox" Width="170" Style="{StaticResource Choice}" IsEditable="False" SelectedIndex="0"
                           AutomationProperties.Name="Compile shaders" AutomationProperties.LabeledBy="{Binding ElementName=CompileLabel}"
-                          ToolTip="All: also builds the predicted pipelines, about 40% longer, for pipelines play almost never uses. Most (recommended): every shader and the pipelines the game is known to use.">
+                          ToolTip="All (the default): every shader, the pipelines the game is known to use and the predicted ones. Most: without the predicted pipelines, about 30% shorter; what that costs in play is not measured yet.">
                   <ComboBoxItem Content="All"/>
-                  <ComboBoxItem Content="Most (recommended)"/>
+                  <ComboBoxItem Content="Most"/>
                 </ComboBox>
               </StackPanel>
             </StackPanel>
