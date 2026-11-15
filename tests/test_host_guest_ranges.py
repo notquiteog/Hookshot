@@ -11,6 +11,10 @@ From the 2026-11-14 audit (PR-D). Each check cuts the production code out unmodi
             used to be shifted down under the frames that held them, and a longjmp then restored a dead frame's
             registers); the pushes past it get the spare slot, which no longjmp is taken to; the pops unwind to empty.
 
+  files     host/nn_fs.c's file handles: a call holding one (get_file) while another thread closes it (CloseFile)
+            keeps it until it puts it back (put_file); the host file is closed and freed then, once (L1).
+  block     host/hos_mem.c's AllocateMemoryBlock: a size near 2^64 is refused, not rounded to a block of nothing (L3).
+
 (GetNpadStates' count: tests/test_input_background.py, case count-bounds.)
 
 python -I -B tests/test_host_guest_ranges.py [--cc gcc]
@@ -123,6 +127,41 @@ int main(void) {
 '''
 
 
+FILES_MAIN = r'''
+int main(void) {
+    Ctx cc = {{0}};
+    Handle *h = (Handle *)calloc(1, sizeof *h);
+    h->refs = 1;
+    handles[6] = h;
+    Handle *held = get_file(&cc, 7);                     /* (a read on one thread...) */
+    CHECK(held == h && h->refs == 2);
+    Ctx close = {{0}};
+    close.x[0] = 7;
+    _ZN2nn2fs9CloseFileENS0_10FileHandleE(&close);       /* (...and CloseFile on another) */
+    CHECK(handles[6] == NULL && closes == 0 && h->refs == 1);   /* (out of the table, still the read's) */
+    put_file(held);                                      /* (the read done) */
+    CHECK(closes == 1);
+    printf("PASS: a file's handle stays until the last call using it is done\n");
+    return 0;
+}
+'''
+
+BLOCK_MAIN = r'''
+int main(void) {
+    Ctx cc = {{0}}, *c = &cc;
+    hos_heap_size = 64ULL << 20;
+    c->x[0] = 64; c->x[1] = 0xFFFFFFFFFFFFFF00ULL;
+    _ZN2nn2os19AllocateMemoryBlockEPmm(c);
+    CHECK(c->x[0] == 0x1A01 && hos_heap_used == 0);       /* (refused: it rounded to 0 and was handed out) */
+    c->x[0] = 64; c->x[1] = 3ULL << 20;
+    _ZN2nn2os19AllocateMemoryBlockEPmm(c);
+    CHECK(c->x[0] == 0 && hos_heap_used == 4ULL << 20 && *(uint64_t *)(memory + 64) == HOS_HEAP_BASE);
+    printf("PASS: AllocateMemoryBlock refuses a size that wraps\n");
+    return 0;
+}
+'''
+
+
 def build_run(cc, tmp, name, source):
     src, exe = Path(tmp, name + ".c"), Path(tmp, name)
     src.write_text(source, encoding="utf-8")
@@ -151,9 +190,26 @@ def main():
                          sj[sj.index("typedef struct { SjSlot slot[DEPTH]"):sj.index("static _Thread_local SjStack *stack;")],
                          "static SjStack *stack;",
                          block(sj, "void **recomp_sj_push("), block(sj, "void recomp_sj_pop(")])
+    fs = read("host/nn_fs.c")
+    files = "\n".join([
+        "typedef void *HANDLE; typedef struct { int dummy; } SRWLOCK; static SRWLOCK handle_lock;",
+        "static void AcquireSRWLockShared(SRWLOCK *l) { (void)l; } static void ReleaseSRWLockShared(SRWLOCK *l) { (void)l; }",
+        "static void AcquireSRWLockExclusive(SRWLOCK *l) { (void)l; } static void ReleaseSRWLockExclusive(SRWLOCK *l) { (void)l; }",
+        "static LONG InterlockedIncrement(volatile LONG *p) { return ++*p; } static LONG InterlockedDecrement(volatile LONG *p) { return --*p; }",
+        "static int closes; static int CloseHandle(HANDLE h) { (void)h; closes++; return 1; }",
+        "typedef struct { HANDLE h; volatile LONG refs; } Handle; static Handle *handles[4096];",
+        block(fs, "static Handle *get_file(Ctx *c, uint64_t id)"), block(fs, "static void put_file(Handle *h)"),
+        block(fs, "static void free_handle(uint64_t id)"), block(fs, "HLE(_ZN2nn2fs9CloseFileENS0_10FileHandleE)")])
+    mem = read("host/hos_mem.c")
+    blk = "\n".join([
+        "#define HOS_HEAP_BASE 0x1000000000ULL", "#define HOS_TRACE_CALL(n) ((void)0)", "#define LOCK() ((void)0)",
+        "#define UNLOCK() ((void)0)", "static uint64_t hos_heap_size, hos_heap_used;", need, gr,
+        block(mem, "HLE(_ZN2nn2os19AllocateMemoryBlockEPmm)")])
     with tempfile.TemporaryDirectory(prefix="guest-ranges-") as tmp:
         build_run(a.cc, tmp, "gr", COMMON + need + "\n" + gr + "\n" + rnd + GR_MAIN)
         build_run(a.cc, tmp, "sj", COMMON + sj_part + SJ_MAIN)
+        build_run(a.cc, tmp, "files", COMMON + files + FILES_MAIN)
+        build_run(a.cc, tmp, "block", COMMON + blk + BLOCK_MAIN)
 
 
 if __name__ == "__main__":

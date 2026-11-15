@@ -199,8 +199,10 @@ static int16_t adpcm_sample(Voice *v, const WB *w, int64_t s) {
     if (nibble >= 8) nibble -= 16;
     const int idx = (header >> 4) & 7, scale = 1 << (header & 0xF);
     const int c1 = v->coefs[idx * 2], c2 = v->coefs[idx * 2 + 1];
-    int32_t val = ((nibble * scale) << 11) + c1 * v->yn1 + c2 * v->yn2;
-    val = (val + 1024) >> 11;
+    /* (hookshot) in 64 bits, multiplied rather than shifted: a negative nibble shifted left, and the sum of the two
+       history terms at a large scale, were undefined in 32 */
+    const int64_t sum = (int64_t)nibble * scale * 2048 + (int64_t)c1 * v->yn1 + (int64_t)c2 * v->yn2;
+    int64_t val = (sum + 1024) / 2048 - ((sum + 1024) % 2048 < 0);   /* (floor, as the arithmetic shift was) */
     if (val > 32767) val = 32767;
     if (val < -32768) val = -32768;
     v->yn2 = v->yn1;
