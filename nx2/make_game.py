@@ -1372,7 +1372,7 @@ def not_prepared(why, then=FIRST_START):
 
 # (Compile shaders, the builders' and the launcher's choice: compile_shaders= in the game folder's hookshot_options.ini, the
 # number the game reads (gpu/vk/vk_draw.cpp compile_all). All, the default (as before the choice): every shader program, the pipelines the lists name and the predicted
-# ones. Most: without the predicted pipelines, about 30 % less time; what that costs in play is not measured yet)
+# ones. Most: without the predicted pipelines, 20-30 % less time; on one measured route it cost nothing in play)
 COMPILE_LEVELS = {"most": 0, "all": 1}
 COMPILE_KEY = "compile_shaders"
 

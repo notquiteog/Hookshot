@@ -108,7 +108,8 @@ def dlss_args(dlss):
 COMPILE_LEVELS = ("all", "most")
 COMPILE_NAMES = ("All", "Most")
 COMPILE_TIP = ("All (the default): every shader, the pipelines the game is known to use and the predicted ones. Most: without "
-               "the predicted pipelines, about 30% shorter; what that costs in play is not measured yet.")
+               "the predicted pipelines, 20-30% shorter (19% on an RTX 5060 Ti, 30% on an RTX 3090); on one route it cost nothing "
+               "in play, but more may be compiled the first time you visit a place.")
 
 
 def make_game_env(dlss, environ=None):

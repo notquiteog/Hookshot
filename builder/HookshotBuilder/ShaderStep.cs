@@ -14,7 +14,7 @@ static class ShaderStep
     public const string Compile = "--compile-shaders";
     public static readonly string[] Levels = { "all", "most" };
     public const string DefaultLevel = "all";   // (hookshot: as before Compile shaders; Most is the choice until measured in play)
-    public const string Tip = "All (the default): every shader, the pipelines the game is known to use and the predicted ones. Most: without the predicted pipelines, about 30% shorter; what that costs in play is not measured yet.";
+    public const string Tip = "All (the default): every shader, the pipelines the game is known to use and the predicted ones. Most: without the predicted pipelines, 20-30% shorter (19% on an RTX 5060 Ti, 30% on an RTX 3090); on one route it cost nothing in play, but more may be compiled the first time you visit a place.";
     public static string Level(string? saved) => saved != null && Array.IndexOf(Levels, saved) >= 0 ? saved : DefaultLevel;
     // (make_game.py NOT_PREPARED: a plain line, so a builder that does not know it only shows it)
     static readonly Regex NotPrepared = new(@"^the shaders were not prepared now \((.*)\): (.*)$");

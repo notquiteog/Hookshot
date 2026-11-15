@@ -9325,7 +9325,7 @@ bool predict_pending() {
 // (hookshot) Compile shaders, the Builder's, make_game.py's and the launcher's choice (compile_shaders= in hookshot_options.ini:
 // 1 All, the default, as before the choice; 0 Most; any other number is All). All builds the predicted pipelines too: about 50,000 for the driver's own cache, over 40 % more time (a full preparation on an RTX
 // 3090 with 24 threads: 415 and 413 s against 292 s without them), for pipelines Longshot found play rarely draws (the log counts them: "vk: predicted
-// pipelines met in play"; what Most costs in play is not measured yet, so All stays the default). RX_VK_COMPILE_SHADERS=all or most over the file (the game's --compile-shaders sets it, host/hos_main.c).
+// pipelines met in play"; Most cost nothing in play on one measured route, but All stays the default until more is). RX_VK_COMPILE_SHADERS=all or most over the file (the game's --compile-shaders sets it, host/hos_main.c).
 // Asked only where a prediction would run: on Most it says so in the log, and takes away what an earlier preparation on All left
 // (the marker of one not finished, its sample and its keys), which would otherwise speak of pipelines this preparation did not
 // build
