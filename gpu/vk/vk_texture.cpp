@@ -722,11 +722,31 @@ struct AstcPush {
 VkDescriptorSetLayout astc_set = VK_NULL_HANDLE;
 VkPipelineLayout astc_layout = VK_NULL_HANDLE;
 VkPipeline astc_pipe = VK_NULL_HANDLE;
+/// (hookshot) ASTC decoded on the CPU, not by the GPU decoder: RX_VK_ASTC_CPU by the switches' rule; unset, on Windows
+/// with the graphics built into AMD's desktop CPUs: Ryzen 7000 (Raphael, PCI 0x164E) and Ryzen 9000 (Granite Ridge,
+/// 0x13C0), the same 2-CU RDNA 2 part; not the APUs' larger iGPUs (680M, 780M, 890M). A Ryzen 9 7900X's (driver
+/// 26.10.1, the screen on another card) lost the device within seconds of Kokiri Forest loading in 7 runs of 8: the
+/// terrain's two 1365 x 1365 x 90 ASTC arrays, decoded and re-encoded as BC3 in one upload submission (some 2000
+/// dispatches), held it for 4-6 s before Windows reset it. Decoded on the CPU, about 6 s an array on the replay thread
+/// (a pause as the area loads), it loaded Kokiri Forest 4 times of 4. The textures are then RGBA8 (no BC3), in the
+/// system memory an integrated GPU draws from anyway. Ryzen 9000's was not tried
+bool astc_on_cpu() {
+    static const bool on = [] {
+        bool v = false;
+#ifdef _WIN32
+        v = dev.props.vendorID == 0x1002 && (dev.props.deviceID == 0x164E || dev.props.deviceID == 0x13C0);
+#endif
+        if (const char* e = getenv("RX_VK_ASTC_CPU")) v = !env_value_off(e);
+        if (v) logf("vk: ASTC decoded on the CPU (RX_VK_ASTC_CPU=0: by the GPU; on by default for the graphics in AMD's Ryzen 7000 and 9000 desktop CPUs on Windows)");
+        return v;
+    }();
+    return on;
+}
 bool astc_ready() {
     static int state = 0;   // 0 untried, 1 ready, -1 unavailable
     if (state) return state > 0;
     state = -1;
-    if (!dev.push_descriptor || !vkCmdPushDescriptorSetKHR || env_on("RX_VK_ASTC_CPU")) return false;
+    if (!dev.push_descriptor || !vkCmdPushDescriptorSetKHR || astc_on_cpu()) return false;
     const VkDescriptorSetLayoutBinding b[2] = {
         {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr},
         {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}};
