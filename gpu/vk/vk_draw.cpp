@@ -7001,24 +7001,36 @@ bool fallback_buffers_of(const Program& p, FallbackBuffers*& out) {
     void* mapped = nullptr;
     const VkBufferUsageFlags usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    // (the records' header is the vertex stage's indirect draw and the mesh stage's indirect dispatch)
-    if (!create_buffer(records, usage | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, false, f.records, f.records_mem, &mapped)) return false;
-    f.records_address = fallback_buffer_address(f.records);
-    f.records_bytes = records;
-    if (!f.records_address) {
-        destroy_buffer(f.records, f.records_mem);
-        return false;
+    // (only the payload outgrown: the newest pair's records, which every program takes from, go with the bigger payload. Made
+    // again, each growth left another 64 MB arena on the thread for the session, that no draw used again)
+    const bool shared = !sets.empty() && sets.back().records && sets.back().records_bytes >= records;
+    const auto drop_records = [&] {
+        if (!shared) destroy_buffer(f.records, f.records_mem);
+    };
+    if (shared) {
+        const FallbackBuffers& last = sets.back();
+        f.records = last.records, f.records_mem = last.records_mem;
+        f.records_address = last.records_address, f.records_bytes = last.records_bytes;
+    } else {
+        // (the records' header is the vertex stage's indirect draw and the mesh stage's indirect dispatch)
+        if (!create_buffer(records, usage | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, false, f.records, f.records_mem, &mapped)) return false;
+        f.records_address = fallback_buffer_address(f.records);
+        f.records_bytes = records;
+        if (!f.records_address) {
+            drop_records();
+            return false;
+        }
     }
     if (payload) {
         if (!create_buffer(payload, usage, false, f.payload, f.payload_mem, &mapped)) {
-            destroy_buffer(f.records, f.records_mem);
+            drop_records();
             return false;
         }
         f.payload_address = fallback_buffer_address(f.payload);
         f.payload_bytes = payload;
         if (!f.payload_address) {
             destroy_buffer(f.payload, f.payload_mem);
-            destroy_buffer(f.records, f.records_mem);
+            drop_records();
             return false;
         }
     }
