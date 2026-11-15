@@ -288,6 +288,21 @@ HLE(_ZN2nn2fs14EnsureSaveDataERKNS_7account3UidE) {
     make_dirs(root);
     RET(0);
 }
+/* nn::fs::GetSaveDataSize(long* size, long* journalSize, account::Uid const&) -> Result: the user's save data's size and
+   its journal's. On the console they are what the save was made with (the game's control data, which the dump here
+   does not carry); here a save is a host folder with no size of its own, so both are answered as a generous 1 GiB:
+   a game that checks for room finds it, one that only shows the sizes shows a plausible one. Left to the lifted SDK it
+   asked the fs service proxy the runtime does not have (fs is answered above IPC) and read through the null it got:
+   Kirby Air Riders (Dragoon) asks it right after its first save mount. */
+HLE(_ZN2nn2fs15GetSaveDataSizeEPlS1_RKNS_7account3UidE) {
+    const int64_t size = 1LL << 30, journal = 1LL << 30;
+    static int told;
+    if (!told++) hos_log("fs: GetSaveDataSize: %lld MB, journal %lld MB (a host folder has no size of its own; lr %#llx)",
+                         (long long)(size >> 20), (long long)(journal >> 20), (unsigned long long)c->x[30]);
+    if (ARG(0) && hos_guest_range(ARG(0), 8)) G64(ARG(0)) = (uint64_t)size;
+    if (ARG(1) && hos_guest_range(ARG(1), 8)) G64(ARG(1)) = (uint64_t)journal;
+    RET(0);
+}
 /* MountSaveData(char const*, account::Uid const&) */
 HLE(_ZN2nn2fs13MountSaveDataEPKcRKNS_7account3UidE) {
     char sub[64];
