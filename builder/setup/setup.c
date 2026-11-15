@@ -9,7 +9,7 @@
        tag <tag>
        part <sha256> <bytes> <folder under the install> <top folder in the zip to rename, or -> <new name, or -> <url>
        run <the builder, relative to the install>
-   Build: clang -O2 -mwindows -municode setup.c setup_rc.o -lwinhttp -lbcrypt -lcomctl32 -lshell32 -lole32 -o HookshotBuilder-Setup.exe */
+   Build: clang -O2 -mwindows -municode setup.c setup_rc.o -lwinhttp -lbcrypt -lcomctl32 -lshell32 -lole32 -ladvapi32 -o HookshotBuilder-Setup.exe */
 #define WIN32_LEAN_AND_MEAN
 #ifndef UNICODE
 #define UNICODE
@@ -25,6 +25,7 @@
 #include <string.h>
 #include <wchar.h>
 #include "portable_home.h"
+#include "shared_folder.h"
 
 #define WM_STATUS (WM_APP + 1)
 #define WM_DONE (WM_APP + 2)
@@ -1079,6 +1080,19 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int show) {
             return 1;
         }
         if (wcsstr(g_cmdline, L"--launch") && launch_installed(g_cmdline)) return 0;
+    }
+    if (g_home_ok && g_home.portable) {   /* (a portable home others can write: said once, recorded in it, nothing changed) */
+        wchar_t shared[1024];
+        if (hb_shared_warning_due(g_home.root, shared, 1024)) {
+            if (g_headless) {
+                char u[3072];
+                DWORD wrote;
+                const HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+                const int len = WideCharToMultiByte(CP_UTF8, 0, shared, -1, u, (int)sizeof u - 1, NULL, NULL);
+                if (len > 0 && out && out != INVALID_HANDLE_VALUE)
+                    WriteFile(out, "warning ", 8, &wrote, NULL), WriteFile(out, u, len - 1, &wrote, NULL), WriteFile(out, "\n", 1, &wrote, NULL);
+            } else MessageBoxW(NULL, shared, L"Hookshot Builder setup", MB_OK | MB_ICONWARNING);
+        }
     }
     if (!g_home_ok) {
         const wchar_t *why = L"The Builder home is unavailable or its portable marker is invalid. For a new portable install, put this setup in a writable folder and start it with --portable.";
