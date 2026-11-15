@@ -343,6 +343,10 @@ uint64_t vk_retirement_value();
 /// The newest value handed out to a submission or a present: no recording begun so far has a later one
 uint64_t vk_values_handed_out();
 void vk_timeline_wait(uint64_t v);
+/// (vk_replay.cpp) Waits (at most timeout_ns) for one part of a submission recorded so far (Recording::part, as memory_recording_part
+/// gives it) to be done on the GPU: 1 when it is, 0 when the wait ran out, -1 when that part cannot be waited for (the recordings
+/// have no timeline of their own, RX_VK_PER_QUEUE_FENCES=0, no part number, or the part is not known)
+int vk_part_wait(uint64_t part, uint64_t timeout_ns);
 uint32_t memory_generation();
 /// 1: a page of [guest, guest + size) was written after generation gen; 0: none was
 bool memory_written_since(uint64_t guest, uint64_t size, uint32_t gen);

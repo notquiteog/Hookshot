@@ -2167,6 +2167,16 @@ bool shadow_follows_sync_on() {
     static const bool on = [] { const char* e = getenv("RX_VK_SHADOW_FOLLOWS_SYNC"); return !e || !env_value_off(e); }();
     return on;
 }
+// (hookshot) Always-on counts for the late pages' summary line, one for each way a late page's words or a CPU read of them go
+// (plain counters, pools_mu held; read and reset with the 600-recording line): reads on the CPU by branch, pages fixed by kind,
+// pages a mirror sync copied into a shadow, made known by it, and the ones left unknown because the replay or the collection
+// wrote them since (shadow_forgotten_last, set by the write-back's forget: pages the capture did not take)
+struct LateStats {
+    int64_t rd_fixed = 0, rd_earlier_rec = 0, rd_not_recorded = 0, rd_this_part = 0, fix_diff_pages = 0, fix_whole_pages = 0,
+            sync_pages = 0, sync_known = 0, sync_left_unknown = 0;
+} st_lfx;
+std::vector<uint32_t> shadow_forgotten_last;   // (sorted)
+bool shadow_forgotten_all = false;   // (the forget's lists overflowed: no page synced since is known to equal guest memory)
 struct ShadowSynced { uint64_t lo, page; VkBuffer shadow; };
 std::vector<ShadowSynced> shadow_synced;   // (synced since the last write-back's forget, into that shadow; pools_mu)
 void shadow_sync_copy(VkCommandBuffer up, VkBuffer src, Pool& p, const std::vector<VkBufferCopy>& rs) {
@@ -2178,14 +2188,27 @@ void shadow_sync_copy(VkCommandBuffer up, VkBuffer src, Pool& p, const std::vect
     vkCmdCopyBuffer(up, src, p.shadow, (uint32_t)rs.size(), rs.data());
     for (const VkBufferCopy& r : rs)
         for (uint64_t pg = r.dstOffset >> kPageShift; r.size && pg <= (r.dstOffset + r.size - 1) >> kPageShift; pg++)
-            shadow_synced.push_back({p.lo, pg, p.shadow});
+            shadow_synced.push_back({p.lo, pg, p.shadow}), st_lfx.sync_pages++;
 }
-void shadow_synced_known() {   // (after the write-back's forget: the pages synced since, known as the sync left them)
+// (after the write-back's forget: the pages synced since, known as the sync left them. Not after a forget whose lists overflowed
+// (shadow_written_all: the pages written are not known, so none of the synced ones is), and not the ones the forget has just cleared
+// because the replay's own writes or the collection reported them since the capture: guest memory has newer words there than the
+// shadow, which holds the capture's. Known, they were not read into the shadow again at the write-back, and the diff pass wrote
+// the mirror's words of a span whole over guest memory's newer ones, which the late pages' fix then read as stamped words.
+// Left unknown they are read from guest memory at the next write-back that writes the page back)
+void shadow_synced_known() {
     for (const ShadowSynced& s : shadow_synced) {   // (a shadow made since has not had the copy: shadow_synced_freed)
         const auto it = imported.find(s.lo);
         if (it == imported.end() || !it->second.shadow || it->second.shadow != s.shadow) continue;
         std::vector<uint64_t>& known = it->second.shadow_known;
-        if ((s.page >> 6) < known.size()) known[s.page >> 6] |= 1ull << (s.page & 63);
+        if ((s.page >> 6) >= known.size()) continue;
+        if (shadow_forgotten_all ||
+            std::binary_search(shadow_forgotten_last.begin(), shadow_forgotten_last.end(), (uint32_t)((s.lo >> kPageShift) + s.page))) {
+            st_lfx.sync_left_unknown++;
+            continue;
+        }
+        known[s.page >> 6] |= 1ull << (s.page & 63);
+        st_lfx.sync_known++;
     }
     shadow_synced.clear();
 }
@@ -2259,8 +2282,8 @@ struct LatePage {   // (a page with fixes: until they are done, a read of it on 
     uint64_t cap_value = 0;                                 // (its capture's value: the buffer kept under it, cap_bufs)
     size_t first = 0, n = 0;                                // (its fixes in late_fixes, then in fix_map)
     LateFix* fix_map = nullptr;
-    VmaAllocation fix_alloc = nullptr;                      // (fix_map's table, and the recording part it was recorded in)
-    uint64_t fix_part = 0, fix_end = 0;                     // (fix_end: the table's bytes up to its last fix)
+    VmaAllocation fix_alloc = nullptr;                      // (fix_map's table)
+    uint64_t fix_part = 0, fix_end = 0;                     // (fix_part: the recording part it was recorded in; fix_end: the table's bytes up to its last fix)
 };
 std::unordered_map<uint32_t, LatePage> late_pages;
 // (pools_mu held; the slots all taken) the snapshots of pages not late for a whole copy in kSnapIdle recordings given back:
@@ -2285,7 +2308,7 @@ struct LateFixTable { VkBuffer buf = VK_NULL_HANDLE; VmaAllocation alloc = nullp
 LateFixTable late_fix_tables[16];
 int late_fix_next = 0;
 struct { bool tried = false; VkPipelineLayout layout = VK_NULL_HANDLE; VkPipeline pipe = VK_NULL_HANDLE; } late_fix_pipe;
-int64_t st_lf_takes, st_lf_fixed, st_lf_fell[8], st_lf_fixes, st_lf_pages, st_lf_cpu_reads, st_lf_no_table, st_lf_moved;
+int64_t st_lf_takes, st_lf_fixed, st_lf_fell[8], st_lf_fixes, st_lf_pages, st_lf_cpu_reads, st_lf_no_table, st_lf_moved, st_lf_part_waits, st_lf_part_fell;
 bool late_fix_pipe_ready() {
     if (late_fix_pipe.tried) return late_fix_pipe.pipe != VK_NULL_HANDLE;
     late_fix_pipe.tried = true;
@@ -2456,7 +2479,10 @@ bool late_fix_build(Capture& c) {
             if (copied[i]) guarded_copy((uint8_t*)c.map + (uint64_t)i * 4096, base + ((uint64_t)c.pages[i] << kPageShift), 4096);
         flush_mapped(c.alloc, c.nbytes);
     }
-    for (auto& [pg, lp] : pages) late_pages[pg] = lp, late_built.push_back(pg);
+    for (auto& [pg, lp] : pages) {
+        late_pages[pg] = lp, late_built.push_back(pg);
+        (lp.stamp_key != UINT64_MAX ? st_lfx.fix_diff_pages : st_lfx.fix_whole_pages)++;
+    }
     st_lf_fixed++, st_lf_pages += (int64_t)pages.size(), st_lf_fixes += (int64_t)(late_fixes.size() - late_built_mark);
     return true;
 }
@@ -2482,33 +2508,53 @@ void late_fix_kept(bool kept, uint64_t value) {
 }
 // (pools_mu held) a read on the CPU of a page in a capture's buffer whose late page has a fix: it reads what the GPU's copies
 // out of the buffer read. Fixed already: the buffer as the fix left it. Recorded in a submission before this one: that one
-// waited for, then the same. Not recorded, or recorded in this recording's part not yet submitted: its fix dropped, and it
-// waits and is copied again, as before, for both. Recorded in an earlier part of this submission (not to be waited for
-// here): it waits and is copied again; the fix then writes the same write-backs' words over it on the GPU
+// waited for, then the same. Recorded in an earlier part of this submission (parts go to the GPU while the later ones are
+// recorded: that part's fix may be running, or run after this read): that part waited for (it is submitted, so the wait
+// cannot be for work nobody sends), then the same, and nothing is written to the capture. A fix left to run over a page
+// copied again here would put the write-backs' words back over the words the game's thread wrote after they landed
+// (late_fix_cpu_read of the PR 248 nightlies did). Not recorded yet, or recorded in this part (not submitted: the GPU has not
+// read its table): its fix dropped (the table's counts 0), and the page waits and is copied again, as before. The same for
+// an earlier part that cannot be waited for: vk_part_wait says so only when the recordings have no timeline of their own or
+// RX_VK_PER_QUEUE_FENCES=0 (no device and no OS decides it), and then the table's counts are zeroed while the GPU may be
+// reading it: that is the race this way has, and the log's late-fix line counts those reads ("after the wait of an earlier
+// part" and "of them copied again, not waited for"). A wait that ran past kPartWaitGuard (a hang guard, logged) is not
+// repeated for that part
+constexpr uint64_t kPartWaitGuard = 5000000000ull;   // (ns)
 void late_fix_cpu_read(uint32_t page, VkBuffer buffer, uint8_t* slot) {
     if (late_pages.empty()) return;
     const auto it = late_pages.find(page);
     if (it == late_pages.end() || it->second.buffer != buffer || it->second.slot != slot) return;
     LatePage& lp = it->second;
-    const auto again = [&] {
+    static uint64_t part_wait_failed = 0;   // (a part waited for past the guard is not waited for again)
+    bool fixed = lp.fix_value && lp.fix_value <= mem_completed;   // (the buffer is as the fix left it)
+    if (fixed) st_lfx.rd_fixed++;
+    if (!fixed && lp.fix_value && lp.fix_value < mem_rec_value) vk_timeline_wait(lp.fix_value), fixed = true, st_lfx.rd_earlier_rec++;
+    if (!fixed && lp.fix_value && lp.fix_part && lp.fix_part != mem_rec_part.load()) {   // (an earlier part of this recording)
+        const int waited = lp.fix_part == part_wait_failed ? 0 : vk_part_wait(lp.fix_part, kPartWaitGuard);
+        if (waited > 0) fixed = true, st_lf_part_waits++;
+        else {
+            st_lf_part_fell++;
+            if (waited == 0 && lp.fix_part != part_wait_failed) {
+                part_wait_failed = lp.fix_part;
+                logf("vk: late pages' fix: part %llu not done after %llu s: its pages are copied again", (unsigned long long)lp.fix_part,
+                     (unsigned long long)(kPartWaitGuard / 1000000000ull));
+            }
+        }
+    }
+    if (fixed) {
+        invalidate_mapped(lp.alloc, lp.nbytes);
+    } else {
+        if (!lp.fix_value) {
+            st_lfx.rd_not_recorded++;
+            for (size_t k = lp.first; k < lp.first + lp.n && k < late_fixes.size(); k++) late_fixes[k].count = 0;
+        } else if (lp.fix_map) {
+            if (lp.fix_part == mem_rec_part.load()) st_lfx.rd_this_part++;
+            for (size_t k = 0; k < lp.n; k++) lp.fix_map[k].count = 0;
+            flush_mapped(lp.fix_alloc, lp.fix_end);
+        }
         vk_timeline_wait(lp.late_value);
         guarded_copy(slot, (uint8_t*)host->guest_base() + ((uint64_t)page << kPageShift), 4096);
         flush_mapped(lp.alloc, lp.nbytes);
-    };
-    if (lp.fix_value && lp.fix_value <= mem_completed) {
-        invalidate_mapped(lp.alloc, lp.nbytes);
-    } else if (lp.fix_value && lp.fix_value < mem_rec_value) {
-        vk_timeline_wait(lp.fix_value);
-        invalidate_mapped(lp.alloc, lp.nbytes);
-    } else if (!lp.fix_value) {
-        for (size_t k = lp.first; k < lp.first + lp.n && k < late_fixes.size(); k++) late_fixes[k].count = 0;
-        again();
-    } else if (lp.fix_part == mem_rec_part.load() && lp.fix_map) {
-        for (size_t k = 0; k < lp.n; k++) lp.fix_map[k].count = 0;
-        flush_mapped(lp.fix_alloc, lp.fix_end);
-        again();
-    } else {
-        again();
     }
     st_lf_cpu_reads++;
     late_pages.erase(it);
@@ -2611,13 +2657,20 @@ void late_fix_emit() {
         logf("vk: late pages' fix (600 recordings with one): of %lld captures with late pages %lld fixed (%.1f pages, %.1f fixes "
              "a capture), waited as before: %lld no pool, %lld no stamps or shadow yet, %lld stamps too new, %lld "
              "whole copies, %lld in place or unknown, %lld a page's earlier fix not recorded yet, %lld other; %lld read on the CPU first, %lld with no table, %lld pages whose shadow changed "
-             "first; stamps %zu blocks (%llu KB)",
+             "first; stamps %zu blocks (%llu KB); of the reads on the CPU, %lld waited for an earlier part's fix, %lld copied the page "
+             "again instead (that part not waited for); the paths: reads on the CPU with the fix done %lld, of an earlier recording %lld, "
+             "not recorded yet %lld, of this part %lld; pages fixed from stamps %lld, from snapshots %lld; the shadows: %lld pages "
+             "synced from captures, %lld made known by it, %lld left unknown because the replay or the collection wrote them since",
              (long long)st_lf_takes, (long long)st_lf_fixed, st_lf_fixed ? (double)st_lf_pages / st_lf_fixed : 0.0,
              st_lf_fixed ? (double)st_lf_fixes / st_lf_fixed : 0.0, (long long)st_lf_fell[1],
              (long long)st_lf_fell[3], (long long)st_lf_fell[4], (long long)st_lf_fell[5], (long long)st_lf_fell[6],
              (long long)st_lf_fell[2], (long long)st_lf_fell[0], (long long)st_lf_cpu_reads, (long long)st_lf_no_table, (long long)st_lf_moved, stamp_blocks.size(),
-             (unsigned long long)(stamp_bytes >> 10));
-        st_lf_takes = st_lf_fixed = st_lf_pages = st_lf_fixes = st_lf_cpu_reads = st_lf_no_table = st_lf_moved = 0;
+             (unsigned long long)(stamp_bytes >> 10), (long long)st_lf_part_waits, (long long)st_lf_part_fell,
+             (long long)st_lfx.rd_fixed, (long long)st_lfx.rd_earlier_rec, (long long)st_lfx.rd_not_recorded, (long long)st_lfx.rd_this_part,
+             (long long)st_lfx.fix_diff_pages, (long long)st_lfx.fix_whole_pages, (long long)st_lfx.sync_pages, (long long)st_lfx.sync_known,
+             (long long)st_lfx.sync_left_unknown);
+        st_lf_takes = st_lf_fixed = st_lf_pages = st_lf_fixes = st_lf_cpu_reads = st_lf_no_table = st_lf_moved = st_lf_part_waits = st_lf_part_fell = 0;
+        st_lfx = LateStats{};
         for (int64_t& f : st_lf_fell) f = 0;
     }
 }
@@ -5502,6 +5555,7 @@ void shadows_forget_written() {
     if (all)   // (written for a long while with no write-back to read the list: nothing of guest memory is known)
         for (auto& [lo, pool] : imported)
             if (pool.shadow) std::fill(pool.shadow_known.begin(), pool.shadow_known.end(), 0ull);
+    shadow_forgotten_last.clear(), shadow_forgotten_all = all;
     if (!shadow_bytes) return;
     // (in this order, each page counted under the first that reports it: the collection's and the replay's counts are what the
     // captures alone would have left known)
@@ -5528,6 +5582,12 @@ void shadows_forget_written() {
             bits &= ~(1ull << (i & 63));
         }
     }
+    // (the pages the capture did not take that were written since: the replay's own writes and the collection's, for the late
+    // pages' summary line: a page synced from a capture and also in these has newer words in guest memory than the shadow)
+    shadow_forgotten_last.clear();
+    shadow_forgotten_last.insert(shadow_forgotten_last.end(), collected.begin(), collected.end());
+    shadow_forgotten_last.insert(shadow_forgotten_last.end(), replay.begin(), replay.end());
+    std::sort(shadow_forgotten_last.begin(), shadow_forgotten_last.end());
 }
 // (the pass's pipeline: 24 bytes of push constants and no descriptors, its buffers by address; made once)
 struct WbdPipe {
