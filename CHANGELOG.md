@@ -1,5 +1,52 @@
 # Changelog
 
+## [2.3.0-rc.26](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.25...v2.3.0-rc.26) (2026-11-15)
+
+
+### Bug Fixes
+
+* **hid:** every GetTouchScreenState&lt;N&gt; and GetTouchScreenStates&lt;N&gt;, N 1 to 16, answered ([#88](https://github.com/notquiteog/Hookshot/issues/88)) ([2edac4e](https://github.com/notquiteog/Hookshot/commit/2edac4e2d9d884678356a9eb2d9788b28852f33b))
+* **svc:** GetInfo 16 answers the process's system resource size, so virtual address memory is on where the game has it ([#81](https://github.com/notquiteog/Hookshot/issues/81)) ([196efe5](https://github.com/notquiteog/Hookshot/commit/196efe562abb886aac82e8b04df8f58c85de35a5))
+
+## [2.3.0-rc.25](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.24...v2.3.0-rc.25) (2026-11-15)
+
+
+### Features
+
+* **account:** as many users as the game profile says, and a user selector ([#11](https://github.com/notquiteog/Hookshot/issues/11)) ([1a75f74](https://github.com/notquiteog/Hookshot/commit/1a75f744a171f5b43df59f55db9c1b8ffb368414))
+
+
+### Bug Fixes
+
+* **build:** a game without Ocarina's icon font skips the button prompts with a line, not a traceback ([#68](https://github.com/notquiteog/Hookshot/issues/68)) ([9a8669b](https://github.com/notquiteog/Hookshot/commit/9a8669bf91d318e0ada756e291a07e861748864f))
+
+## [2.3.0-rc.24](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.23...v2.3.0-rc.24) (2026-11-15)
+
+
+### Bug Fixes
+
+* **vk:** Bananza's cave ground and walls: pass-through geometry stages, drawn ([#78](https://github.com/notquiteog/Hookshot/issues/78)) ([244ddac](https://github.com/notquiteog/Hookshot/commit/244ddacfe6f906b4265c3434b8d473945819bcba))
+
+## [2.3.0-rc.23](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.22...v2.3.0-rc.23) (2026-11-15)
+
+
+### Bug Fixes
+
+* **setup:** every part a Windows install downloads comes from this repository's builder-parts ([#79](https://github.com/notquiteog/Hookshot/issues/79)) ([53bc45a](https://github.com/notquiteog/Hookshot/commit/53bc45ac4169a6a1f4417c62eb5883098518d71b))
+
+## [2.3.0-rc.22](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.21...v2.3.0-rc.22) (2026-11-15)
+
+
+### Features
+
+* **launcher:** Mario Kart World and Donkey Kong Bananza in RecompLauncher, each game asking for its own copy ([#74](https://github.com/notquiteog/Hookshot/issues/74)) ([0f154a4](https://github.com/notquiteog/Hookshot/commit/0f154a49d15623e9edb097d7e8cd73c725c2e2cf))
+* **vk:** the program census counts the programs that read a texture handle from a table ([#75](https://github.com/notquiteog/Hookshot/issues/75)) ([cce324b](https://github.com/notquiteog/Hookshot/commit/cce324baacc6f5ffa8c025720d89e3060c87f6f3))
+
+
+### Bug Fixes
+
+* **vk:** the preparation's compute step counts, so the watchdog does not stop it as a stuck driver ([#73](https://github.com/notquiteog/Hookshot/issues/73)) ([8608a43](https://github.com/notquiteog/Hookshot/commit/8608a430e81700fb428408d9644a669719f9acea))
+
 ## [2.3.0-rc.21](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.20...v2.3.0-rc.21) (2026-11-15)
 
 

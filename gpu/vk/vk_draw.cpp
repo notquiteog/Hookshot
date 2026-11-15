@@ -57,6 +57,7 @@
 #include "fallback_size_policy.h"
 #include "translate_wait.h"
 #include "quick_pipe.h"
+#include "test_driver.h"
 
 #include "shaders/clear_f_frag_spv.h"
 #include "shaders/clear_i_frag_spv.h"
@@ -682,6 +683,16 @@ void ensure_layout(Program& p) {
             total += d.count;
         }
     };
+    // (a program that reads a texture handle from a table: counted for the census, and the first said once, so a game's log shows
+    // whether its shaders take the handle tables' path, vk_shader.cpp handle_tables_on)
+    if (const uint32_t n = [&p]() -> uint32_t {
+            for (const Stage& st : p.stages)
+                for (const auto& d : st.info.texture_descriptors)
+                    if (d.handle_program != ~0U && d.count > 1) return d.count;
+            return 0;
+        }(); n && census.handle_tables.fetch_add(1) == 0)
+        logf("vk: handle tables: program %016llx reads its texture handles from a table of %u (the first; the program census "
+             "counts them)", (unsigned long long)p.key, n);
     for (const Stage& st : p.stages) {   // (Eden's order, as the SPIR-V back end numbered them)
         add(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, st.vk_stage, st.info.constant_buffer_descriptors);
         add(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, st.vk_stage, st.info.storage_buffers_descriptors);
@@ -1203,9 +1214,37 @@ std::atomic<int> st_driver_faults{0};
 /// (the faults caught below, counted: a driver can stop answering after one, and the preparation's watchdog says so, vk_main.cpp
 /// driver_faults)
 void note_driver_fault() { st_driver_faults.fetch_add(1, std::memory_order_relaxed); }
+/// (hookshot) RX_VK_TEST_DRIVER (test_driver.h): what this graphics pipeline build does instead of the driver's answer, a test.
+/// kHang never returns; kSlow is held first; kFault is raised by the guard below, inside its armed window
+test_driver::Kind test_driver_now() {
+    static const test_driver::Plan plan = [] {
+        const char* e = getenv("RX_VK_TEST_DRIVER");
+        bool bad = false;
+        const test_driver::Plan p = test_driver::parse(e, &bad);
+        if (bad) logf("vk: RX_VK_TEST_DRIVER=%s is not hang@<n>, fault@<n> or slow:<ms>@<n>: ignored", e);
+        if (p.kind != test_driver::Kind::kNone)
+            logf("vk: RX_VK_TEST_DRIVER=%s: the driver is made to %s at graphics pipeline build %lld (a test)", e,
+                 p.kind == test_driver::Kind::kHang ? "stop answering" : p.kind == test_driver::Kind::kFault ? "fault" : "be slow",
+                 (long long)p.at);
+        return p;
+    }();
+    static std::atomic<int64_t> builds{0};
+    const test_driver::Kind k = test_driver::next(plan, builds);
+    if (k == test_driver::Kind::kHang) {
+        logf("vk: RX_VK_TEST_DRIVER: graphics pipeline build %lld does not return (a test)", (long long)plan.at);
+        for (;;) Sleep(1000);
+    }
+    if (k == test_driver::Kind::kSlow) {
+        logf("vk: RX_VK_TEST_DRIVER: graphics pipeline build %lld held %d ms (a test)", (long long)plan.at, plan.ms);
+        Sleep((DWORD)plan.ms);
+    }
+    return k;
+}
 #ifdef _WIN32
 __declspec(noinline) VkResult guarded_graphics(VkPipelineCache cache, const VkGraphicsPipelineCreateInfo* ci, VkPipeline* pl) {
+    const bool test_fault = test_driver_now() == test_driver::Kind::kFault;   // (RX_VK_TEST_DRIVER)
     __try {
+        if (test_fault) RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
         return vkCreateGraphicsPipelines(dev.device, cache, 1, ci, nullptr, pl);
     } __except (1) {
         *pl = VK_NULL_HANDLE;   // (whatever the driver wrote before it faulted is not a pipeline)
@@ -1264,6 +1303,7 @@ static void install_driver_fault_guard() {
 
 VkResult guarded_graphics(VkPipelineCache cache, const VkGraphicsPipelineCreateInfo* ci, VkPipeline* pl) {
     install_driver_fault_guard();
+    const bool test_fault = test_driver_now() == test_driver::Kind::kFault;   // (RX_VK_TEST_DRIVER)
     if (sigsetjmp(fault_jmp, 1) != 0) {
         *pl = VK_NULL_HANDLE;   // (whatever the driver wrote before it faulted is not a pipeline)
         note_driver_fault();
@@ -1271,6 +1311,7 @@ VkResult guarded_graphics(VkPipelineCache cache, const VkGraphicsPipelineCreateI
         return (VkResult)-77;
     }
     fault_armed = 1;
+    if (test_fault) raise(SIGSEGV);   // (inside the armed window, as a fault in the driver's compiler)
     const VkResult r = vkCreateGraphicsPipelines(dev.device, cache, 1, ci, nullptr, pl);
     fault_armed = 0;
     return r;
@@ -2433,6 +2474,15 @@ VkPipeline build_graphics(const Program& p, const NvnState& s, const Targets& at
         // alone, which drew none of its geometry and then lost the device, issue 640)
         if (p.fallback && (st.vk_stage & (VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT)))
             continue;
+        // (hookshot) a pass-through geometry stage is translated for triangles (vk_shader.cpp translate_into): with another
+        // topology the pipeline would not match it, so none is made and its draws are left out (said once)
+        if (st.vk_stage == VK_SHADER_STAGE_GEOMETRY_BIT && topo != VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST &&
+            topo != VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP && topo != VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN) {
+            static std::atomic<bool> said{false};
+            if (!said.exchange(true))
+                logf("vk: program %016llx: a geometry stage drawn with topology %d, not triangles: left out", (unsigned long long)p.key, (int)topo);
+            return VK_NULL_HANDLE;
+        }
         VkPipelineShaderStageCreateInfo si{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
         si.stage = st.vk_stage;
         si.module = st.module;
@@ -3710,7 +3760,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
                     if (const uint64_t end = gpu_pool_end(addr); end > addr)
                         size = std::min<uint64_t>(end - addr, d.is_written ? (1ull << 20) : bare_read) & ~3ull, bare = true;
                 // (EvilOOT) the pointer table's regions (c0+0x880, vk_bank.cpp pointer_table) are guesses too: GPU-only, as above
-                if (d.cbuf_index == 0 && d.cbuf_offset == 0x880 && d.count == 3) bare = true;
+                if (d.cbuf_index == 0 && d.cbuf_offset == 0x880 && (d.count == 3 || d.count == 8)) bare = true;   // (8: a vertex stage's)
                 // (Fritchii's storage buffer pass, Info::native_global_bounds) a program whose accesses pick among candidate
                 // pointers at run time: those are bare 8-byte arguments, the word after one another argument (a stride, a
                 // handle), not an NVN size. Unless that word looks like this pointer's size (its high half 0, inside the
@@ -8976,6 +9026,12 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
         list.push_back(&r);
     }
     const size_t total = refs.size();
+    // (the compute pipelines, built after the notes, are in the count from the start: reported as the notes' total, the bar sat
+    // at 100% through them and the preparation's watchdog saw nothing move, so a compute step longer than its 300 s (Intel builds
+    // them one at a time, AMD took up to 12 s each cold) was stopped as a driver that stopped responding, left the preparation
+    // skipped and saved no pipeline cache: "stuck at 99%", then "the shaders were not prepared" and stutter in play)
+    const std::vector<uint64_t> compute_keys = program_cache_compute_keys();
+    const size_t all_total = total + compute_keys.size();
     std::atomic<size_t> done{0}, built{0}, failed{0}, no_program{0};
     const std::string notes_path = pipe_notes_path();
     auto log_at = std::chrono::steady_clock::now() + std::chrono::seconds(10);
@@ -9000,13 +9056,13 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
         no_program += list.size() - std::min(found, list.size());
         done += list.size();
     }, [] { return prepare_stopped(); }, [&](size_t) {
-        if (progress) progress(done.load(), total);
+        if (progress) progress(done.load(), all_total);
         prepare_progress_log("noted pipelines", done.load(), total, t0, log_at);
     });
     // (the compute pipelines too, every kept compute program's: a first start in start mode makes them all, and a load at a
     // create call only asks the caches, so on a new install a first dispatch found none (666 in one first session). Built
     // into the cache and let go, as the noted ones)
-    const std::vector<uint64_t> computes = done == total && !prepare_stopped() ? program_cache_compute_keys() : std::vector<uint64_t>{};
+    const std::vector<uint64_t> computes = done == total && !prepare_stopped() ? compute_keys : std::vector<uint64_t>{};
     std::atomic<size_t> computes_done{0}, computes_built{0}, computes_failed{0};
     const auto c0 = std::chrono::steady_clock::now();
     warm_bounded::run(computes.size(), threads, [&](size_t i) {
@@ -9026,7 +9082,7 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
         });
         computes_done++;
     }, [] { return prepare_stopped(); }, [&](size_t) {
-        if (progress) progress(total, total);
+        if (progress) progress(total + computes_done.load(), all_total);
         prepare_progress_log("compute pipelines", computes_done.load(), computes.size(), c0, log_at);
     });
     const bool all = done == total && computes_done == computes.size();
