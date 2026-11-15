@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.3.0-rc.24](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.23...v2.3.0-rc.24) (2026-11-15)
+
+
+### Bug Fixes
+
+* **vk:** Bananza's cave ground and walls: pass-through geometry stages, drawn ([#78](https://github.com/notquiteog/Hookshot/issues/78)) ([244ddac](https://github.com/notquiteog/Hookshot/commit/244ddacfe6f906b4265c3434b8d473945819bcba))
+
+## [2.3.0-rc.23](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.22...v2.3.0-rc.23) (2026-11-15)
+
+
+### Bug Fixes
+
+* **setup:** every part a Windows install downloads comes from this repository's builder-parts ([#79](https://github.com/notquiteog/Hookshot/issues/79)) ([53bc45a](https://github.com/notquiteog/Hookshot/commit/53bc45ac4169a6a1f4417c62eb5883098518d71b))
+
 ## [2.3.0-rc.22](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.21...v2.3.0-rc.22) (2026-11-15)
 
 
