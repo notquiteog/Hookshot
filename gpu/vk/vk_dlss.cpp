@@ -212,6 +212,9 @@ std::vector<fs::path> runtime_dirs(const fs::path& game) {
     if (fs::path e = env_path(L"RX_VK_DLSS_DIR"); !e.empty()) dirs.push_back(e);
     dirs.push_back(game / L"ngx");
     if (fs::path l = env_path(L"LOCALAPPDATA"); !l.empty()) dirs.push_back(l / L"Hookshot" / L"ngx");
+    // (and the game folder's streamline folder, where DLSS 5's Streamline files go with its model: NGX direct finds
+    // nvngx_dlssnr.dll there too, one folder for both back ends. NGX takes the newest of each file it finds)
+    dirs.push_back(game / L"streamline");
 #else
     if (fs::path e = env_path("RX_VK_DLSS_DIR"); !e.empty()) dirs.push_back(e);
     dirs.push_back(game / "ngx");
