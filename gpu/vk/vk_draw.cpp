@@ -57,6 +57,7 @@
 #include "fallback_size_policy.h"
 #include "translate_wait.h"
 #include "quick_pipe.h"
+#include "test_driver.h"
 
 #include "shaders/clear_f_frag_spv.h"
 #include "shaders/clear_i_frag_spv.h"
@@ -1198,9 +1199,37 @@ std::atomic<int> st_driver_faults{0};
 /// (the faults caught below, counted: a driver can stop answering after one, and the preparation's watchdog says so, vk_main.cpp
 /// driver_faults)
 void note_driver_fault() { st_driver_faults.fetch_add(1, std::memory_order_relaxed); }
+/// (hookshot) RX_VK_TEST_DRIVER (test_driver.h): what this graphics pipeline build does instead of the driver's answer, a test.
+/// kHang never returns; kSlow is held first; kFault is raised by the guard below, inside its armed window
+test_driver::Kind test_driver_now() {
+    static const test_driver::Plan plan = [] {
+        const char* e = getenv("RX_VK_TEST_DRIVER");
+        bool bad = false;
+        const test_driver::Plan p = test_driver::parse(e, &bad);
+        if (bad) logf("vk: RX_VK_TEST_DRIVER=%s is not hang@<n>, fault@<n> or slow:<ms>@<n>: ignored", e);
+        if (p.kind != test_driver::Kind::kNone)
+            logf("vk: RX_VK_TEST_DRIVER=%s: the driver is made to %s at graphics pipeline build %lld (a test)", e,
+                 p.kind == test_driver::Kind::kHang ? "stop answering" : p.kind == test_driver::Kind::kFault ? "fault" : "be slow",
+                 (long long)p.at);
+        return p;
+    }();
+    static std::atomic<int64_t> builds{0};
+    const test_driver::Kind k = test_driver::next(plan, builds);
+    if (k == test_driver::Kind::kHang) {
+        logf("vk: RX_VK_TEST_DRIVER: graphics pipeline build %lld does not return (a test)", (long long)plan.at);
+        for (;;) Sleep(1000);
+    }
+    if (k == test_driver::Kind::kSlow) {
+        logf("vk: RX_VK_TEST_DRIVER: graphics pipeline build %lld held %d ms (a test)", (long long)plan.at, plan.ms);
+        Sleep((DWORD)plan.ms);
+    }
+    return k;
+}
 #ifdef _WIN32
 __declspec(noinline) VkResult guarded_graphics(VkPipelineCache cache, const VkGraphicsPipelineCreateInfo* ci, VkPipeline* pl) {
+    const bool test_fault = test_driver_now() == test_driver::Kind::kFault;   // (RX_VK_TEST_DRIVER)
     __try {
+        if (test_fault) RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, nullptr);
         return vkCreateGraphicsPipelines(dev.device, cache, 1, ci, nullptr, pl);
     } __except (1) {
         *pl = VK_NULL_HANDLE;   // (whatever the driver wrote before it faulted is not a pipeline)
@@ -1259,6 +1288,7 @@ static void install_driver_fault_guard() {
 
 VkResult guarded_graphics(VkPipelineCache cache, const VkGraphicsPipelineCreateInfo* ci, VkPipeline* pl) {
     install_driver_fault_guard();
+    const bool test_fault = test_driver_now() == test_driver::Kind::kFault;   // (RX_VK_TEST_DRIVER)
     if (sigsetjmp(fault_jmp, 1) != 0) {
         *pl = VK_NULL_HANDLE;   // (whatever the driver wrote before it faulted is not a pipeline)
         note_driver_fault();
@@ -1266,6 +1296,7 @@ VkResult guarded_graphics(VkPipelineCache cache, const VkGraphicsPipelineCreateI
         return (VkResult)-77;
     }
     fault_armed = 1;
+    if (test_fault) raise(SIGSEGV);   // (inside the armed window, as a fault in the driver's compiler)
     const VkResult r = vkCreateGraphicsPipelines(dev.device, cache, 1, ci, nullptr, pl);
     fault_armed = 0;
     return r;
