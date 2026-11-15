@@ -18,6 +18,7 @@
 #include "common/common_types.h"
 #include "common/div_ceil.h"
 #include "shader_recompiler/backend/spirv/emit_spirv.h"
+#include "shader_recompiler/exception.h"
 #include "shader_recompiler/backend/spirv/mma_layout.h"
 #include "shader_recompiler/backend/spirv/spirv_emit_context.h"
 #ifndef HOOKSHOT_ENV_H   // (env_on: the switches' one rule)
@@ -172,6 +173,12 @@ void DefineGenericOutput(EmitContext& ctx, size_t index, std::optional<u32> invo
         if (xfb_varying_index < ctx.runtime_info.xfb_count) {
             xfb_varying = &ctx.runtime_info.xfb_varyings[xfb_varying_index];
             xfb_varying = xfb_varying->components > 0 ? xfb_varying : nullptr;
+        }
+        // (hookshot) a transform feedback varying wider than what is left of its location (a broken or malicious
+        // varying table) would write past output_generics[index]'s 4 elements and ask for F32[n > 4]: rejected
+        if (xfb_varying && xfb_varying->components > remainder) {
+            throw NotImplementedException("Transform feedback varying of {} components at element {} of generic {}",
+                                          xfb_varying->components, element, index);
         }
         const u32 num_components{xfb_varying ? xfb_varying->components : remainder};
 
