@@ -230,7 +230,7 @@ inline float upscale_lod_bias_for(int upscaler, int share, float offset) {
 /// card with less than 7 GB of video memory the CNN, preset E (cnn_for_vram); 1 the second generation transformer, preset M
 /// (NVIDIA's own pick for Performance); 2 the same generation as tuned for Ultra Performance, preset L; 3 NVIDIA's default,
 /// preset 0 (the runtime picks per mode, and a runtime update can change it)
-enum { MODEL_K = 0, MODEL_M = 1, MODEL_L = 2, MODEL_DEFAULT = 3, kModels = 4 };
+enum { MODEL_K = 0, MODEL_M = 1, MODEL_L = 2, MODEL_DEFAULT = 3, MODEL_E = 4, MODEL_F = 5, kModels = 6 };
 /// Preset E, NVIDIA's last CNN model (vk_dlss.cpp checks the number against the SDK's)
 constexpr unsigned kPresetE = 5;
 /// The K row draws with preset E on a card with less than 7 GB of video memory (vram: device_vram_bytes(), 0 when not known:
@@ -243,6 +243,8 @@ inline unsigned model_preset(int model, uint64_t vram = 0) {
     case MODEL_M: return 13;
     case MODEL_L: return 12;
     case MODEL_DEFAULT: return 0;
+    case MODEL_E: return 5;
+    case MODEL_F: return 6;
     default: return 11;   // (K, also for a value past the row)
     }
 }

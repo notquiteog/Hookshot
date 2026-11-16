@@ -43,7 +43,7 @@ def check_source(source):
                          "made in the images' pool, they stay empty while the textures are compacted in a pool of their own)")
     need("vk_vma.cpp: blocks_at_start()", block(vma, "static size_t blocks_at_start(bool holds_textures)"),
          ["if (!holds_textures) return 0;", 'getenv("RX_VK_IMAGE_PREALLOC")',
-          "vram_compact::blocks_at_start(heap, kImageBlock, holds_textures)"])
+          "vram_compact::blocks_at_start(device_local_heap_bytes(), kImageBlock, holds_textures)"])
     # (the images' pool only when the textures are made there, RX_VK_COMPACT=0; else the textures' own)
     need("vk_vma.cpp: images_pool()", block(vma, "VmaPool images_pool() {"),
          ['make_pool(pi, blocks_at_start(!vram_compact::enabled(getenv("RX_VK_COMPACT"))), image_pool)', "made at the start"])
@@ -156,8 +156,8 @@ int main(int argc, char** argv) {
 def compile_pools(source, cxx, tmp):
     vma = (source / "gpu/vk/vk_vma.cpp").read_text(encoding="utf-8")
     functions = []
-    for marker in ("static size_t blocks_at_start(", "static size_t make_pool(",
-                   "VmaPool images_pool() {", "VmaPool textures_pool() {"):
+    for marker in ("static uint64_t device_local_heap_bytes()", "static size_t blocks_at_start(",
+                   "static size_t make_pool(", "VmaPool images_pool() {", "VmaPool textures_pool() {"):
         if marker in vma:
             functions.append(block(vma, marker))
     fixture = tmp / "pools.cpp"

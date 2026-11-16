@@ -3210,7 +3210,10 @@ uint64_t mirror_budget() {
     // No menu row or Quality preset sets it; RX_VK_MIRROR_MB=<MB> for a test)
     static const uint64_t b = [] {
         if (const char* e = getenv("RX_VK_MIRROR_MB")) return (uint64_t)atoi(e) << 20;
-        return mirror_rule::auto_bytes(device_vram_bytes());
+        const uint64_t vram = device_vram_bytes();
+        // Cards of 6 GB or less: allocate up to 1700 MB to hold open-area peaks without falling back to PCIe reads.
+        if (vram && vram <= (6ull << 30) + (512ull << 20)) return std::min<uint64_t>(1700ull << 20, vram / 3);
+        return mirror_rule::auto_bytes(vram);
     }();
     return b;
 }
@@ -3717,7 +3720,8 @@ wb_learn::Table wb_table;
 int64_t st_wb_left, st_wb_left_bytes, st_wb_stale;
 uint64_t wb_cap() {
     static const uint64_t v = [] {
-        const uint64_t b = wb_learn::max_bytes(getenv("RX_VK_WB_MAX_KB"));
+        // (hookshot) Default to 1024 KB cap to prevent ~68 MB/frame of unread culling write-backs over PCIe
+        const uint64_t b = getenv("RX_VK_WB_MAX_KB") ? wb_learn::max_bytes(getenv("RX_VK_WB_MAX_KB")) : (1024ull << 10);
         wb_table.probation = (uint32_t)std::max(1, env_int("RX_VK_WB_PROBATION", (int)wb_table.probation));
         if (b) logf("vk: written bindings over %llu KB are written back only where the CPU reads or writes them, after %u submissions "
                     "whole (RX_VK_WB_MAX_KB)", (unsigned long long)(b >> 10), wb_table.probation);
@@ -4519,7 +4523,7 @@ void imports_give_back() {   // (pools_mu held)
 #else
     static const int high = std::clamp(env_int("RX_VK_IMPORT_HIGH", 85), 0, 100);
 #endif
-    static const int low = std::clamp(env_int("RX_VK_IMPORT_LOW", 75), 10, 95);
+    static const int low = std::clamp(env_int("RX_VK_IMPORT_LOW", 70), 10, 95);
     static uint64_t calls = 0;
     if (high <= 0 || ++calls % 16) return;   // (the driver asked every 16 submissions)
     uint64_t used = 0, budget = 0;

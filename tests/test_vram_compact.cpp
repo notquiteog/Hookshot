@@ -32,24 +32,24 @@ int main() {
     CHECK(held_budget(budget, 5600 * MB, 10023 * MB, 215 * MB, allowed, 90) == budget);   // (9,808 of 9,810: at 90 that count is let be)
     CHECK(held_budget(budget, 5600 * MB, 10323 * MB, 215 * MB, allowed, 90) == 5600 * MB - (10323 - 215 - 9810) * MB);
     CHECK(held_budget(4096 * MB, 5600 * MB, 10023 * MB, 215 * MB, allowed, 85) == 4096 * MB);   // (never more than it was)
-    CHECK(held_budget(budget, 300 * MB, 10800 * MB, 0, allowed, 85) == 0);                      // (the excess is more than the textures hold)
+    CHECK(held_budget(budget, 300 * MB, 10800 * MB, 0, allowed, 85) == texture_min_floor(allowed)); // (clamped at floor)
     CHECK(held_budget(budget, 5600 * MB, 10023 * MB, 215 * MB, 0, 85) == budget);               // (no allowance known: left alone)
     CHECK(held_budget(budget, 5600 * MB, 100 * MB, 215 * MB, allowed, 85) == budget);           // (more to give back than is used)
     // the hold's pass keeps a live texture used in the last ten seconds: the eviction's own 60 presents is not enough for it
-    CHECK(kHoldUnused == 600);
-    CHECK(hold_keeps(0) && hold_keeps(60) && hold_keeps(599));   // (out of view for a second: a turning camera brings it back)
-    CHECK(!hold_keeps(600) && !hold_keeps(3600));
-    // the reserve: a line five points under the hold's, for the textures unused thirty seconds
+    CHECK(kHoldUnused == 180);
+    CHECK(hold_keeps(0) && hold_keeps(60) && hold_keeps(179));   // (out of view for a second: a turning camera brings it back)
+    CHECK(!hold_keeps(180) && !hold_keeps(3600));
+    // the reserve: a line five points under the hold's, for the textures unused ten seconds
     CHECK(reserve_pct(85) == 80 && reserve_pct(50) == 45 && reserve_pct(3) == 0);
-    CHECK(kReserveUnused == 1800 && kReserveUnused > kHoldUnused);
+    CHECK(kReserveUnused == 600 && kReserveUnused > kHoldUnused);
     const uint64_t none = UINT64_MAX;   // (the other rules ask nothing: the hold's two lines alone)
     CHECK(hold_target(59, 60, none, 5000 * MB, 4500 * MB) == UINT64_MAX);   // (used a second ago: stays, whatever the lines ask)
-    CHECK(hold_target(599, 60, none, 5000 * MB, 4500 * MB) == UINT64_MAX);
-    CHECK(hold_target(600, 60, none, 5000 * MB, 4500 * MB) == 5000 * MB);   // (unused ten seconds: for the hold's own line)
-    CHECK(hold_target(1799, 60, none, 5000 * MB, 4500 * MB) == 5000 * MB);
-    CHECK(hold_target(1800, 60, none, 5000 * MB, 4500 * MB) == 4500 * MB);  // (unused thirty: down to the reserve's line)
-    CHECK(hold_target(600, 60, none, 0, 4500 * MB) == UINT64_MAX);          // (the hold's line not crossed: only the long unused go)
-    CHECK(hold_target(1800, 60, none, 0, 4500 * MB) == 4500 * MB);
+    CHECK(hold_target(179, 60, none, 5000 * MB, 4500 * MB) == UINT64_MAX);
+    CHECK(hold_target(180, 60, none, 5000 * MB, 4500 * MB) == 5000 * MB);   // (unused three seconds: for the hold's own line)
+    CHECK(hold_target(599, 60, none, 5000 * MB, 4500 * MB) == 5000 * MB);
+    CHECK(hold_target(600, 60, none, 5000 * MB, 4500 * MB) == 4500 * MB);  // (unused ten: down to the reserve's line)
+    CHECK(hold_target(180, 60, none, 0, 4500 * MB) == UINT64_MAX);          // (the hold's line not crossed: only the long unused go)
+    CHECK(hold_target(600, 60, none, 0, 4500 * MB) == 4500 * MB);
     // the other rules' part: over the budget's size, over 90% of the allowance or at the driver's limit, a texture unused for
     // the eviction's own 60 presents goes for what those rules ask, as with the compaction off; the hold's patience is for its
     // own lines
@@ -85,11 +85,11 @@ int main() {
     CHECK(hold_target(100, 60, 4637 * MB, 5000 * MB, 4500 * MB) == 4637 * MB);     // (the count over 90%: one unused 100 presents still goes)
     CHECK(hold_target(59, 60, 4637 * MB, 5000 * MB, 4500 * MB) == UINT64_MAX);     // (one used in the last 60: never)
     CHECK(hold_target(100, 120, 4637 * MB, 5000 * MB, 4500 * MB) == UINT64_MAX);   // (nor before the pass's own time, whatever that is)
-    CHECK(hold_target(700, 60, 5200 * MB, 5000 * MB, 4500 * MB) == 5000 * MB);     // (the lowest of the lines that apply)
+    CHECK(hold_target(300, 60, 5200 * MB, 5000 * MB, 4500 * MB) == 5000 * MB);     // (the lowest of the lines that apply)
+    CHECK(hold_target(300, 60, 4000 * MB, 5000 * MB, 4500 * MB) == 4000 * MB);
     CHECK(hold_target(700, 60, 4000 * MB, 5000 * MB, 4500 * MB) == 4000 * MB);
-    CHECK(hold_target(2000, 60, 4000 * MB, 5000 * MB, 4500 * MB) == 4000 * MB);
-    CHECK(hold_target(2000, 60, 5200 * MB, 5000 * MB, 4500 * MB) == 4500 * MB);
-    CHECK(hold_target(700, 60, 4000 * MB, 0, 4500 * MB) == 4000 * MB);             // (the hold's line not crossed, the rules asking)
+    CHECK(hold_target(700, 60, 5200 * MB, 5000 * MB, 4500 * MB) == 4500 * MB);
+    CHECK(hold_target(300, 60, 4000 * MB, 0, 4500 * MB) == 4000 * MB);             // (the hold's line not crossed, the rules asking)
     {   // a count at 94% of a 7,000 MB allowance (6,600 MB used, 100 of it to give back; the textures hold 2,400): the 90% rule's
         // budget is 2,200 MB and a pass of its own goes to 1,925; the hold and the reserve ask for less still, so the pass is the
         // hold's. A texture unused 100 presents goes until the 90% rule's part is covered, and no further
@@ -97,13 +97,13 @@ int main() {
         const uint64_t rule = total - (6500 - 6300) * MB;   // (the 90% rule: the excess over 6,300 MB off the textures)
         const uint64_t hold = held_budget(rule, total, 6600 * MB, 100 * MB, a, 85);
         const uint64_t res = held_budget(hold, total, 6600 * MB, 100 * MB, a, reserve_pct(85));
-        CHECK(hold == total - (6500 - 5950) * MB && res == total - (6500 - 5600) * MB);
+        CHECK(hold == rule && res == total - (6500 - 5600) * MB / 4);
         const uint64_t to = hold_target(100, 60, rule_target(total, rule), hold, res);
         CHECK(to == 2200 * MB / 8 * 7);
         CHECK(!hold_met(total, 0, 0, to) && !hold_met(total, 400 * MB, 0, to) && hold_met(total, 475 * MB, 0, to));
         CHECK(hold_met(total, 100 * MB, 375 * MB, to));   // (the dead render targets count for it first, as for the other lines)
-        CHECK(hold_target(700, 60, rule_target(total, rule), hold, res) == hold);    // (older ones go on to the hold's line)
-        CHECK(hold_target(1800, 60, rule_target(total, rule), hold, res) == res);    // (and the long unused to the reserve's)
+        CHECK(hold_target(300, 60, rule_target(total, rule), hold, res) == std::min(rule_target(total, rule), hold)); // (older ones go on to the hold's line)
+        CHECK(hold_target(700, 60, rule_target(total, rule), hold, res) == std::min(rule_target(total, rule), res)); // (and the long unused to the reserve's)
         CHECK(hold_target(100, 60, rule_target(2100 * MB, rule), hold, res) == UINT64_MAX);   // (under that budget: the hold's patience again)
     }
     // a count between the two lines: the reserve asks for less than the budget, the hold for nothing

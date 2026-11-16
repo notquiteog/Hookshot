@@ -24,9 +24,8 @@ uint64_t held(uint64_t allowed, uint64_t other, uint64_t textures, uint64_t at_s
 
 int main() {
     using namespace vram_compact;
-    // 15% of the card's memory in 128 MB blocks, 2 to 24: the same rule for every vendor (the stall it removes was measured on an
-    // AMD card; nothing here asks which card it is)
-    const struct { uint64_t gb, blocks; } cards[] = {{2, 2}, {4, 4}, {6, 7}, {8, 9}, {12, 14}, {16, 19}, {24, 24}, {32, 24}};
+    // 8% (2 to 12 blocks) below 8 GB to limit pinned preallocs, 15% (2 to 24 blocks) at >= 8 GB
+    const struct { uint64_t gb, blocks; } cards[] = {{2, 2}, {4, 2}, {6, 3}, {8, 9}, {12, 14}, {16, 19}, {24, 24}, {32, 24}};
     for (const auto& c : cards) {
         CHECK(blocks_at_start(c.gb * GB, kBlock, true) == c.blocks);
         // and none in a pool the sampled textures are not made in: nothing would fill them
@@ -34,6 +33,7 @@ int main() {
     }
     CHECK(blocks_at_start(8 * GB, 32 * MB, true) == 24);    // (RX_VK_IMAGE_BLOCK_MB=32: #2690's first table)
     CHECK(blocks_at_start(8 * GB, 0, true) == 0);
+    CHECK(blocks_at_start(8061 * MB, kBlock, true) == 5);   // (#637: under 8 GB, 8% of the heap: five blocks, 640 MB)
     // what a run can give back: not what the blocks made at the start hold free
     CHECK(returnable(1152 * MB, 900 * MB, 1152 * MB) == 0);              // (nine blocks, 252 MB of textures: all nine are kept)
     CHECK(returnable(2560 * MB, 700 * MB, 1152 * MB) == 700 * MB);       // (twenty blocks: eleven can go, 700 MB is free)
@@ -56,11 +56,12 @@ int main() {
             // (in a pool no texture is made in, the hold cuts by the blocks' size wherever it cuts at all)
             const uint64_t wrong = held(allowed, other, textures, c.blocks, false);
             CHECK(wrong <= none);
-            if (none < 6144 * MB) CHECK(none - wrong == std::min(none, c.blocks * kBlock));
+            if (none < 6144 * MB && allowed >= GLOBAL_MIN_GRAPHICS_REQ && wrong > texture_min_floor(allowed))
+                CHECK(none - wrong == std::min(none, c.blocks * kBlock));
         }
     }
-    CHECK(held(7000 * MB, 3700 * MB, 2300 * MB, 0, true) == 2250 * MB);
-    CHECK(held(7000 * MB, 3700 * MB, 2300 * MB, 9, true) == 2250 * MB);
-    CHECK(held(7000 * MB, 3700 * MB, 2300 * MB, 9, false) == 1098 * MB);
+    CHECK(held(7000 * MB, 3700 * MB, 2300 * MB, 0, true) == 2300 * MB - 50 * MB / 4);
+    CHECK(held(7000 * MB, 3700 * MB, 2300 * MB, 9, true) == 2300 * MB - 50 * MB / 4);
+    CHECK(held(7000 * MB, 3700 * MB, 2300 * MB, 9, false) == 2300 * MB - 1202 * MB / 4);
     std::printf("PASS\n");
 }

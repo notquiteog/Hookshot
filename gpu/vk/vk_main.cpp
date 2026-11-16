@@ -60,6 +60,26 @@ static PFN_vkGetInstanceProcAddr get_instance_proc;
 
 bool load_global() {
 #ifdef _WIN32   // (hookshot: the loader from System32 only, not from the current folder or PATH)
+    // NVIDIA Optimus hybrid laptop architecture (CPU-GPU PCIe bus for display): if no ICD is explicitly set,
+    // locate NVIDIA's nv-vk64.json in DriverStore to bind Vulkan exclusively to the dGPU, bypassing Intel iGPU loader hooking
+    // and preventing PCIe display contention.
+    if (!getenv("VK_ICD_FILENAMES")) {
+        WIN32_FIND_DATAA fd;
+        HANDLE hFind = FindFirstFileA("C:\\Windows\\System32\\DriverStore\\FileRepository\\nv*", &fd);
+        if (hFind != INVALID_HANDLE_VALUE) {
+            do {
+                if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                    char path[MAX_PATH];
+                    snprintf(path, sizeof(path), "C:\\Windows\\System32\\DriverStore\\FileRepository\\%s\\nv-vk64.json", fd.cFileName);
+                    if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) {
+                        SetEnvironmentVariableA("VK_ICD_FILENAMES", path);
+                        break;
+                    }
+                }
+            } while (FindNextFileA(hFind, &fd));
+            FindClose(hFind);
+        }
+    }
     HMODULE m = LoadLibraryExA("vulkan-1.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 #else
     HMODULE m = LoadLibraryA("vulkan-1.dll");   // (linux: libvulkan.so.1, host/posix/win32_posix.c)
@@ -556,7 +576,9 @@ bool create_device() {
     // family (NVIDIA's has 16), else a queue of a compute-only family (RADV: one graphics queue), its family's next free one. A
     // device without either presents on the game's thread, as before
     const char* pt_env = getenv("RX_VK_PRESENT_THREAD");
-    const bool presenter_wanted = pt_env && atoi(pt_env) != 0;   // (off by default: no queue made for it)
+    // (hookshot) NVIDIA Optimus: enable dedicated presentation thread/queue by default on NVIDIA dGPUs (0x10DE)
+    // to decouple swapchain presentation over PCIe from the replay render loop.
+    const bool presenter_wanted = pt_env ? (atoi(pt_env) != 0) : (dev.props.vendorID == 0x10DE);
     uint32_t presenter_family = UINT32_MAX, presenter_index = 0;
     if (presenter_wanted) {   // (presenter_queue.h: never a queue another part of the renderer takes)
         std::vector<QueueFamilyInfo> qf(n);
@@ -589,9 +611,11 @@ bool create_device() {
     const bool want_present_wait = presenter_family != UINT32_MAX && has_extension(exts, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
                                    has_extension(exts, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
     if (want_present_wait)
-        for (const char* name : {VK_KHR_PRESENT_ID_EXTENSION_NAME, VK_KHR_PRESENT_WAIT_EXTENSION_NAME}) {
+        for (const char* name : { VK_KHR_PRESENT_ID_EXTENSION_NAME, VK_KHR_PRESENT_WAIT_EXTENSION_NAME }) {
             bool listed = false;
-            for (const char* w : want) listed |= !strcmp(w, name);
+            for (const char* w : want) {
+                if (!strcmp(w, name)) { listed = true; break; }
+            }
             if (!listed) want.push_back(name);
         }
 
@@ -1747,6 +1771,8 @@ void mkwvk_close_asked(void) {
     dlss_fg_close();   // (NVIDIA DLSS Frame Generation through NGX: its feature let go before the process exits, vk_dlss.cpp)
 }
 
+static MkwVkHost host_storage;
+
 extern "C"
 #ifdef _WIN32
 __declspec(dllexport)
@@ -1756,8 +1782,8 @@ __attribute__((visibility("default")))
 const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
     using namespace mkwvk;
     if (!h) return nullptr;
-    if (h->version != MKWVK_API_VERSION) {
-        std::fprintf(stderr, "vk: host version mismatch: host has %u, expected %u\n", h->version, MKWVK_API_VERSION);
+    if (h->version < 14 || h->version > MKWVK_API_VERSION) {
+        std::fprintf(stderr, "vk: host version mismatch: host has %u, expected %u (or >= 14)\n", h->version, MKWVK_API_VERSION);
         return nullptr;
     }
     host = h;
@@ -1798,7 +1824,7 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
         }).detach();
 #endif
     }
-    table.version = MKWVK_API_VERSION;
+    table.version = h->version;
     table.start = start;
     table.resize = resize;
     table.describe = describe;
