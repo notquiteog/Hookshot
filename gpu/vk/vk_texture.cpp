@@ -17,6 +17,7 @@
 #include <windows.h>
 #include <psapi.h>
 #if defined(__linux__)
+#include <dlfcn.h>
 #include <malloc.h>
 #endif
 #include <atomic>
@@ -62,6 +63,7 @@
 #include "evict_reason.h"
 #include "wrote_regions.h"
 #include "keep_rendered.h"
+#include "guest_holes.h"
 #include "target_overlap.h"
 #include "target_pool.h"
 #include "host_shaders/block_linear_unswizzle_2d_comp_spv.h"
@@ -1863,25 +1865,58 @@ bool upload_all_zero(Texture& tex, uint64_t total, const Ranges* dirty, bool wid
     const uint8_t* p = host->gpu_ptr(tex.gpu, &avail);
     if (!p || avail < total) return false;
     const auto t0 = std::chrono::steady_clock::now();
+    // (hookshot) only the parts of the storage that hold pages: a page of the guest window's memfd nothing wrote is a hole, zero,
+    // and reading it made the kernel give it a page (guest_holes.h). The 12288 x 12288 D16 shadow map, 284 of its 288 MB outside
+    // any import and never written, became guest memory that way at each Hyrule Field load on a Steam Deck (checked in 203-353 ms,
+    // against 5.5 ms for a 32 MB storage already in memory), and went to swap with the rest of the load. RX_VK_ZERO_HOLES=0: the
+    // whole storage read, as before
+    guest_holes::Extents scan;
+    bool holes_used = false;
+#if defined(__linux__)
+    {
+        static const bool holes = [] {
+            const char* e = getenv("RX_VK_ZERO_HOLES");
+            return !(e && env_value_off(e));
+        }();
+        static const int memfd = [] {
+            typedef int (*MemfdFn)(void);
+            const MemfdFn fn = (MemfdFn)dlsym(RTLD_DEFAULT, "hos_posix_guest_memfd");
+            return fn ? fn() : -1;
+        }();
+        const uint8_t* base = host->guest_base();
+        const uint64_t window = host->guest_size();
+        const bool in_window = base && p >= base && (uint64_t)(p - base) <= window && total <= window - (uint64_t)(p - base);
+        holes_used = holes && memfd >= 0 && in_window && guest_holes::fd_data_extents(memfd, (uint64_t)(p - base), total, scan);
+        if (!holes_used) scan.assign(1, {0, total});
+    }
+#else
+    scan.assign(1, {0, total});
+#endif
+    uint64_t scanned = 0;
+    for (const auto& [a, b] : scan) scanned += b - a;
     std::atomic<bool> found{false};
+    std::atomic<uint64_t> nread{0};
     const uint32_t nthreads = std::clamp(std::thread::hardware_concurrency() / 2, 1u, 8u);
-    const uint64_t per = ((total / nthreads) + 4095) & ~4095ull;
-    auto part = [&](uint32_t t) {
-        const uint64_t a = std::min<uint64_t>(total, (uint64_t)t * per), b = std::min<uint64_t>(total, a + per);
-        for (uint64_t at = a; at < b && !found.load(std::memory_order_relaxed); at += 65536) {
-            const uint64_t end = std::min<uint64_t>(b, at + 65536);
-            uint64_t acc = 0;
-            uint64_t k = at;
-            for (; k + 8 <= end; k += 8) {
-                uint64_t w;
-                std::memcpy(&w, p + k, 8);
-                acc |= w;
+    auto part = [&](uint32_t t) {   // (the threads share the data, not the storage: guest_holes::share)
+        uint64_t mine = 0;
+        for (const auto& [lo, hi] : guest_holes::share(scan, t, nthreads)) {
+            for (uint64_t at = lo; at < hi && !found.load(std::memory_order_relaxed); at += 65536) {
+                const uint64_t end = std::min<uint64_t>(hi, at + 65536);
+                uint64_t acc = 0;
+                uint64_t k = at;
+                for (; k + 8 <= end; k += 8) {
+                    uint64_t w;
+                    std::memcpy(&w, p + k, 8);
+                    acc |= w;
+                }
+                for (; k < end; k++) acc |= p[k];
+                mine += end - at;
+                if (acc) found.store(true, std::memory_order_relaxed);
             }
-            for (; k < end; k++) acc |= p[k];
-            if (acc) found.store(true, std::memory_order_relaxed);
         }
+        nread.fetch_add(mine, std::memory_order_relaxed);
     };
-    if (nthreads > 1) {
+    if (nthreads > 1 && scanned) {   // (no helper threads when it is all holes: nothing to read)
         std::vector<std::thread> th;
         for (uint32_t t = 1; t < nthreads; t++) th.emplace_back([&part, t] { helper_thread_start(), part(t); });
         part(0);
@@ -1891,10 +1926,18 @@ bool upload_all_zero(Texture& tex, uint64_t total, const Ranges* dirty, bool wid
     }
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     static std::atomic<int> told{0};
+    char what[64];   // (what the check read: "4 MB read, the rest holes", "512 KB read", "nothing read, all holes")
+    if (const uint64_t n = nread.load(); !n && holes_used) {
+        snprintf(what, sizeof what, "nothing read, all holes");
+    } else {
+        const bool mb = n >= (1ull << 20);
+        snprintf(what, sizeof what, "%llu %s read%s", (unsigned long long)(mb ? n >> 20 : n >> 10), mb ? "MB" : "KB",
+                 holes_used && scanned < total ? ", the rest holes" : "");
+    }
     if (found.load()) {
         if (told.fetch_add(1) < 4)
-            logf("vk: upload: %ux%u NVN %#x (%llu MB) is not all zero (checked in %.1f ms): unswizzled as before", tex.width,
-                 tex.height, tex.nvn_format, (unsigned long long)(total >> 20), ms);
+            logf("vk: upload: %ux%u NVN %#x (%llu MB) is not all zero (checked in %.1f ms, %s): unswizzled as before", tex.width,
+                 tex.height, tex.nvn_format, (unsigned long long)(total >> 20), ms, what);
         return false;
     }
     texture_resident_flush(&tex);
@@ -1908,8 +1951,8 @@ bool upload_all_zero(Texture& tex, uint64_t total, const Ranges* dirty, bool wid
         vkCmdClearColorImage(upload_cmd(), tex.image, VK_IMAGE_LAYOUT_GENERAL, &z, 1, &range);
     }
     if (told.fetch_add(1) < 4)
-        logf("vk: upload: %ux%u NVN %#x (%llu MB) is all zero: cleared on the GPU (checked in %.1f ms)", tex.width, tex.height,
-             tex.nvn_format, (unsigned long long)(total >> 20), ms);
+        logf("vk: upload: %ux%u NVN %#x (%llu MB) is all zero: cleared on the GPU (checked in %.1f ms, %s)", tex.width, tex.height,
+             tex.nvn_format, (unsigned long long)(total >> 20), ms, what);
     return true;
 }
 /// An image no upload takes, whatever memory there is: its upload fails every time, and it is not tried again
