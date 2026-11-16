@@ -39,6 +39,7 @@ static_assert(mkwvk::kQueueGraphics == VK_QUEUE_GRAPHICS_BIT && mkwvk::kQueueCom
 #include "vk_progress.h"
 #include "vk_programs.h"
 #include "mesh_mode.h"
+#include "crash_markers.h"   // (mkwvk_close_asked: a close is not a crash)
 #ifndef HOOKSHOT_ENV_H   // (env_on: the switches' one rule)
 #include "hookshot_env.h"
 #endif
@@ -1669,6 +1670,7 @@ void mkwvk_close_asked(void) {
         prepare_stop();
         if (WaitForSingleObject(prep_ended, 10000) != WAIT_OBJECT_0) logf("vk: the preparation did not stop within 10 s: closing anyway");
     }
+    crash_markers::close();   // (after the stop: a step whose workers crash the driver while it stops still counts)
     dlss_fg_close();   // (NVIDIA DLSS Frame Generation through NGX: its feature let go before the process exits, vk_dlss.cpp)
 }
 
