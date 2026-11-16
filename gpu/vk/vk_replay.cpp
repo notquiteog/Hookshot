@@ -3337,7 +3337,7 @@ void invalidate(uint64_t gpu, uint64_t size) {
             // out here too). RX_VK_PER_QUEUE_FENCES=0 waits for every queue's work instead: the game's readbacks 19-87 ms
             // each on an RX 5500M, against ~1 ms here
             const bool unforced = !async_on() && sync_waits_on() && !per_queue_fences_off();
-            static std::atomic<int64_t> settled{0}, held_back{0};
+            static std::atomic<int64_t> settled{0}, held_back{0}, in_place{0};
             if (behind0 && !no_catchup) {   // (work handed over may write it back too)
                 if (!unforced) wait_queue_empty();
                 else if (sync_settle_met()) settled++;
@@ -3375,6 +3375,7 @@ void invalidate(uint64_t gpu, uint64_t size) {
                 if (by_part && part && in_place_after) held_back++;
                 const bool parted = unforced && by_part && part && whole <= completed() && !in_place_after &&
                                     wait_recorded_part(part, UINT64_MAX, &ok);
+                if (!parted && !part) in_place++;   // (pages written in place (no mirror: part 0): the whole submission waited for)
                 if (!parted && !(unforced && wait_recorded(v, UINT64_MAX, &ok))) {
                     if (unforced && replay_behind()) wait_queue_empty();   // (not recorded whole: as before)
                     readback_wait_value(v);
@@ -3403,9 +3404,10 @@ void invalidate(uint64_t gpu, uint64_t size) {
                 if (log_ranges) rb_ranges_log();
                 const int64_t n = waited.exchange(0);
                 logf("vk: readbacks of GPU results: %lld of 3000 waited for their write-back, %.2f ms each; %lld looked at the "
-                     "stopped queues first, %lld waited for their submission's last part (guest memory read in place after theirs)",
+                     "stopped queues first, %lld waited for their submission's last part (guest memory read in place after theirs), "
+                     "%lld waited for their whole submission (their pages written in place, no mirror)",
                      (long long)n, n ? ns.exchange(0) / (double)n / 1e6 : 0.0, (long long)settled.exchange(0),
-                     (long long)held_back.exchange(0));
+                     (long long)held_back.exchange(0), (long long)in_place.exchange(0));
             }
         }
     }
