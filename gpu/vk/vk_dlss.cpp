@@ -367,14 +367,17 @@ int prepare(VkCommandBuffer cmd, uint32_t rw, uint32_t rh, uint32_t ow, uint32_t
     const bool aa = rw == ow && rh == oh;
     NVSDK_NGX_PerfQuality_Value mode = NVSDK_NGX_PerfQuality_Value_DLAA;
     unsigned max_w = ow, max_h = oh, min_w = ow, min_h = oh;   // (DLAA: the render size is the output's, one size)
+    unsigned create_w = ow, create_h = oh;
     if (!aa) {
         dlss_checks::ModeRange ranges[5];
         NVSDK_NGX_PerfQuality_Value which[5];
+        unsigned optimal[5][2]{};
         int n = 0;
         for (const NVSDK_NGX_PerfQuality_Value m : scaled) {
             unsigned w = 0, h = 0, xw = 0, xh = 0, nw = 0, nh = 0;
             float sharp = 0;
             if (NVSDK_NGX_FAILED(NGX_DLSS_GET_OPTIMAL_SETTINGS(s.caps, ow, oh, m, &w, &h, &xw, &xh, &nw, &nh, &sharp)) || !w) continue;
+            optimal[n][0] = w, optimal[n][1] = h;
             ranges[n] = {nw, nh, xw, xh}, which[n++] = m;
         }
         dlss_checks::ModeRange took;
@@ -393,6 +396,7 @@ int prepare(VkCommandBuffer cmd, uint32_t rw, uint32_t rh, uint32_t ow, uint32_t
             return *fail = refused[at], 0;
         }
         mode = which[k], max_w = took.max_w, max_h = took.max_h, min_w = took.min_w, min_h = took.min_h;
+        create_w = optimal[k][0], create_h = optimal[k][1];
         if (took.max_w != ranges[k].max_w || took.max_h != ranges[k].max_h || took.min_w != ranges[k].min_w ||
             took.min_h != ranges[k].min_h)
             logf("vk: NVIDIA DLSS: the render size %ux%u is a little outside quality mode %d's range (%ux%u to %ux%u): taken by "
@@ -418,7 +422,8 @@ int prepare(VkCommandBuffer cmd, uint32_t rw, uint32_t rh, uint32_t ow, uint32_t
                           NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraQuality})
         NVSDK_NGX_Parameter_SetUI(s.params, k, preset);
     NVSDK_NGX_DLSS_Create_Params cp{};
-    cp.Feature.InWidth = max_w, cp.Feature.InHeight = max_h, cp.Feature.InTargetWidth = ow, cp.Feature.InTargetHeight = oh;
+    // Feature creation takes the mode's recommended size; the input images still cover its dynamic range.
+    cp.Feature.InWidth = create_w, cp.Feature.InHeight = create_h, cp.Feature.InTargetWidth = ow, cp.Feature.InTargetHeight = oh;
     cp.Feature.InPerfQualityValue = mode;
     // (LDR colour, already tonemapped: no exposure; motion at the render size, not jittered; depth not reversed. With the
     // game's native HDR the colour goes past 1: an HDR feature, given linear light, with DLSS's own exposure)
@@ -443,6 +448,7 @@ int prepare(VkCommandBuffer cmd, uint32_t rw, uint32_t rh, uint32_t ow, uint32_t
     s.refused = 0;
     s.feature_aa = mode == NVSDK_NGX_PerfQuality_Value_DLAA;
     s.features_made++;
+    logf("vk: NVIDIA DLSS: feature create size %ux%u (recommended), input resources %ux%u", create_w, create_h, max_w, max_h);
     logf("vk: NVIDIA DLSS: feature %llu made (%s; frame %llu, %.1f ms of CPU): %ux%u (%ux%u to %ux%u) -> %ux%u, mode %d, "
          "preset %c%s%s", (unsigned long long)s.features_made, why, (unsigned long long)texture_frame_no(), made_ms, rw, rh,
          min_w, min_h, max_w, max_h, ow, oh, (int)mode, upscaler_rows::preset_letter(preset),
