@@ -10,8 +10,9 @@
 // the newest one it finds in them. Windows' paths are wide all the way (GetModuleFileNameW, _wgetenv), so any folder name
 // works. On Linux NGX takes only ASCII paths: a folder named otherwise goes to it as /proc/self/fd/<n> (wide()), and the
 // runtime itself has to be in a folder whose real path is ASCII (the log and the menu say so when it is not). The Insert
-// menu's DLSS model row (opts.dlss_model, upscaler_rows.h) chooses DLSS's preset: K by default, M, L, or NVIDIA's default
-// (0). RX_VK_DLSS_PRESET=<letter> (or 0) over it. RX_VK_DLSS_LOG=1: NGX's own log in ours.
+// menu's DLSS model row (opts.dlss_model, upscaler_rows.h) chooses DLSS's preset: K by default (the CNN's E on a card with
+// less than 7 GB of video memory), M, L, or NVIDIA's default (0). RX_VK_DLSS_PRESET=<letter> (or 0) over it.
+// RX_VK_DLSS_LOG=1: NGX's own log in ours.
 //
 // NVIDIA's NGX SDK is not part of Hookshot (NVIDIA's license): a local build fetches it (scripts/ngx_sdk.py) and builds with
 // HOOKSHOT_NGX_SDK, which compiles this file with HOOKSHOT_NGX. Without it only the stubs at the end are here.
@@ -34,6 +35,7 @@
 
 #include "dlss_checks.h"
 #include "upscaler_rows.h"
+#include "vk_internal.h"
 #include "vk_menu.h"
 #include "vk_framegen.h"   // (hookshot fork: framegen_by_auto, the Frame generation by row in effect)
 #include "vk_paths.h"
@@ -315,10 +317,11 @@ bool ngx_init() {
     return true;
 }
 
-/// DLSS's preset: the DLSS model row's, RX_VK_DLSS_PRESET over it (upscaler_rows.h dlss_preset)
+/// DLSS's preset: the DLSS model row's (its K preset E on a card with less than 7 GB of video memory), RX_VK_DLSS_PRESET
+/// over it (upscaler_rows.h dlss_preset, cnn_for_vram: the row's text says the same)
 unsigned wanted_preset() {
     static const char* const env = getenv("RX_VK_DLSS_PRESET");
-    return upscaler_rows::dlss_preset(opts.dlss_model, env && *env ? env : nullptr);
+    return upscaler_rows::dlss_preset(opts.dlss_model, env, device_vram_bytes());
 }
 
 /// DLSS's feature for this output size and preset, made when either changes (cmd: its creation's work): the engine's
@@ -404,9 +407,11 @@ int prepare(VkCommandBuffer cmd, uint32_t rw, uint32_t rh, uint32_t ow, uint32_t
         temporal_later([old] { NVSDK_NGX_VULKAN_ReleaseFeature(old); });
         s.feature = nullptr;
     }
-    // (the DLSS model row's preset for every mode, K by default: NVIDIA's transformer model. 0: NVIDIA's own per mode)
+    // (the DLSS model row's preset for every mode, K by default: NVIDIA's transformer model, or its CNN's E under 7 GB of
+    // video memory. 0: NVIDIA's own per mode)
     static_assert(NVSDK_NGX_DLSS_Hint_Render_Preset_K == 11 && NVSDK_NGX_DLSS_Hint_Render_Preset_L == 12 &&
-                  NVSDK_NGX_DLSS_Hint_Render_Preset_M == 13 && NVSDK_NGX_DLSS_Hint_Render_Preset_Default == 0);
+                  NVSDK_NGX_DLSS_Hint_Render_Preset_M == 13 && NVSDK_NGX_DLSS_Hint_Render_Preset_Default == 0 &&
+                  NVSDK_NGX_DLSS_Hint_Render_Preset_E == upscaler_rows::kPresetE);
     for (const char* k : {NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA, NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Quality,
                           NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Balanced, NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Performance,
                           NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraPerformance,
