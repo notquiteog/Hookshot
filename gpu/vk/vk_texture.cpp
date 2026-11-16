@@ -63,6 +63,7 @@
 #include "wrote_regions.h"
 #include "keep_rendered.h"
 #include "target_overlap.h"
+#include "target_pool.h"
 #include "host_shaders/block_linear_unswizzle_2d_comp_spv.h"
 #ifndef HOOKSHOT_ENV_H   // (env_on: the switches' one rule)
 #include "hookshot_env.h"
@@ -407,7 +408,14 @@ static void oom_reserve_tend(bool known, uint64_t commit_free, uint64_t reserve)
 #endif
 }
 uint64_t pool_cap() {
-    static const uint64_t mb = getenv("RX_VK_TARGET_POOL_MB") ? (uint64_t)std::max(0, atoi(getenv("RX_VK_TARGET_POOL_MB"))) : 256;
+    // (hookshot) RX_VK_TARGET_POOL_MB=<MB>, else a twelfth of what the driver allows, 256 to 768 MB (target_pool.h)
+    static const uint64_t mb = [] {
+        if (const char* e = getenv("RX_VK_TARGET_POOL_MB")) return (uint64_t)std::max(0, atoi(e));
+        uint64_t used = 0, allowed = 0;
+        const uint64_t v = target_pool::default_mb(vram_usage(&used, &allowed) ? allowed : 0);
+        logf("vk: render target pool: up to %llu MB (RX_VK_TARGET_POOL_MB)", (unsigned long long)v);
+        return v;
+    }();
     return mb << 20;
 }
 uint64_t pool_key_of(const VkImageCreateInfo& ci) {
@@ -5085,7 +5093,7 @@ void texture_frame(uint64_t completed) {
     // not 300-700 at once every second, of which the new ones of the next second missed most. The choice is cheap: 1930 textures
     // ordered in 0.3 ms, 251 chosen in 0.2 (RTX 5070, Ryzen 7 9800X3D)
     static const uint64_t dead_every =
-        getenv("RX_VK_DEAD_EVERY") ? (uint64_t)std::max(1, atoi(getenv("RX_VK_DEAD_EVERY"))) : 10;
+        getenv("RX_VK_DEAD_EVERY") ? (uint64_t)std::max(1, atoi(getenv("RX_VK_DEAD_EVERY"))) : 1;
     if (no_evict || (sweep && frame_no % (dead_targets ? dead_every : 600))) return;
     std::vector<std::pair<uint64_t, Texture*>> order;
     order.reserve(textures.size());
@@ -5140,9 +5148,11 @@ void texture_frame(uint64_t completed) {
     };
     // (the transient targets: a frame's own, not sampled again, their storage drawn over by another since. 16 frames left
     // ~500 MB of them in Hyrule Castle Town's market at 20 fps (59 768 x 432 RGBA16F, 135 384 x 384, 41 1536 x 864 at a
-    // time), VRAM at the driver's limit; the GPU's own use is checked below (last_value). RX_VK_DEAD_MIN_UNUSED=<frames>, 3)
+    // time), VRAM at the driver's limit; the GPU's own use is checked below (last_value). RX_VK_DEAD_MIN_UNUSED=<frames>, 1 (3
+    // before: with the GPU's own wait on top, a dead target came back to the pool four or five frames late, and the game had made
+    // a new one of its shape every frame meanwhile; 80 % of the images made new had last frame's one of their shape alive and unused)
     static const uint64_t dead_min_unused =
-        getenv("RX_VK_DEAD_MIN_UNUSED") ? (uint64_t)std::max(1, atoi(getenv("RX_VK_DEAD_MIN_UNUSED"))) : 3;
+        getenv("RX_VK_DEAD_MIN_UNUSED") ? (uint64_t)std::max(1, atoi(getenv("RX_VK_DEAD_MIN_UNUSED"))) : 1;
     // (hookshot) a small texture the GPU drew in one frame that the game has finalized, with nothing drawn over its storage
     // since: the game may make a texture over that storage again and sample it without drawing it. OoT's terrain does that with its
     // tiles' 260 x 260 RG8 normal maps: drawn when a chunk comes in, finalized when it goes out of range, made again and sampled as
