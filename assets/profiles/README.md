@@ -17,7 +17,7 @@ if there were no profile, the rest keep theirs. Record it again before a release
 The recordings below are Longshot's (its #569 and #599, by HumanBean), made on Longshot's renderer at the commits
 named: a function of ours that differs from Longshot's is built as if there were no profile, until one is recorded here.
 
-Three recordings of an `RX_VK_PGO=gen` renderer, merged with `llvm-profdata merge` (LLVM 23.1.5); 1,744 of the
+Recorded: three sessions of an `RX_VK_PGO=gen` renderer, merged with `llvm-profdata merge` (LLVM 23.1.5); 1,744 of the
 renderer's functions ran in at least one of them:
 
 1. 2026-11-14, main 0caf0618, NVIDIA GeForce RTX 3090 (mesh shaders), Linux, Ryzen 9 7900X: one session, counters
