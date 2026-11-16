@@ -58,6 +58,7 @@ class LinuxPreflightTests(unittest.TestCase):
         self.real_compile = False
         self.runner = self.stack.enter_context(mock.patch.object(subprocess, "run", side_effect=self.run_process))
         self.make = load("linux_make_game", SOURCE / "nx2/make_game.py")
+        self.addCleanup(getattr(self.make, "release_work", lambda: None))   # (Windows deletes no work folder with its lock open)
         self.build = load("build", SOURCE / "nx2/build.py")
         sys.modules["build"] = self.build
         self.processes.clear()

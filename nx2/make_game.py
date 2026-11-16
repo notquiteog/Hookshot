@@ -1168,9 +1168,7 @@ def lock_work(work):
     path = os.path.join(os.path.abspath(work), WORK_LOCK)
     if _WORK_LOCK and _WORK_LOCK[0] == path:
         return
-    if _WORK_LOCK:
-        _WORK_LOCK[1].close()
-        _WORK_LOCK.clear()
+    release_work()
     f = open(path, "a+b")
     try:
         f.seek(0)
@@ -1184,6 +1182,15 @@ def lock_work(work):
         f.close()
         fail("Another build is using the work folder %s. Wait for it to end (or stop it), then build again." % work)
     _WORK_LOCK[:] = [path, f]
+
+
+def release_work():
+    """Let go of the work folder's lock, if this process holds one. A build doesn't need to: the lock goes when its process ends.
+    The tests do, after running main() in their own process: Windows can't delete a temporary work folder while its
+    make_game.lock is still open"""
+    if _WORK_LOCK:
+        _WORK_LOCK[1].close()
+        _WORK_LOCK.clear()
 
 
 def stop_stray_compilers(work, default_work):

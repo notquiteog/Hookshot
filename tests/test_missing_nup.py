@@ -24,6 +24,7 @@ class MissingNupTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="hookshot-missing-nup-")
         self.addCleanup(temporary.cleanup)
+        self.addCleanup(getattr(make_game, "release_work", lambda: None))   # (Windows deletes no work folder with its lock open)
         self.root = Path(temporary.name).resolve()
         self.assertEqual(self.root.parent, Path(tempfile.gettempdir()).resolve())
         self.package = self.root / "selected game \u6f22 [1].nup"
