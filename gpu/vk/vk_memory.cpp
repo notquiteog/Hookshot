@@ -4557,6 +4557,9 @@ void memory_end_submission(VkCommandBuffer cmd, uint64_t part) {
                     pc{t->address, (uint32_t)chunks.size(), 0, observations};
                 vkCmdPushConstants(cmd, wbd_pipe.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof pc, &pc);
                 const uint32_t n = (uint32_t)chunks.size();
+                // (its own marker: without one a fault in it read as the last pool's copy, "write-back of pool", in the
+                // device-lost logs of an RTX 5060 and a GTX 1660 Ti, issues 899 and 1008)
+                checkpoint_mark(cmd, n, 'w');
                 vkCmdDispatch(cmd, std::min<uint32_t>(n, 65535u), (n + 65534u) / 65535u, 1);
                 if (observations) {
                     VkMemoryBarrier2 barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};
