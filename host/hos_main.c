@@ -250,7 +250,6 @@ static int reserve_guest(void) {
            needed. HOS_GUEST_MEMFD=1: the memfd all the same) */
         const char *e = getenv("HOS_GUEST_MEMFD");
         int usable = 0;
-        unsigned long long limit_mb = 0;
         {
             const int u = open("/dev/udmabuf", O_RDWR | O_CLOEXEC);
             if (u < 0 && (errno == EACCES || errno == EPERM)) {
@@ -268,16 +267,19 @@ static int reserve_guest(void) {
             if (startup_stderr >= 0) close(startup_stderr), startup_stderr = -1;
             if (u >= 0) {
                 close(u);
+                /* (issue 1135) usable whatever size_limit_mb says: the renderer reads the limit itself and takes udmabuf's
+                   default, 64 MB, when it can't (gpu/vk/vk_memory.cpp import_dma_buf), and a limit too small only makes more
+                   dma-bufs. A Flatpak's or Steam's container shows /dev/udmabuf but not /sys/module */
                 FILE *f = fopen("/sys/module/udmabuf/parameters/size_limit_mb", "r");
-                if (f) {
-                    if (fscanf(f, "%llu", &limit_mb) != 1) limit_mb = 0;
+                if (f)
                     fclose(f);
-                }
-                usable = limit_mb > 0;
+                else
+                    hos_log("mem: udmabuf's size_limit_mb cannot be read (in a container?): its default, 64 MB, assumed");
+                usable = 1;
             }
             if (!usable && !e)
-                hos_log("mem: guest memory stays host-pointer imports for the GPU (slow submissions on AMD): %s",
-                        u < 0 ? "/dev/udmabuf cannot be opened" : "udmabuf's size_limit_mb cannot be read");
+                hos_log("mem: guest memory stays host-pointer imports for the GPU (slow submissions on AMD): "
+                        "/dev/udmabuf cannot be opened");
         }
         if (e ? atoi(e) != 0 : usable) {
             const int fd = (int)syscall(SYS_memfd_create, "hookshot-guest", 1u /* MFD_CLOEXEC */ | 2u /* MFD_ALLOW_SEALING */);
