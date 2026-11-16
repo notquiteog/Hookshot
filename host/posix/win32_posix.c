@@ -185,8 +185,11 @@ static void thread_unref(HThread *t) {
         free(t);
     }
 }
+/* (NULL when calloc is refused: CreateThread then fails as Windows' does, rather than write through NULL; issue 333's notice
+   thread is started after a host allocation kept failing, when this one may be refused too) */
 static HThread *thread_new(void) {
     HThread *t = (HThread *)calloc(1, sizeof *t);
+    if (!t) return NULL;
     t->h.type = H_THREAD;
     monitor_init(&t->mu, &t->cv);
     return t;
@@ -251,6 +254,10 @@ static void *thread_entry(void *p) {
 HANDLE CreateThread(void *attr, SIZE_T stack, LPTHREAD_START_ROUTINE fn, void *arg, DWORD flags, DWORD *id) {
     (void)attr;
     HThread *t = thread_new();
+    if (!t) {
+        last_error = ERROR_NOT_ENOUGH_MEMORY;
+        return NULL;
+    }
     t->fn = fn, t->arg = arg, t->refs = 2;   /* (the handle's and the thread's own) */
     pthread_attr_t a;
     pthread_attr_init(&a);

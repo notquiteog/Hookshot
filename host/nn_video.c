@@ -188,8 +188,7 @@ static void set_host(uint64_t obj, uint32_t magic, void *p) {
         if (i == nhost_objs) {
             if (nhost_objs == cap_host_objs) {
                 cap_host_objs = cap_host_objs ? cap_host_objs * 2 : 16;
-                host_objs = (HostObj *)realloc(host_objs, cap_host_objs * sizeof *host_objs);
-                if (!host_objs) hos_fatal(NULL, "video: out of memory");
+                host_objs = (HostObj *)hos_xrealloc(host_objs, cap_host_objs * sizeof *host_objs, "video: decoder table");
             }
             nhost_objs++;
         }
