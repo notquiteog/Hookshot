@@ -55,12 +55,15 @@ def main():
 
         cache = {}
         def result(job):
+            # (the job's flags preprocess the source, and its SDK_VALUE is read from the text: nothing is linked or run. A
+            # tiny new program run from the temp folder is what Defender's machine-learning guess quarantines as a trojan,
+            # Trojan:Win32/Bearfoos.A!ml, which failed this check and alarmed whoever ran it. -MD is left out: no depfile)
             key, (_, source, _, compile_flags, _) = job
             if key not in cache:
-                exe = root / (str(len(cache)) + (".exe" if os.name == "nt" else ".out"))
-                subprocess.run([a.cxx, *compile_flags, source, "-o", str(exe)], check=True, **flags)
-                cache[key] = exe
-            return subprocess.run([str(cache[key])], check=False, **flags).returncode
+                text = subprocess.run([a.cxx, *[f for f in compile_flags if f not in ("-MD", "-MMD")], "-E", "-P", source],
+                                      check=True, capture_output=True, text=True, cwd=root, **flags).stdout
+                cache[key] = int(re.search(r"return (\d+);", text).group(1))
+            return cache[key]
 
         first = jobs()
         disabled = jobs(None)
