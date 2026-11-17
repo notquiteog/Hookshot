@@ -39,6 +39,7 @@
 #include "mirror_inherit.h"
 #include "retired_give_back.h"
 #include "sparse_mirror.h"
+#include "sparse_spare.h"
 #include <atomic>
 #include <unordered_set>
 #ifdef __linux__
@@ -116,6 +117,7 @@ struct Pool {
     bool any_wanted = false;              // (in sparse_wanted: a binding reached a block with none)
     uint64_t sparse_block_bytes = 0, sparse_size = 0;   // (its block, and its buffer's size in whole blocks)
     uint32_t sparse_types = 0;            // (the memory types its blocks can be of)
+    uint64_t sparse_made = 0;             // (the size its buffer was created with: the next mirror of it may take the buffer, sparse_spare.h)
     std::vector<VmaAllocation> blocks;    // (a block's memory; nullptr: none)
     std::vector<uint8_t> has;             // (1: it has memory. Read without the lock by the bindings' fast path: atomic_ref)
     std::vector<uint8_t> wanted;          // (blocks given memory at the next submission)
@@ -3281,8 +3283,69 @@ std::vector<Pool*> sparse_wanted;   // (pools a binding found a block with no me
 std::unordered_set<VkBuffer> sparse_live;   // (the sparse mirrors not destroyed: a released block's unbinding skips the others)
 struct DeadBlock { VkBuffer buffer; Pool* pool; size_t index; VmaAllocation alloc; uint64_t value; uint32_t gen = 0; };   // (pool null: its mirror freed)
 std::deque<DeadBlock> dead_blocks;
-struct DeadSparse { VkBuffer buffer; uint64_t value; std::vector<VmaAllocation> blocks; uint64_t binds = 0; };   // (a freed sparse mirror; binds: the binds' value then)
+struct DeadSparse {   // (a freed sparse mirror; binds: the binds' value then)
+    VkBuffer buffer;
+    uint64_t value;
+    std::vector<VmaAllocation> blocks;
+    uint64_t binds = 0;
+    // (sparse_spare.h: what the buffer is kept as once the GPU is past it, made 0: destroyed; and what is bound to it, unbound then)
+    sparse_spare::Spare<VkBuffer> spare{};
+    std::vector<VkSparseMemoryBind> unbind;
+};
 std::deque<DeadSparse> dead_sparse;
+/// (hookshot, sparse_spare.h) The freed sparse mirrors' buffers kept for the next mirror of their size, and the address
+/// space they may hold together, in bytes: RX_VK_SPARSE_SPARE_MB (kDefaultMb; 0: none kept, every buffer destroyed at once,
+/// as before). spare_doomed: buffers to destroy once the binds' timeline has reached their value. pools_mu held
+sparse_spare::List<VkBuffer> sparse_spares;
+std::deque<std::pair<uint64_t, VkBuffer>> spare_doomed;
+int64_t st_spare_taken = 0, st_spare_made = 0, st_spare_kept = 0, st_spare_destroyed = 0;
+uint64_t sparse_spare_cap() {
+    static const uint64_t cap = [] {
+        const char* e = getenv("RX_VK_SPARSE_SPARE_MB");
+        const uint64_t asked = (uint64_t)(e && *e ? std::max(0, atoi(e)) : (int)sparse_spare::kDefaultMb) << 20;
+        // (never more than a quarter of the address space the device has for all its sparse resources together)
+        const uint64_t cap = std::min<uint64_t>(asked, dev.props.limits.sparseAddressSpaceSize / 4);
+        if (cap)
+            logf("vk: sparse mirrors' buffers are kept for the next mirror of their size, up to %llu MB of address space "
+                 "(RX_VK_SPARSE_SPARE_MB=0: destroyed at once, as before)", (unsigned long long)(cap >> 20));
+        return cap;
+    }();
+    return cap;
+}
+/// A sparse buffer for a mirror of n bytes: the spare of that size, else a new one (vk_vma.cpp). after: a spare's value on
+/// the binds' timeline (0 for a new one), which goes with it if it is given up again
+bool sparse_buffer_for(uint64_t n, VkBufferUsageFlags usage, VkBuffer& buffer, VkMemoryRequirements& req, uint64_t& after) {
+    sparse_spare::Spare<VkBuffer> spare;
+    after = 0;
+    if (sparse_spare_cap() && sparse_spares.take(n, &spare)) {
+        buffer = spare.buffer, after = spare.after;
+        req = {};
+        req.size = spare.size, req.alignment = spare.block, req.memoryTypeBits = spare.types;
+        st_spare_taken++;
+        return true;
+    }
+    if (!create_sparse_buffer(n, usage, buffer, req)) return false;
+    st_spare_made++;
+    return true;
+}
+/// A sparse buffer no longer wanted, with nothing bound to it from `after` on: destroyed once the GPU has reached that
+/// (sparse_reap), at once with no spares (as before)
+void sparse_buffer_doom(VkBuffer buffer, uint64_t after) {
+    if (!sparse_spare_cap()) {
+        destroy_sparse_buffer(buffer);
+        return;
+    }
+    spare_doomed.push_back({after, buffer});
+}
+/// The same, kept as a spare where one may be: a buffer mirror_make gave up before it bound anything to it
+void sparse_buffer_unused(VkBuffer buffer, uint64_t n, const VkMemoryRequirements& req, uint64_t after) {
+    std::vector<sparse_spare::Spare<VkBuffer>> gone;
+    if (sparse_spare_cap() && sparse_spares.put({buffer, n, req.size, req.alignment, req.memoryTypeBits, after}, sparse_spare_cap(), &gone))
+        st_spare_kept++;
+    else
+        sparse_buffer_doom(buffer, after);
+    for (const auto& g : gone) sparse_buffer_doom(g.buffer, g.after);
+}
 int64_t st_sparse_mixed = 0, st_sparse_past = 0, st_sparse_in_place = 0, st_sparse_grown = 0, st_sparse_released = 0, st_sparse_binds = 0, st_sparse_refused = 0;
 double st_sparse_bind_ms = 0;
 // (the binds' own timeline: a bind signals the next value, every submission of recordings waits for the latest one on the GPU
@@ -4414,6 +4477,17 @@ void mirror_free(Pool& p) {
     const uint64_t size = mirror_size(p);
     if (p.sparse) {   // (its buffer, then its blocks' memory: sparse_reap. A released block's is in dead_blocks already)
         dead_sparse.push_back({p.mirror, std::max(mem_rec_value, p.last_value), {}, sparse_tl_value.load(std::memory_order_relaxed)});
+        if (sparse_spare_cap() && p.sparse_made) {   // (sparse_spare.h: kept once the GPU is past it, what is bound to it now unbound then)
+            DeadSparse& d = dead_sparse.back();
+            d.spare = {p.mirror, p.sparse_made, p.sparse_size, p.sparse_block_bytes, p.sparse_types, 0};
+            const uint64_t b = p.sparse_block_bytes;
+            sparse_mirror::runs(
+                p.blocks.size(), [&](size_t i) { return p.blocks[i] || (i < p.released.size() && p.released[i]); }, true,
+                [&](size_t first, size_t count) {
+                    const uint64_t at = (uint64_t)first * b, end = std::min(p.sparse_size, (uint64_t)(first + count) * b);
+                    if (end > at) d.unbind.push_back({at, end - at, VK_NULL_HANDLE, 0, 0});
+                });
+        }
         for (VmaAllocation& a : p.blocks)
             if (a) dead_sparse.back().blocks.push_back(a), a = nullptr;
         for (VmaAllocation& a : p.released)   // (given back, still bound: freed with the buffer, after it)
@@ -4425,6 +4499,7 @@ void mirror_free(Pool& p) {
         p.blocks.clear(), p.has.clear(), p.wanted.clear(), p.refill.clear(), p.block_dead_since.clear();
         p.released.clear(), p.release_gen.clear(), p.last_bound.clear();
         p.resident_bytes = 0;
+        p.sparse_made = 0;
     } else {
         dead_mirrors.push_back({p.mirror, p.mirror_alloc, std::max(mem_rec_value, p.last_value)});
     }
@@ -4750,6 +4825,11 @@ void memory_begin_submission() {
                  n, (unsigned long long)(held >> 20), (unsigned long long)(whole >> 20),
                  (unsigned long long)((whole - std::min(whole, held)) >> 20), (long long)st_sparse_grown, (long long)st_sparse_released,
                  (long long)st_sparse_in_place, (long long)st_sparse_mixed, (long long)st_sparse_past, (long long)st_sparse_binds, st_sparse_bind_ms, (long long)st_sparse_refused);
+            if (sparse_spare_cap())
+                logf("vk: sparse mirrors' buffers: %lld taken from the spares, %lld made new; %lld kept as spares, %lld destroyed; %zu "
+                     "spares now, %llu MB of address space (RX_VK_SPARSE_SPARE_MB=%llu)",
+                     (long long)st_spare_taken, (long long)st_spare_made, (long long)st_spare_kept, (long long)st_spare_destroyed,
+                     sparse_spares.items.size(), (unsigned long long)(sparse_spares.held >> 20), (unsigned long long)(sparse_spare_cap() >> 20));
         }
     }
     if (mirror_wanted.empty()) {
@@ -4804,19 +4884,20 @@ bool mirror_make(Pool& pool) {
         VkMemoryRequirements sparse_req{};
         std::vector<uint8_t> live;
         uint64_t take = n;
-        if (mirror_sparse_on() && n <= (1ull << 30) && create_sparse_buffer(n, kUsage, sparse_buf, sparse_req)) {
+        uint64_t spare_after = 0;   // (a spare's value on the binds' timeline: goes back with it if it is given up, sparse_spare.h)
+        if (mirror_sparse_on() && n <= (1ull << 30) && sparse_buffer_for(n, kUsage, sparse_buf, sparse_req, spare_after)) {
             live = sparse_req.alignment ? sparse_mirror::live_blocks(p->lo, p->hi, sparse_req.alignment, guest_pools.begin(),
                                                                      guest_pools.end())
                                         : std::vector<uint8_t>{};
             if (live.empty()) {
-                destroy_sparse_buffer(sparse_buf);
+                sparse_buffer_unused(sparse_buf, n, sparse_req, spare_after);
                 sparse_buf = VK_NULL_HANDLE;
             } else {
                 take = (uint64_t)std::count(live.begin(), live.end(), (uint8_t)1) * sparse_req.alignment;
             }
         }
         if (mirror_bytes + take > mirror_budget() || n > (1ull << 30) || tight) {
-            if (sparse_buf) destroy_sparse_buffer(sparse_buf);
+            if (sparse_buf) sparse_buffer_unused(sparse_buf, n, sparse_req, spare_after);
             p->mstate = n > (1ull << 30) ? Pool::MIRROR_REFUSED : Pool::MIRROR_NONE;
             if (n > (1ull << 30)) p->mirror_retry_epoch = 0;
             static int logged;
@@ -4828,7 +4909,7 @@ bool mirror_make(Pool& pool) {
             return false;
         }
         if (sparse_buf && !sparse_fill(*p, sparse_buf, sparse_req, live)) {
-            destroy_sparse_buffer(sparse_buf);   // (a whole one instead, as before, if the budget has room for it)
+            sparse_buffer_doom(sparse_buf, spare_after);   // (a whole one instead, as before, if the budget has room for it)
             sparse_buf = VK_NULL_HANDLE;
             st_sparse_refused++;
             if (mirror_bytes + n > mirror_budget()) {
@@ -4836,6 +4917,7 @@ bool mirror_make(Pool& pool) {
                 return false;
             }
         }
+        if (sparse_buf) p->sparse_made = n;   // (what the next mirror of this size may take its buffer by, mirror_free)
         if (!sparse_buf && !create_device_buffer(n, kUsage, p->mirror, p->mirror_alloc)) {
             p->mstate = Pool::MIRROR_REFUSED;
             p->mirror_retry_epoch = mirror_epoch + 120;
@@ -5202,12 +5284,58 @@ void sparse_reap() {
         for (VmaAllocation a : sparse_frees.front().second) free_sparse_block(a);
         sparse_frees.pop_front();
     }
-    while (!dead_sparse.empty() && dead_sparse.front().value <= mem_completed && dead_sparse.front().binds <= done) {   // (freed mirrors, as reap_mirrors, once their binds are done)
-        sparse_live.erase(dead_sparse.front().buffer);
-        destroy_sparse_buffer(dead_sparse.front().buffer);
-        for (VmaAllocation a : dead_sparse.front().blocks) free_sparse_block(a);
-        dead_sparse.pop_front();
+    for (auto it = spare_doomed.begin(); it != spare_doomed.end();) {   // (spares given up, once nothing is bound to them on the GPU)
+        if (it->first > done) {
+            ++it;
+            continue;
+        }
+        destroy_sparse_buffer(it->second);
+        st_spare_destroyed++;
+        it = spare_doomed.erase(it);
     }
+    // (freed mirrors, as reap_mirrors, once their binds are done. sparse_spare.h: the buffer is kept for the next mirror of
+    // its size: what is bound to it is unbound, every kept buffer's in one bind, and its blocks' memory goes once that is done
+    // on the GPU, as a released block's above. With no spares, or when the bind fails: destroyed and its memory freed at
+    // once, as before)
+    std::vector<DeadSparse> keep;
+    while (!dead_sparse.empty() && dead_sparse.front().value <= mem_completed && dead_sparse.front().binds <= done) {
+        DeadSparse d = std::move(dead_sparse.front());
+        dead_sparse.pop_front();
+        sparse_live.erase(d.buffer);
+        if (d.spare.made && sparse_spare_cap()) {
+            keep.push_back(std::move(d));
+            continue;
+        }
+        destroy_sparse_buffer(d.buffer);
+        st_spare_destroyed++;
+        for (VmaAllocation a : d.blocks) free_sparse_block(a);
+    }
+    if (keep.empty()) return;
+    std::vector<VkSparseBufferMemoryBindInfo> infos;
+    for (DeadSparse& d : keep)
+        if (!d.unbind.empty()) infos.push_back({d.buffer, (uint32_t)d.unbind.size(), d.unbind.data()});
+    uint64_t after = 0;
+    if (!sparse_bind_infos(infos, &after)) {   // (still bound: nothing to keep them as)
+        for (DeadSparse& d : keep) {
+            destroy_sparse_buffer(d.buffer);
+            st_spare_destroyed++;
+            for (VmaAllocation a : d.blocks) free_sparse_block(a);
+        }
+        return;
+    }
+    if (!after) after = sparse_tl_value.load(std::memory_order_relaxed);   // (nothing was bound to any of them: the latest bind's)
+    std::vector<VmaAllocation> blocks;
+    std::vector<sparse_spare::Spare<VkBuffer>> gone;
+    for (DeadSparse& d : keep) {
+        blocks.insert(blocks.end(), d.blocks.begin(), d.blocks.end());
+        d.spare.after = after;
+        if (sparse_spares.put(d.spare, sparse_spare_cap(), &gone))
+            st_spare_kept++;
+        else
+            gone.push_back(d.spare);   // (larger than the cap by itself)
+    }
+    for (const auto& g : gone) sparse_buffer_doom(g.buffer, g.after);
+    if (!blocks.empty()) sparse_frees.push_back({after, std::move(blocks)});
 }
 } // namespace
 
