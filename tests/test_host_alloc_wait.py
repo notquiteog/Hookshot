@@ -3,7 +3,8 @@ limit ended the game at once ("FATAL: native NVN: recording handle set"), with n
 hos_xmalloc / hos_xcalloc / hos_xrealloc (host/mkw_glue.c) wait for commit as a guest commit does, then say out of
 memory, show the notice and only then stop.
 
-Compiles the real hos_out_of_memory and hos_alloc_failed (and the pieces around them) cut out of host/mkw_glue.c with
+Compiles the real hos_out_of_memory, hos_alloc_failed and hos_alloc_gave_up (its end, shared with the renderer's C++
+allocations since issue 1280) and the pieces around them cut out of host/mkw_glue.c with
 tests/host_alloc_wait_test.c's fake malloc, clock and notice, twice: the cut code's Windows side (page file wording,
 GlobalMemoryStatusEx) and its Linux side (swap wording, sysinfo), on either host. Each case in its own process:
 
@@ -16,6 +17,9 @@ GlobalMemoryStatusEx) and its Linux side (swap wording, sysinfo), on either host
 - headless: HOS_HEADLESS shows no notice and so waits for none;
 - no-thread: the notice's thread refused too (its own memory): no notice, no wait, still the fatal;
 - test-switch: HOS_TEST_ALLOC_REFUSE refuses that label as at the limit, and no other.
+- renderer, renderer-not-limit, renderer-switch (issue 1280): hos_alloc_gave_up with no size, as the renderer's new_handler
+  calls it through MkwVkHost out_of_memory after its own 5 s: the line, the notice and the fatal with no byte count; no notice
+  with plenty of commit left; and HOS_TEST_ALLOC_REFUSE=renderer taken as the limit.
 
 And Linux's real thread_new and CreateThread (host/posix/win32_posix.c) cut out with tests/posix_thread_oom_test.c's
 refusing calloc: NULL and ERROR_NOT_ENOUGH_MEMORY, not a write through NULL, so no-thread is what Linux does.
@@ -38,7 +42,8 @@ import tempfile
 RUN_ALL_ARGS = ["--cc", "gcc"]
 
 ROOT = Path(__file__).resolve().parents[1]
-CASES = ("recovers", "limit", "commit-first", "not-limit", "overflow", "headless", "no-thread", "test-switch")
+CASES = ("recovers", "limit", "commit-first", "not-limit", "overflow", "headless", "no-thread", "test-switch", "renderer",
+         "renderer-not-limit", "renderer-switch")
 
 
 def block(text, head):
@@ -88,6 +93,7 @@ def main():
     pieces = [block(glue, head) for head in (
         "static DWORD WINAPI oom_box(LPVOID unused)", "void hos_out_of_memory(int wait)",
         "static int alloc_refused(const char *what)", "static void *alloc_try(",
+        "void hos_alloc_gave_up(size_t n, const char *what)",   # (issue 1280: before its caller, as hos.h declares it)
         "void *hos_alloc_failed(int kind,", "void *hos_xmalloc(size_t size, const char *what)",
         "void *hos_xcalloc(size_t count, size_t size, const char *what)",
         "void *hos_xrealloc(void *old, size_t size, const char *what)")]

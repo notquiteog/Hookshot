@@ -159,6 +159,22 @@ int main(int argc, char **argv) {
         CHECK(STOPS(hos_xcalloc(65536, 8, "native NVN: recording handle set")));
         CHECK(slept_ms == 5000 && boxes == 1 && box_closing && threads == 1);
         CHECK(!strcmp(fatal_text, OOM_FATAL "native NVN: recording handle set (524288 bytes)"));
+    } else if (!strcmp(scenario, "renderer")) {   /* (issue 1280: the renderer's new_handler waited its 5 s; no size known) */
+        CHECK(STOPS(hos_alloc_gave_up(0, "the renderer's C++ allocations")));
+        CHECK(slept_ms == 0 && fatals == 1 && boxes == 1 && box_closing && threads == 1 && oom_state == 2);
+        CHECK(strstr(logs, "mem: the renderer's C++ allocations: still refused after 5 s at the commit limit (10 MB of commit left)"));
+        CHECK(strstr(logs, OOM_LINE) && !strstr(logs, "bytes"));
+        CHECK(!strcmp(fatal_text, OOM_FATAL "the renderer's C++ allocations"));
+    } else if (!strcmp(scenario, "renderer-not-limit")) {   /* (refused with 20 GB left: a size gone wrong, no notice) */
+        left_mb = 20000;
+        CHECK(STOPS(hos_alloc_gave_up(0, "the renderer's C++ allocations")));
+        CHECK(boxes == 0 && threads == 0 && !strstr(logs, "out of memory"));
+        CHECK(!strcmp(fatal_text, "the renderer's C++ allocations: refused for 5 s with 20000 MB of commit left"));
+    } else if (!strcmp(scenario, "renderer-switch")) {   /* (HOS_TEST_ALLOC_REFUSE=renderer: its 1 PB ask, as at the limit) */
+        refuse_env = "renderer", left_mb = 20000;
+        CHECK(STOPS(hos_alloc_gave_up(0, "the renderer's C++ allocations")));
+        CHECK(boxes == 1 && box_closing && strstr(logs, OOM_LINE));
+        CHECK(!strcmp(fatal_text, OOM_FATAL "the renderer's C++ allocations"));
     } else {
         fprintf(stderr, "unknown scenario %s\n", scenario);
         return 2;

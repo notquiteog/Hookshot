@@ -112,6 +112,14 @@ void *hos_alloc_failed(int kind, void *old, size_t count, size_t size, const cha
             return p;
         }
     }
+    hos_alloc_gave_up(n, what);
+    return NULL;
+}
+/* (issue 1280) An allocation refused for 5 s: past the limit's wait, the line, the notice (waited for) and the fatal, which says
+   out of memory; with over a GB more than it asked for still free, not the limit (a size gone wrong): a fatal that says so, no
+   notice. hos_alloc_failed's end, and the renderer's: its new_handler (gpu/vk/vk_main.cpp new_refused) tried its C++
+   allocation again for the same 5 s, and it does not know the size: n 0, said with none */
+void hos_alloc_gave_up(size_t n, const char *what) {
     unsigned long long left = 0;   /* (MB of commit left: RAM and page file; on Linux free RAM and swap) */
 #ifdef _WIN32
     MEMORYSTATUSEX m = {.dwLength = sizeof m};
@@ -120,16 +128,17 @@ void *hos_alloc_failed(int kind, void *old, size_t count, size_t size, const cha
     struct sysinfo si;
     if (!sysinfo(&si)) left = ((unsigned long long)si.freeram + si.bufferram + si.freeswap) * si.mem_unit >> 20;
 #endif
+    char bytes[64] = "", size[48] = "";   /* ("n bytes of host memory " and " (n bytes)", or nothing when the size is not known) */
+    if (n) snprintf(bytes, sizeof bytes, "%zu bytes of host memory ", n), snprintf(size, sizeof size, " (%zu bytes)", n);
     if (left > (n >> 20) + 1024 && !alloc_refused(what))   /* (over a GB more than it asked for: not the limit) */
-        hos_fatal(NULL, "%s: %zu bytes of host memory refused for 5 s with %llu MB of commit left", what, n, left);
-    hos_log("mem: %s: %zu bytes of host memory still refused after 5 s at the commit limit (%llu MB of commit left)", what, n, left);
+        hos_fatal(NULL, "%s: %srefused for 5 s with %llu MB of commit left", what, bytes, left);
+    hos_log("mem: %s: %sstill refused after 5 s at the commit limit (%llu MB of commit left)", what, bytes, left);
     hos_out_of_memory(1);
 #ifdef _WIN32
-    hos_fatal(NULL, "out of memory (RAM plus the page file): %s (%zu bytes)", what, n);
+    hos_fatal(NULL, "out of memory (RAM plus the page file): %s%s", what, size);
 #else
-    hos_fatal(NULL, "out of memory (RAM plus swap): %s (%zu bytes)", what, n);
+    hos_fatal(NULL, "out of memory (RAM plus swap): %s%s", what, size);
 #endif
-    return NULL;
 }
 void *hos_xmalloc(size_t size, const char *what) {
     void *p = alloc_try('m', NULL, 1, size, what);
