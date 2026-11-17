@@ -18,8 +18,8 @@
 /* (hookshot, #1468) A game folder whose deepest file passes 260 characters (MAX_PATH: "E:\Games\...\romfs\Event\EventSetting\
    Ev..." at 262) is read too. The host paths here are up to HOS_FS_PATH bytes, and on Windows each file call goes through
    its wide function: the path converted from the game's UTF-8 strings and, when it is
-   long and absolute, given the extended-length prefix \\?\ (with its / made \), which Windows takes without its long-paths
-   setting. Short paths are as they were. */
+   long and absolute, given the extended-length prefix \\?\ (with its / made \ and a doubled separator made one), which
+   Windows takes without its long-paths setting. Short paths are as they were. */
 #define HOS_FS_PATH 1024
 #ifdef _WIN32
 static const wchar_t *fs_wide(const char *p, wchar_t *w, size_t cap) {
@@ -35,9 +35,19 @@ static const wchar_t *fs_wide(const char *p, wchar_t *w, size_t cap) {
         if (unc) p++;   /* (\\server\share -> \\?\UNC\server\share) */
     }
     if (MultiByteToWideChar(CP_UTF8, 0, p, -1, w + at, (int)(cap - at)) <= 0) w[0] = 0;
-    if (extended)
-        for (wchar_t *q = w; *q; q++)
-            if (*q == L'/') *q = L'\\';
+    if (extended) {
+        /* (under the prefix Windows takes a path as it is: a / is no separator, and a doubled one is an invalid name
+           (ERROR_INVALID_NAME), where a short path has both tidied. The game doubles one itself, in its streamed
+           voices' "Voice/Resource//Stream/...": in a game folder long enough their files were "not found" and the
+           cutscenes silent, Longshot #1298. So here every / is a \, and a run of them one) */
+        wchar_t *d = w + at;
+        for (const wchar_t *q = w + at; *q; q++) {
+            const wchar_t c = *q == L'/' ? L'\\' : *q;
+            if (c == L'\\' && d > w + at && d[-1] == L'\\') continue;
+            *d++ = c;
+        }
+        *d = 0;
+    }
     return w;
 }
 #define FS_W(p) fs_wide((p), (wchar_t[HOS_FS_PATH + 8]){0}, HOS_FS_PATH + 8)
