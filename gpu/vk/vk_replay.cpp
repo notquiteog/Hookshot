@@ -866,12 +866,24 @@ Recording& begin_recording(uint64_t value) {
     rec::slot_done();
     return r;
 }
+/// The game reads what the GPU wrote into its memory once the timeline reaches the submission; waiting on the host makes
+/// it visible to the device only (a fence's or a semaphore's access scope is device access), so each recording ends with
+/// a memory dependency into the host's reads
+void host_read_barrier(VkCommandBuffer cmd) {
+    VkMemoryBarrier2 b{VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};
+    b.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, b.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+    b.dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT, b.dstAccessMask = VK_ACCESS_2_HOST_READ_BIT;
+    VkDependencyInfo d{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+    d.memoryBarrierCount = 1, d.pMemoryBarriers = &b;
+    vkCmdPipelineBarrier2(cmd, &d);
+}
 void submit_recording(Recording& r, bool signal_value = true, uint64_t signal_at = 0) {
     occ_part_lo = UINT64_MAX, occ_part_hi = 0;   // (RX_VK_OCC_COPY: copied only if occ_copy_part did, else read from the pool)
     draw_flush_recording(r.slot);
     const bool uploads = texture_uploads_recorded();
     gprof_submitted(r.slot, uploads);
     gpu_time_end(r);
+    host_read_barrier(r.cmd);
     vkEndCommandBuffer(r.upload);
     vkEndCommandBuffer(r.cmd);
     rec_end_pos[r.slot] = rec::produced();   // (the ends waited for the recorder: it is past this)
@@ -2326,6 +2338,7 @@ const uint8_t* replay_handle(VkCommandBuffer& cmd, const uint8_t* h, bool may_st
                 j->uploads = texture_uploads_recorded();
                 j->inits = texture_segment_end(j->index);   // (after its last new image)
                 texture_segment_worker(-1);
+                host_read_barrier(c);
                 vkEndCommandBuffer(j->r->upload);
                 vkEndCommandBuffer(j->r->cmd);
                 {
