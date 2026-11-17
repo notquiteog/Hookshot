@@ -30,7 +30,8 @@ def main():
     head = source[source.index("// ---- samplers (by NVN sampler parameters) ----"):source.index("VkSamplerAddressMode wrap(")]
     actual = head + "\n".join(block(source, marker) for marker in [
         "VkSamplerAddressMode wrap(", "uint32_t aniso_override() {", "VkCompareOp compare_op(",
-        "VkSampler sampler_make(int id, bool compare) {", "VkSampler sampler_for(int id, bool compare) {"])
+        "VkSampler sampler_make(int id, bool compare, bool one_level) {",
+        "VkSampler sampler_for(int id, bool compare, bool one_level) {"])
     # Keep standard-container behavior, replacing only the allocator to target an individual cache.
     owner = [
         ("std::unordered_map<SamplerInfo, Made, SamplerInfoHash> made", "FaultMap<SamplerInfo, Made, Owner, SamplerInfoHash> made"),
@@ -60,7 +61,7 @@ def main():
              "registration", "shared-thread", "concurrent", "nearest", "linear", "compare", "compare-explicit",
              "compare-pcf-off", "custom-border", "standard-border", "reduction", "compare-reduction", "anisotropy",
              "anisotropy-row", "anisotropy-game", "anisotropy-env-off", "anisotropy-change",
-             "anisotropy-no-mips", "anisotropy-nearest-mip",
+             "anisotropy-no-mips", "anisotropy-nearest-mip", "anisotropy-one-level",
              "upscale-bias", "upscale-bias-plain", "upscale-bias-change",
              "unknown-id", "force-linear", "wrap", "lod-clamp", "custom-reduction",
              "descriptor-push", "descriptor-pool", "descriptor-compute", "descriptor-old", "descriptor-whole",

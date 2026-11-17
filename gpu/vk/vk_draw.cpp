@@ -3000,28 +3000,29 @@ float upscale_lod_bias() {
     const int up = fsr3_wanted() ? (int)upscaler_rows::FSR3 : temporal_mode();
     return upscaler_rows::upscale_lod_bias_for(up, resolution_scale(), offset);   // (share in 1/10000 of the output; 0: Auto)
 }
-/// compare: the shader reads depth with a reference (a sampler without one cannot compare)
-VkSampler sampler_make(int id, bool compare);
+/// compare: the shader reads depth with a reference (a sampler without one cannot compare). one_level: the image bound with it
+/// has a single level, and the Anisotropic filtering row's anisotropy is not added (the game's own stays)
+VkSampler sampler_make(int id, bool compare, bool one_level);
 // (each texture of each draw found its sampler through reg_mu, a copy of the registration, a hash of it and a map lookup:
 // ~48000 times a frame at 3000 draws. Now a thread's table by id and compare, good while no sampler registration's contents
 // changed (sampler_registrations_generation). RX_VK_SAMPLER_CACHE=0 turns off both this table and the parameters' cache inside
 // sampler_make; =1 or the Sampler cache row turns the parameters' cache on (this table stays on, as it is without the option)
 bool sampler_cache_on();   // (hookshot, RX_VK_SAMPLER_CACHE and the Sampler cache row: defined below with the descriptor fingerprint's)
-VkSampler sampler_for(int id, bool compare) {
+VkSampler sampler_for(int id, bool compare, bool one_level) {
     static const bool on = !getenv("RX_VK_SAMPLER_CACHE") || atoi(getenv("RX_VK_SAMPLER_CACHE")) != 0;
-    if (!on || id < 0 || id >= 4096) return sampler_make(id, compare);
+    if (!on || id < 0 || id >= 4096) return sampler_make(id, compare, one_level);
     struct Entry { uint64_t gen; VkSampler s; uint64_t frame; };
-    static thread_local Entry table[2][4096];   // (gen 0: never filled; the generation starts at 1)
+    static thread_local Entry table[2][2][4096];   // (gen 0: never filled; the generation starts at 1)
     const uint64_t gen = sampler_registrations_generation();   // (read first: a registration after it makes the next call miss)
     // (near the device's sampler limit, an entry lasts a present: the book sees the samplers in use, sampler_book)
     const uint64_t frame = sampler_book.watching.load(std::memory_order_relaxed) ? texture_frame_no() : 0;
-    Entry& e = table[compare ? 1 : 0][id];
+    Entry& e = table[compare ? 1 : 0][one_level ? 1 : 0][id];
     if (e.gen == gen && e.frame == frame) return e.s;
-    const VkSampler made = sampler_make(id, compare);
+    const VkSampler made = sampler_make(id, compare, one_level);
     if (made) e = {gen, made, frame};   // (a failed creation is retryable without a new registration)
     return made;
 }
-VkSampler sampler_make(int id, bool compare) {
+VkSampler sampler_make(int id, bool compare, bool one_level) {
     nvn_samp_par p{};
     bool known = false;
     if (sampler_cache_on()) {   // (hookshot: what an id holds stays cached with its version on this thread: resolving an id
@@ -3039,7 +3040,9 @@ VkSampler sampler_make(int id, bool compare) {
     const float up_bias = p.lod_bias < 0.0f ? upscale_lod_bias() : 0.0f;   // (the game's upscaled materials only)
     uint32_t up_bits;
     std::memcpy(&up_bits, &up_bias, sizeof up_bits);
-    uint64_t key = mix(mix(compare ? 0xC0 : 0xAB, aniso_override()), up_bits);
+    // (one_level: the row's anisotropy is not added, so it is not part of the key either)
+    const uint32_t row_aniso = one_level ? 0u : aniso_override();
+    uint64_t key = mix(mix(compare ? 0xC0 : 0xAB, row_aniso), up_bits);
     const uint8_t* b = reinterpret_cast<const uint8_t*>(&p);
     for (size_t i = 0; i < sizeof p; i += 8) {
         uint64_t w = 0;
@@ -3095,21 +3098,27 @@ VkSampler sampler_make(int id, bool compare) {
     ci.addressModeU = wrap(p.ws), ci.addressModeV = wrap(p.wt), ci.addressModeW = wrap(p.wr);
     ci.mipLodBias = std::clamp(p.lod_bias + up_bias, -dev.props.limits.maxSamplerLodBias, dev.props.limits.maxSamplerLodBias);
     float aniso = p.aniso;
-    {   // (what the game asks for is told once for each anisotropy, filter and LOD bias, 16 at most: not known otherwise)
+    {   // (what the game asks for is told once for each anisotropy, filter, LOD bias and one level or not, 16 at most: not known
+        // otherwise. one_level is in the key: a sampler kind first bound with an image of one level would else tell 0 for all)
         static std::mutex am;
         static std::unordered_set<uint64_t> asked;
         uint32_t bits, bias;
         std::memcpy(&bits, &p.aniso, sizeof bits);
         std::memcpy(&bias, &p.lod_bias, sizeof bias);
         std::lock_guard ag(am);
-        if (asked.size() < 16 && asked.insert((uint64_t)bits << 32 ^ (uint64_t)bias << 3 ^ p.minf).second)
-            logf("vk: sampler anisotropy: the game asks for %g (min filter %u, mip filter %s, LOD bias %g; made with %u)", (double)p.aniso,
-                 (unsigned)p.minf, ci.mipmapMode == VK_SAMPLER_MIPMAP_MODE_LINEAR ? "linear" : "nearest", (double)p.lod_bias, aniso_override());
+        if (asked.size() < 16 && asked.insert((uint64_t)bits << 32 ^ (uint64_t)bias << 3 ^ p.minf ^ (uint64_t)one_level << 63).second)
+            logf("vk: sampler anisotropy: the game asks for %g (min filter %u, mip filter %s, LOD bias %g; made with %u%s)", (double)p.aniso,
+                 (unsigned)p.minf, ci.mipmapMode == VK_SAMPLER_MIPMAP_MODE_LINEAR ? "linear" : "nearest", (double)p.lod_bias, row_aniso,
+                 one_level ? ", an image of one level: not the row's" : "");
     }
     // (a linear filter with mip levels, linear or nearest between them: OoT asks for both, 2x with linear levels and 1x with
-    // nearest ones, its world's materials with a LOD bias of -0.5 either way)
-    if (aniso_override() && ci.minFilter == VK_FILTER_LINEAR && p.minf != NVN_MIN_FILTER_LINEAR)
-        aniso = std::max(aniso, (float)aniso_override());
+    // nearest ones, its world's materials with a LOD bias of -0.5 either way. Not for an image of one level: the game's own
+    // pictures it reads back (a half-size fog and particle layer, the scene's depth), where a 2x2 block of pixels across an
+    // object's edge has texture coordinates far apart. An anisotropic filter then takes texels along that whole span, from
+    // the sky behind a mountain's ridge into the ridge: dashed bright lines along every edge on AMD's RX 7900 XTX. With
+    // the row's 16x the game's mipmapped sampler did that to OoT's composite of its half-size layer, 1a7482c0ec9991ea)
+    if (row_aniso && ci.minFilter == VK_FILTER_LINEAR && p.minf != NVN_MIN_FILTER_LINEAR)
+        aniso = std::max(aniso, (float)row_aniso);
     ci.anisotropyEnable = aniso > 1.0f && dev.features.samplerAnisotropy;
     ci.maxAnisotropy = std::clamp(aniso, 1.0f, dev.props.limits.maxSamplerAnisotropy);
     ci.compareEnable = compare && p.cmp_mode != 0;
@@ -4221,7 +4230,9 @@ void build_descriptors(const NvnState& s, const Program& p) {
                                (void*)view, view ? "" : " (dummy)");
                 if (view && tex && tex->gpu_written) draw_sampled().push_back(tex);
                 if (!view) view = dummies.view[(int)vt], st_dummy_textures += handle != 0;
-                out.imgs.push_back({sampler_for((int)(handle >> 20), d.is_depth), view, VK_IMAGE_LAYOUT_GENERAL});
+                // (an image of one level: no anisotropy of the row's, sampler_make)
+                out.imgs.push_back({sampler_for((int)(handle >> 20), d.is_depth, tex && tex->levels <= 1), view,
+                                    VK_IMAGE_LAYOUT_GENERAL});
             }
             w.pImageInfo = &out.imgs[first];
             out.writes.push_back(w);
