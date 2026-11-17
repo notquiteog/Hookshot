@@ -1930,7 +1930,8 @@ def build_language(a, out):
 
 def profile_readable(prof, any_os=False):
     """(linux) the profile is made by a recent clang (the Windows tools'): an older one, the system's, cannot read it and stops the
-    build. Then the game is built without it (a little slower in play), not at all. any_os: asked on Windows too (the renderer's
+    build. Then the game is built without it (a little slower in play), not at all, and the line says which clang and where the
+    one that reads it is (profile_unread_message). any_os: asked on Windows too (the renderer's
     committed profile is recorded on Linux, and llvm-mingw's clang is another LLVM)"""
     if not LINUX and not any_os:
         return True
@@ -1944,9 +1945,36 @@ def profile_readable(prof, any_os=False):
         r = subprocess.run([toolchain.find("clang"), "-O2", "-Wno-everything", "-fprofile-instr-use=" + prof, "-c", src, "-o",
                             os.path.join(d, "t.o")], capture_output=True, text=True, encoding="utf-8", errors="replace", **quiet)
     if r.returncode:
-        print("this compiler cannot read the play profile (%s): building without it" % (r.stderr.strip().splitlines() or ["?"])[-1],
-              flush=True)
+        ver = subprocess.run([toolchain.find("clang"), "--version"], capture_output=True, text=True, encoding="utf-8",
+                             errors="replace", **quiet).stdout
+        print(profile_unread_message(prof, ver, r.stderr, LINUX, build_tools_llvm()), flush=True)
     return r.returncode == 0
+
+
+def build_tools_llvm(root=ROOT):
+    """The LLVM of the Linux build tools (tools.lock's, the AppImage's: scripts/linux/deps.sh's LLVM_VER), or None without it"""
+    try:
+        with open(os.path.join(root, "scripts", "linux", "deps.sh"), encoding="utf-8") as f:
+            m = re.search(r"^LLVM_VER=(\S+)", f.read(), re.M)
+    except OSError:
+        return None
+    return m.group(1) if m else None
+
+
+def profile_unread_message(prof, version_text, stderr, linux, wanted):
+    """The line a build prints when this clang cannot read a play profile: which clang, which profile, what it costs (nothing
+    stops), and on Linux, with a clang older than the build tools' LLVM (a system clang: a distro's 18 reads no LLVM 23
+    profile), where the one that reads it is. version_text: clang --version's output; stderr: the test compile's"""
+    m = re.search(r"clang version (\d+)([\w.]*)", version_text or "")
+    who = "clang %s%s" % (m.group(1), m.group(2)) if m else "this compiler"
+    why = (stderr or "").strip().splitlines()
+    line = ("%s cannot read the play profile %s (%s): building without it, a little slower in play"
+            % (who, os.path.basename(prof), why[-1] if why else "no message"))
+    major = re.match(r"\d+", wanted or "")
+    if linux and major and (not m or int(m.group(1)) < int(major.group(0))):
+        line += (". The build tools' LLVM %s reads it: `python -I scripts/dev_build.py env` installs them and prints the "
+                 "variables that point the build at them (EMSDK), or install clang %s or newer" % (wanted, major.group(0)))
+    return line
 
 
 VK_PROFILE = "hookshot_vk.profdata"   # (the renderer's play profile, llvm-profdata's merge of an RX_VK_PGO=gen run's counters)
