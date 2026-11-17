@@ -56,6 +56,7 @@
 #include "driver_faults.h"
 #include "fallback_size_policy.h"
 #include "translate_wait.h"
+#include "bounded_wait.h"   // (the load-at-create start's wait for its builds, bounded by their progress)
 #include "quick_pipe.h"
 #include "test_driver.h"
 
@@ -9270,8 +9271,16 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
 /// (hookshot, RX_VK_LOAD=create) The start with nothing kept ready by a list: each note is only found, by its place in the file,
 /// and its pipeline is made when the game makes its program (vk_programs.cpp); the compute programs the lists name are only
 /// named. What a start must still do itself is done: the caches and the two lists opened before play, and on a GPU without
-/// mesh shaders the mesh fallback's programs and their compute pipelines, which stay as they were (every one, before the title)
-void precompile_at_create() {
+/// mesh shaders the mesh fallback's programs and their compute pipelines, which stay as they were (every one, before the title).
+/// Those are built in the driver here, behind the start-up screen, with its progress (a fallback program at a time) and the
+/// precompile's bound (bounded_wait.h, RX_VK_PRECOMPILE_STALL_S): nothing finished for that long, the game starts and the
+/// builds still in the driver go on behind it, their programs' draws left out until they are done, as a first draw's are.
+/// Without them every start of rc.7 on an RX 5600 XT and an RX 5700 XT (AMD's Windows driver, the compute fallback, a new
+/// translator: every fallback pipeline compiled again) sat at 0%, "Loading the shader cache", until the window was closed,
+/// and the close lost what was built (Longshot #1373, #1405). The workers' state is on the heap: let go once they are done,
+/// never freed when the game went on without them. A pass that took RX_VK_PRECOMPILE_SAVE_S writes the pipeline cache before
+/// the title, as precompile_run's does (precompile_save.h)
+void precompile_at_create(void (*progress)(size_t done, size_t total)) {
     const auto t0 = std::chrono::steady_clock::now();
     pcache_init();
     std::vector<NoteRef> refs = pipe_notes_refs();
@@ -9288,56 +9297,116 @@ void precompile_at_create() {
         if (!state_file) state_open_locked();
     }
     const ComputePlan plan = computes_plan(getenv("RX_VK_PRECOMPILE_COMPUTES"), !env_on("RX_VK_NO_STATE_LIST"));
+    struct Pass {
+        std::vector<Program*> fallbacks, kept;
+        std::unordered_map<uint64_t, std::vector<NoteRef>> notes_of;   // (copies: the workers may outlive refs)
+        std::string notes_path;
+        std::atomic<size_t> next{0}, next_kept{0}, done{0}, kept_pipes{0}, kept_cold{0};
+        std::atomic<bool> gone{false};   // (the game went on: no new item is taken, the builds under way end on their own)
+    };
+    Pass* const pass = new Pass;
     // (every program read in here, kept from now on: its records are taken as they are read, so the load its create call
     // queues finds none and makes none of its noted pipelines. Those are asked of the caches here, as that load would)
-    std::vector<Program*> fallbacks, kept;
     program_cache_load_some({}, [&](Program& p) {
         ensure_layout(p);
-        kept.push_back(&p);
-        if (p.fallback) fallbacks.push_back(&p);
+        pass->kept.push_back(&p);
+        if (p.fallback) pass->fallbacks.push_back(&p);
     }, false, true);
-    std::unordered_map<uint64_t, std::vector<const NoteRef*>> notes_of;
-    if (!kept.empty())
-        for (const NoteRef& r : refs) notes_of[r.prog].push_back(&r);
-    const std::string notes_path = pipe_notes_path();
-    std::atomic<size_t> next{0}, next_kept{0}, kept_pipes{0}, kept_cold{0};
-    const auto worker = [&] {
+    if (!pass->kept.empty()) {
+        std::unordered_set<uint64_t> graphics;
+        for (const Program* p : pass->kept)
+            if (!p->compute) graphics.insert(p->key);
+        for (const NoteRef& r : refs)
+            if (graphics.count(r.prog)) pass->notes_of[r.prog].push_back(r);
+    }
+    pass->notes_path = pipe_notes_path();
+    const auto taking = [pass] { return !prepare_stopped() && !pass->gone.load(std::memory_order_relaxed); };
+    const auto worker = [pass, taking] {
         ub_thread_off();
-        for (size_t i; (i = next++) < fallbacks.size() && !prepare_stopped();) {
+        for (size_t i; taking() && (i = pass->next++) < pass->fallbacks.size();) {
             int none = 0;
-            if (fallbacks[i]->compute_state.compare_exchange_strong(none, 1)) {
-                fallback_compute_pipelines(*fallbacks[i]);
-                fallbacks[i]->compute_state.store(2, std::memory_order_release);
+            if (pass->fallbacks[i]->compute_state.compare_exchange_strong(none, 1)) {
+                fallback_compute_pipelines(*pass->fallbacks[i]);
+                pass->fallbacks[i]->compute_state.store(2, std::memory_order_release);
             }
+            pass->done++;
         }
         FILE* in = nullptr;
         const std::unique_ptr<PipeNote> note = std::make_unique<PipeNote>();
-        for (size_t i; (i = next_kept++) < kept.size() && !prepare_stopped();) {
-            const Program& p = *kept[i];
-            const auto list = notes_of.find(p.key);
-            if (p.compute || list == notes_of.end()) continue;
-            if (!in) in = fopen(notes_path.c_str(), "rb");
-            for (const NoteRef* r : list->second) {
-                if (r->variant != p.variant || !pipe_note_at(in, r->at, note.get())) continue;
-                bool cold = false;
-                // (from the caches alone, as a load at a create call: what none has is made when it is first drawn)
-                if (const VkPipeline pl = pipeline_from_caches(p, *note, &cold)) kept_pipes += pipeline_keep_ready(r->key, pl);
-                else kept_cold++;
+        for (size_t i; taking() && (i = pass->next_kept++) < pass->kept.size();) {
+            const Program& p = *pass->kept[i];
+            const auto list = pass->notes_of.find(p.key);
+            if (!p.compute && list != pass->notes_of.end()) {
+                if (!in) in = fopen(pass->notes_path.c_str(), "rb");
+                for (const NoteRef& r : list->second) {
+                    if (r.variant != p.variant || !pipe_note_at(in, r.at, note.get())) continue;
+                    bool cold = false;
+                    // (from the caches alone, as a load at a create call: what none has is made when it is first drawn)
+                    if (const VkPipeline pl = pipeline_from_caches(p, *note, &cold)) pass->kept_pipes += pipeline_keep_ready(r.key, pl);
+                    else pass->kept_cold++;
+                }
             }
+            pass->done++;
         }
         if (in) fclose(in);
     };
+    const size_t total = pass->fallbacks.size() + pass->kept.size();
     std::vector<std::thread> threads;
-    for (unsigned i = 0; i < std::min<size_t>(usable_cpus(), kept.size()); i++) threads.emplace_back(worker);
-    for (std::thread& t : threads) t.join();
-    const size_t notes_n = refs.size();
+    for (unsigned i = 0; i < std::min<size_t>(usable_cpus(), pass->kept.size()); i++) threads.emplace_back(worker);
+    static const int stall_s = getenv("RX_VK_PRECOMPILE_STALL_S") ? atoi(getenv("RX_VK_PRECOMPILE_STALL_S")) : 30;
+    const auto built0 = std::chrono::steady_clock::now();
+    auto log_at = built0 + std::chrono::seconds(10);
+    const bounded_wait::End end = threads.empty() ? bounded_wait::End::kDone : bounded_wait::wait(
+        pass->done, total, stall_s, [] { return std::chrono::steady_clock::now(); },
+        [&](size_t done) {
+            if (progress) progress(done, total);
+            const auto now = std::chrono::steady_clock::now();
+            if (now < log_at) return;
+            log_at = now + std::chrono::seconds(10);
+            logf("vk: precompile: load at create: %zu of %zu steps in %.0f s (each mesh fallback program's compute pipelines, then "
+                 "the noted pipelines of each program kept, from the caches)", done, total,
+                 std::chrono::duration<double>(now - built0).count());
+        },
+        [] { return prepare_stopped(); }, [] { Sleep(100); });
+    const bool gone_on = end != bounded_wait::End::kDone;
+    if (gone_on) {
+        pass->gone.store(true);
+        prepare_left_workers_note();   // (stalled or closed: builds may still be in the driver, vk_main.cpp's watchdog and exit)
+        if (end == bounded_wait::End::kStalled) {
+            logf("vk: precompile: load at create: %zu of %zu steps done, nothing finished for %d s: "
+                 "the game starts, the builds still in the driver go on behind it (RX_VK_PRECOMPILE_STALL_S=0: wait for all)",
+                 pass->done.load(), total, stall_s);
+        }
+        for (std::thread& t : threads) t.detach();
+    } else {
+        for (std::thread& t : threads) t.join();
+    }
+    const size_t notes_n = refs.size(), kept_n = pass->kept.size(), kept_pipes = pass->kept_pipes.load(),
+                 kept_cold = pass->kept_cold.load();
+    if (!gone_on) delete pass;
     programs_index(std::move(refs), plan.none ? std::unordered_set<uint64_t>{} : plan.keys);
     logf("vk: precompile: load at create (RX_VK_LOAD=create): %zu noted pipelines found, none built; %zu compute programs "
          "named (%zu in the shipped list, %zu dispatched in play here); %zu mesh fallback programs kept ready, %zu of their "
-         "noted pipelines with them (%zu in no cache); in %.0f ms. No other program is kept ready by a list: each is loaded "
+         "noted pipelines with them (%zu in no cache)%s; in %.0f ms. No other program is kept ready by a list: each is loaded "
          "when the game makes it",
-         notes_n, plan.keys.size(), plan.shipped, plan.learned, kept.size(), kept_pipes.load(), kept_cold.load(),
+         notes_n, plan.keys.size(), plan.shipped, plan.learned, kept_n, kept_pipes, kept_cold,
+         end == bounded_wait::End::kStalled ? ", some still being built" : "",
          std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+    // (fallback pipelines that took this long were compiled, not found: written before the title, the start-up screen saying
+    // so, as precompile_run does; a start closed before then kept none of them, and the next one compiled them all again)
+    static const int save_s = precompile_save::after_s(getenv("RX_VK_PRECOMPILE_SAVE_S"));
+    const double build_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - built0).count();
+    if (precompile_save::due(build_s, save_s, end == bounded_wait::End::kStalled, prepare_stopped(),
+                             env_on("HOOKSHOT_PREPARE_ONLY"))) {
+        const auto s0 = std::chrono::steady_clock::now();
+        prepare_saving_now.store(true, std::memory_order_relaxed);
+        pipeline_cache_save(true);
+        prepare_saving_now.store(false, std::memory_order_relaxed);
+        logf("vk: precompile: load at create: its pipelines took %.0f s (compiled, not found in the caches): the pipeline cache "
+             "%s, in %.0f ms, before the title (RX_VK_PRECOMPILE_SAVE_S=0: not)", build_s,
+             precompile_save::said(pcache_save_outcome).c_str(),
+             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - s0).count());
+    }
     predicted_check();
 }
 
@@ -9349,7 +9418,7 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
         // (the pipeline cache's files dropped at this start, pcache_drop_stale: what the marker says is in them is gone)
         if (pcache_drop_stale()) remove(precompile_built_path().c_str());
         if (!precompile_covers_notes()) precompile_warm(progress);
-        if (precompile_covers_notes()) return precompile_at_create();
+        if (precompile_covers_notes()) return precompile_at_create(progress);
         // (the window was closed in it; or this is the preparation's own process, which leaves no marker: its warm filled
         // the driver's cache, the first start of the game warms again and loads at create calls from then on)
         if (prepare_stopped() || env_on("HOOKSHOT_PREPARE_ONLY")) return;
