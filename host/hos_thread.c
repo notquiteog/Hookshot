@@ -5,6 +5,7 @@
    there. TPIDRRO_EL0 (thread-local region): 0x200 bytes; the SDK's nn::os keeps the current ThreadType* at
    +0x1F8, so lifted SDK code that reads it inline finds the same thread the HLE knows. */
 #include "hos.h"
+#include "log_redact.h"
 #include "game_profile.h"   /* (the return addresses below are the game profile's) */
 #ifndef HOOKSHOT_ENV_H   /* (env_on: the switches' one rule) */
 #include "../gpu/vk/compat/hookshot_env.h"
@@ -315,9 +316,12 @@ static const char *log_level_tag(int level) {
 }
 
 static void hos_vlog(int level, const char *fmt, va_list ap) {
-    char buf[1024], line[1100];
+    char buf[1024], raw[1100], line[2200];
     vsnprintf(buf, sizeof buf, fmt, ap);
-    snprintf(line, sizeof line, "[hos %s] %s%s\n", cur ? cur->name : "host", log_level_tag(level), buf);
+    snprintf(raw, sizeof raw, "[hos %s] %s%s\n", cur ? cur->name : "host", log_level_tag(level), buf);
+    /* (hookshot, from Longshot #1459) the player's user name out before anything has the line: players send their log in
+       (host/log_redact.h) */
+    hos_log_redact(line, sizeof line, raw);
     extern volatile int hos_control_on;   /* (control.c: log lines for its subscribers) */
     if (hos_control_on) {
         void hos_control_log(const char *line);
@@ -359,7 +363,9 @@ void hos_fatal(Ctx *c, const char *fmt, ...) {
     va_end(ap);
     if (!c) c = hos_ctx();
     log_flush();
-    fprintf(stderr, "[hos %s] FATAL: %s", cur ? cur->name : "host", buf);
+    char clean[2200];   /* (hookshot) without the player's user name, as every other line (host/log_redact.h) */
+    hos_log_redact(clean, sizeof clean, buf);
+    fprintf(stderr, "[hos %s] FATAL: %s", cur ? cur->name : "host", clean);
     if (c) fprintf(stderr, " (lr %#llx sp %#llx)", (unsigned long long)c->x[30], (unsigned long long)c->x[31]);
     fprintf(stderr, "\n");
     fflush(stderr);
