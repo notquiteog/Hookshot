@@ -3451,12 +3451,17 @@ VkImageView texture_view(Texture* tex, const nvn_tex* t, const nvn_view* v, VkIm
         case NVN_FORMAT_RGBX8: case NVN_FORMAT_RGBX8SN: case NVN_FORMAT_RGBX8UI: case NVN_FORMAT_RGBX8I:
         case NVN_FORMAT_RGBX16F: case NVN_FORMAT_RGBX16: case NVN_FORMAT_RGBX16SN: case NVN_FORMAT_RGBX16UI:
         case NVN_FORMAT_RGBX16I: case NVN_FORMAT_RGBX32F: case NVN_FORMAT_RGBX32UI: case NVN_FORMAT_RGBX32I:
-        case NVN_FORMAT_RGBX8_SRGB: case NVN_FORMAT_BGRX8: case NVN_FORMAT_BGRX8_SRGB:
+        case NVN_FORMAT_RGBX8_SRGB: case NVN_FORMAT_BGRX8: case NVN_FORMAT_BGRX8_SRGB: case NVN_FORMAT_BGR5:
+        case NVN_FORMAT_RGB5:
             for (unsigned& s : sw)
                 if (s == NVN_TEXTURE_SWIZZLE_A) s = NVN_TEXTURE_SWIZZLE_ONE;
             break;
         default: break;
         }
+        // (RGB5A1 and RGB5 have R in the low bits, their A1R5G5B5 image B)
+        if (nf == NVN_FORMAT_RGB5A1 || nf == NVN_FORMAT_RGB5)
+            for (unsigned& s : sw)
+                s = s == NVN_TEXTURE_SWIZZLE_R ? NVN_TEXTURE_SWIZZLE_B : s == NVN_TEXTURE_SWIZZLE_B ? NVN_TEXTURE_SWIZZLE_R : s;
         static const bool swap_9e5 = env_on("RX_VK_9E5_SWAP");   // (hookshot, diagnosis: R and B swapped)
         if (swap_9e5 && nf == NVN_FORMAT_RGB9E5F) std::swap(sw[0], sw[2]);
         cm = {component(sw[0]), component(sw[1]), component(sw[2]), component(sw[3])};
