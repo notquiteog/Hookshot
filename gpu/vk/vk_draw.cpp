@@ -39,6 +39,7 @@
 #include "vk_menu.h"          // (opts.anisotropy: the Anisotropic filtering row; resolution_scale)
 #include "upscaler_rows.h"    // (upscale_lod_bias: which upscalers draw the 3D smaller)
 #include "dlss_actor.h"
+#include "hidden_mesh.h"      // (hookshot, #1370: a hidden mesh's depth draws left out, hidden_depth_draw)
 #include "vk_temporal.h"
 #include "vk_fsr3.h"          // (AMD FSR 3.1 in the gameplay upscale's place)
 #include "vk_fsr3_inputs.h"
@@ -7140,8 +7141,11 @@ static void dlss_trace_draw(const NvnState& s, const Program& p, const DrawArgs&
 /// (hookshot) A skinned draw into the scene, for the temporal upscaler's actor motion (vk_temporal.cpp: DLSS's and FSR's). OoT's characters and the things that
 /// move by themselves are indexed draws of one vertex stream: the position at attribute 0 (RGB32F or RGBA16F), the weights at 4
 /// (and 5, RGBA8), the joints at 6 (and 7, RGBA16UI or RGBA8UI), the bone palette in the vertex stage's uniform buffer 6 (NVN's
-/// binding 3: 3 x 4 matrices, a whole number of them) and the object's origin in its buffer 4 (binding 1, at 0x40)
-static void skin_check(const NvnState& s, const Program& p, const DrawArgs& d, const Targets& at) {
+/// binding 3: 3 x 4 matrices, a whole number of them) and the object's origin in its buffer 4 (binding 1, at 0x40).
+/// (hookshot, #1370) Such a draw is described in `k` (its depth set; left empty otherwise), and draw() gives it to actor
+/// motion only after hidden_depth_draw: a draw left out there has no motion to draw again
+static void skin_check(const NvnState& s, const Program& p, const DrawArgs& d, const Targets& at, SkinnedDraw& k) {
+    k = SkinnedDraw{};
     if (d.mesh || !d.indexed || d.indirect || d.instances != 1 || !at.n || !at.color[0] || !at.depth ||
         !temporal_scene_size(at.width, at.height) || !temporal_scene_format(at.color_format[0]) || s.nvattr < 7 ||
         !temporal_wanted())
@@ -7151,7 +7155,6 @@ static void skin_check(const NvnState& s, const Program& p, const DrawArgs& d, c
     if ((pos.fmt != NVN_FORMAT_RGB32F && pos.fmt != NVN_FORMAT_RGBA16F) || pos.stream != 0) return;
     const nvn_p_bind_buf& bones = s.ubo[0][3];
     if (!bones.addr || bones.size < 48 || bones.size % 48) return;
-    SkinnedDraw k;
     k.formats = pos.fmt == NVN_FORMAT_RGBA16F ? dlss_actor::kHalfPosition : 0;
     for (int set = 0; set < 2 && 6 + set < s.nvattr; set++) {
         const nvn_va_st w = attr(4 + set), j = attr(6 + set);
@@ -7188,7 +7191,126 @@ static void skin_check(const NvnState& s, const Program& p, const DrawArgs& d, c
     k.ibuf = d.ibuf, k.itype = d.itype, k.count = d.count, k.base_vertex = d.base_vertex;
     k.bones = bones.addr, k.bones_size = bones.size, k.object = s.ubo[0][1].addr, k.object_size = s.ubo[0][1].size;
     k.program = p.key;
-    temporal_note_skinned_draw(k);
+}
+
+// ---- (hookshot, #1370) the temporal upscalers' depth with a hidden character: a hidden mesh's depth draws are left out ----
+// When the camera is pushed into Link (the crawl tunnels, the top of a vine wall) the game stops drawing his colour, but goes
+// on drawing his body into the scene's depth: his 30 meshes' z-prepass draws, which write depth and no colour (the first
+// skinned draws of a frame). The temporal upscalers and frame generation take that depth, and actor motion draws his motion
+// over it, so they follow an invisible body where the screen shows the room behind it: copies of things and a drag over the
+// picture, under DLSS and DLAA alike (RX_VK_DLSS_DEBUG=motion shows solid shapes at the camera). The game's own upscale has
+// no history and hardly shows it.
+// So those draws are left out: the game's own draws, nothing added. The rule is gpu/vk/hidden_mesh.h's: a mesh (a vertex
+// buffer) is hidden after kHiddenAfter frames in a row with such depth draws and no colour draw from it into any target,
+// following colour; its depth draws are drawn again from the frame after its colour comes back. Never left out: a draw the
+// game asks about with an occlusion query (OoT's culling counts its z-prepass: vk_replay.cpp occ_take), a draw into another
+// depth target (shadows, other views), a mesh that never had colour.
+// Asked right after skin_check, before the draw is given to actor motion and before its descriptors are built. Nothing here
+// runs without a temporal upscaler or frame generation's inputs (skin_check's own rule): no mesh is followed then. With
+// them, the game's own picture changes too where it reads that depth: later depth-tested draws, the occlusion counts of what
+// is behind the body, effects made from the depth no longer see the hidden body.
+// One table for every drawing thread: the game submits from several threads, the replay draws one submission at a time
+// (vk_replay.cpp replay_mu), and a mesh's depth and colour can come from two of them. With the parallel replay
+// (RX_VK_PARALLEL=2 and more) the workers draw at once, and nothing here runs (temporal_hidden_mesh_mode).
+// RX_VK_DLSS_FADED=0: nothing left out; RX_VK_DLSS_FADED_LOG=1: the detailed lines (temporal_hidden_mesh_mode). From the
+// patch magicbeanenjoyerguyperson posted on #1370, who found the cause.
+namespace {
+struct HiddenMeshes {
+    hidden_mesh::Tracker t;
+    bool said_first = false, said_out = false, said_query = false, said_gone = false;   // (the detailed lines, once a run)
+    // (what was left out: one line for each stretch of kHiddenStretch frames that had any, kHiddenStretches lines a run)
+    uint64_t stretch_start = 0, stretch_last = 0, stretch_draws = 0, stretch_key = 0, stretch_program = 0;
+    uint64_t stretch_stencil = 0, stretch_back = 0;
+    uint32_t stretch_frames = 0, stretch_most = 0;
+    int stretches = 0;
+};
+constexpr int kHiddenStretches = 300;
+constexpr uint64_t kHiddenStretch = 600;
+HiddenMeshes* hidden_meshes_one = nullptr;   // (made at the first skinned draw; under replay_mu, as every draw)
+} // namespace
+
+/// A frame is over: its stretch line when one is due, and with the detailed lines on (mode's bit 1) the counts of the first
+/// frames and why a hidden mesh's draws were drawn
+static void hidden_meshes_log(HiddenMeshes& h, const hidden_mesh::Summary& s, int mode) {
+    if (!s.f) return;
+    const hidden_mesh::Frame& f = *s.f;
+    if (f.left_out) {   // (into the stretch that is being counted)
+        if (!h.stretch_draws) h.stretch_start = f.frame, h.stretch_key = f.out_key, h.stretch_program = f.out_program;
+        h.stretch_draws += f.left_out, h.stretch_frames++, h.stretch_last = f.frame;
+        h.stretch_most = std::max(h.stretch_most, f.left_out);
+        h.stretch_stencil += f.stencil, h.stretch_back += f.back;
+    }
+    if (h.stretch_draws && f.frame - h.stretch_start >= kHiddenStretch) {
+        // (back: a mesh's colour came in a frame with its depth draws left out, which the game's EQUAL colour test then
+        // does not show: once for each of its meshes each time the camera leaves Link, 30; more is a mesh that blinks)
+        if (h.stretches < kHiddenStretches)
+            logf("vk: upscaler: faded: frames %llu to %llu: %llu depth draws of hidden meshes left out, in %u frames, %u in a "
+                 "frame at most, %llu of them with a stencil test; %llu times a mesh's colour came back in a frame with them "
+                 "left out; the first of vertex buffer %llx, program %016llx%s",
+                 (unsigned long long)h.stretch_start, (unsigned long long)h.stretch_last, (unsigned long long)h.stretch_draws,
+                 h.stretch_frames, h.stretch_most, (unsigned long long)h.stretch_stencil, (unsigned long long)h.stretch_back,
+                 (unsigned long long)h.stretch_key, (unsigned long long)h.stretch_program,
+                 ++h.stretches == kHiddenStretches ? " (the last of these lines for this run)" : "");
+        h.stretch_draws = 0, h.stretch_frames = 0, h.stretch_most = 0, h.stretch_stencil = 0, h.stretch_back = 0;
+    }
+    if (!(mode & 2)) return;
+    // (once: the first frame with a followed mesh; and once: the first frame with a draw left out)
+    const bool first = !h.said_first && (s.meshes || s.colour_only), first_out = !h.said_out && f.left_out;
+    if (first || first_out) {
+        h.said_first = true, h.said_out |= f.left_out != 0;
+        logf("vk: upscaler: faded: frame %llu: %u meshes with %u depth draws into the scene; %u of them got colour in the frame "
+             "(%u colour draws on the scene's depth target, %u on others), %u got none, %u of those hidden in the next frame; "
+             "%u more meshes had colour and no depth draw; %u depth draws left out, %u drawn for a query; %u draws of more "
+             "meshes than the table holds; one %s: vertex buffer %llx, program %016llx",
+             (unsigned long long)f.frame, s.meshes, f.depth_draws, s.coloured, f.scene_colour, f.other_colour, s.bare, s.hidden,
+             s.colour_only, f.left_out, f.kept_query, f.over, s.hidden ? "hidden" : "without colour",
+             (unsigned long long)(s.one ? s.one->key : 0), (unsigned long long)(s.one ? s.one->program : 0));
+    }
+    // (meshes the frame before left hidden, and none of their depth draws left out in this one: why not, each answer once)
+    if ((mode & 1) && s.inherited && !f.left_out) {
+        if (f.kept_query && !h.said_query) {
+            h.said_query = true;
+            logf("vk: upscaler: faded: frame %llu: %u meshes were hidden, and no depth draw of theirs was left out: %u were "
+                 "drawn because the game asks about them with an occlusion query",
+                 (unsigned long long)f.frame, s.inherited, f.kept_query);
+        } else if (!f.kept_query && !h.said_gone) {
+            h.said_gone = true;
+            logf("vk: upscaler: faded: frame %llu: %u meshes were hidden, and no depth draw of theirs was left out: none of "
+                 "them had a depth draw into the scene in it", (unsigned long long)f.frame, s.inherited);
+        }
+    }
+}
+
+/// A draw, after skin_check (`skinned`: a skinned draw into the scene): counted for the hidden-mesh rule. True: it is a
+/// hidden mesh's depth draw and is to be left out
+static bool hidden_depth_draw(const Program& p, const NvnState& s, const DrawArgs& d, const Targets& at, bool skinned) {
+    static const int mode = temporal_hidden_mesh_mode();   // (bit 0: leave out; bit 1: the detailed lines; 0: nothing runs)
+    if (!mode) return false;
+    // (no mesh followed in this frame or the one before: nothing to look up; always so without an upscaler)
+    if (!skinned && (!hidden_meshes_one || !hidden_meshes_one->t.active())) return false;
+    if (!hidden_meshes_one) hidden_meshes_one = new HiddenMeshes();   // (kept for the run)
+    HiddenMeshes& h = *hidden_meshes_one;
+    const uint64_t frame = texture_frame_no();
+    if (h.t.now.frame != frame) hidden_meshes_log(h, h.t.begin(frame), mode);
+    hidden_mesh::Draw x;
+    // (the mesh: vertex stream 0, where the draw reads a vertex from it. A mesh-shader draw, or one with no vertex input
+    // from stream 0, keeps the buffer the draw before bound: its colour is not that mesh's)
+    bool reads_stream0 = false;
+    for (int i = 0; i < s.nvattr && i < 16 && !reads_stream0; i++) {
+        const nvn_va_st a = *reinterpret_cast<const nvn_va_st*>(&s.vattr[i]);
+        reads_stream0 = a.fmt && a.stream == 0;
+    }
+    x.key = !d.mesh && reads_stream0 ? s.vbuf[0].address : 0;
+    x.program = p.key;
+    x.target = (uint64_t)(uintptr_t)at.depth;
+    x.skinned = skinned;
+    for (int i = 0; i < at.n && !x.colour; i++) x.colour = target_write_mask(p, s, i) != 0;
+    x.depth_write = at.depth && s.ds.dw;
+    x.stencil = at.depth && has_stencil(at.depth_format) && s.ds.st;
+    x.query = d.occ_pool != VK_NULL_HANDLE;
+    return h.t.draw(x, (mode & 1) != 0, [](uint64_t target) {
+        return temporal_scene_depth_is(reinterpret_cast<const Texture*>((uintptr_t)target));
+    });
 }
 
 /// OoT's tree-shadow pass (3427a1dbefd5e02c: a full-screen draw that writes G and B of an RGBA8 mask at the scene's size, MIN
@@ -7607,7 +7729,11 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     if (!pl) SKIP_HERE();
     cur_program = &p;
     dlss_trace_draw(s, p, d, at);
-    skin_check(s, p, d, at);
+    SkinnedDraw skinned;
+    skin_check(s, p, d, at, skinned);
+    // (hookshot, #1370) a hidden mesh's depth draw is left out here: before actor motion takes it, before its descriptors
+    if (hidden_depth_draw(p, s, d, at, skinned.depth != nullptr)) SKIP_HERE();
+    if (skinned.depth) temporal_note_skinned_draw(skinned);
     // (after OoT's tree-shadow pass has drawn its mask: the mask evened out over frames, at this draw's end: mask_stabilize)
     struct MaskGuard {
         VkCommandBuffer cmd = VK_NULL_HANDLE;
