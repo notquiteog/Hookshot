@@ -49,6 +49,8 @@ ROOT = os.path.dirname(HERE)
 PY = [sys.executable, "-I", "-u", "-X", "utf8"]   # (utf8: every step's output in UTF-8 whatever the console's code page: lift.py crashed on a letter, #180)   # (-u: the steps' output as it comes, not in 8 KB blocks minutes apart)
 STARTED = time.time()   # (the build's total time, kept in build_times.json and said as @@times)
 sys.path[:0] = [HERE, os.path.join(ROOT, "third_party", "a64-kit", "tools")]   # (python -I leaves the script folder off)
+import long_paths  # noqa: E402
+long_paths.install()   # (paths past 260 characters on Windows, before anything reads a file: #1115)
 import game_profile   # noqa: E402  (which builds have a game profile, nx2/game_profile.py)
 import game_folders   # noqa: E402  (each game's own folders beside the default game's, nx2/game_folders.py)
 # The default game's build, as the docs quote it (Ocarina's e0f3ccfa: the version its patches, the hot list and the
