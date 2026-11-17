@@ -1982,7 +1982,6 @@ std::string state_list_bytes(bool* present) {
 /// when the program cache lacks it, then noted in hookshot_pipelines.bin for precompile_run to build. RX_VK_NO_STATE_LIST=1: off
 void state_list_prepare(void (*progress)(size_t done, size_t total), bool open_seed = false) {
     if (env_on("RX_VK_NO_STATE_LIST")) return;
-    remove(precompile_built_path().c_str());   // (notes are added here without their pipelines: precompile_run builds them)
     remove((pipe_notes_path().substr(0, pipe_notes_path().find_last_of("\\/") + 1) + "hookshot_load_start.txt").c_str());
     remove((pipe_notes_path().substr(0, pipe_notes_path().find_last_of("\\/") + 1) + "hookshot_load_start.txt.waited").c_str());   // (a preparation: loads at create are tried again, load_default.h load_fallback_path)
     const auto t0 = std::chrono::steady_clock::now();
@@ -2105,7 +2104,7 @@ void state_list_prepare(void (*progress)(size_t done, size_t total), bool open_s
     std::unordered_map<uint64_t, const Program*> plain_of;   // (by program key: the variant nothing bound makes)
     for (size_t i = 0; i < variant_of.size(); i++)
         if (made_plain[i]) plain_of.emplace(want[rec_program[variant_of[i]]].key, made_plain[i]);
-    size_t noted_n = 0, no_variant = 0, noted_mesh = 0, noted_fallback = 0, noted_plain = 0;
+    size_t noted_n = 0, no_variant = 0, noted_mesh = 0, noted_fallback = 0, noted_plain = 0, added = 0;
     auto s = std::make_unique<NvnState>();
     for (size_t i = 0; i < recs.size(); i++) {
         const StateRec& r = recs[i];
@@ -2133,7 +2132,7 @@ void state_list_prepare(void (*progress)(size_t done, size_t total), bool open_s
         for (int k = 0; k < 8; k++) at.color_format[k] = (VkFormat)r.color_format[k];
         if (!p->layout) ensure_layout(const_cast<Program&>(*p));
         const VkPrimitiveTopology topo = pipeline_topology(*p, (VkPrimitiveTopology)r.topo);   // (the draw's: the fallback's own)
-        pipeline_note(pipeline_key(*p, *s, at, topo), *p, *s, at, topo);
+        added += pipeline_note(pipeline_key(*p, *s, at, topo), *p, *s, at, topo);
         noted_n++;
         noted_mesh += p->mesh, noted_fallback += p->fallback;
     }
@@ -2142,6 +2141,16 @@ void state_list_prepare(void (*progress)(size_t done, size_t total), bool open_s
          "%zu by nothing bound), %zu whose program variant was not made, in %.1f s", recs.size(), shipped, shipped_version, want.size(),
          made.load(), missing.load(), variant_of.size() - plain_wanted, variants_made.load(), plain_wanted, plain_of.size(), noted_n,
          noted_mesh, noted_fallback, noted_plain, no_variant, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+    // (hookshot, ported from Hookshot 0824d761, NotRexed) Only new notes take the marker that every note's pipeline is in the
+    // pipeline cache (precompile_covers_notes): they are added here without their pipelines, and precompile_run builds them. It
+    // was removed at every call, and the preparation after every build calls this: each update, even one that changed no shader,
+    // left the next start to build every noted pipeline again ("Loading pipelines", 44,000 upstream, minutes on a slower PC)
+    // after the preparation had already built them in its own process. A list that notes nothing new leaves the marker, and the
+    // start loads at create
+    if (added) {
+        remove(precompile_built_path().c_str());
+        logf("vk: state list: %zu pipelines not noted before: the next start builds them into the pipeline cache", added);
+    }
     if (open_seed && !env_on("RX_VK_SEED_CHECK")) seed_close();
 }
 
