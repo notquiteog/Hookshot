@@ -260,6 +260,24 @@ static void free_handle(uint64_t id) {
     ReleaseSRWLockExclusive(&handle_lock);
 }
 
+/* (hookshot, ported from Hookshot 7d22d4fb, pixl27) Whether the game is writing a file now: one is open for writing and
+   was written in the last second. Commit is nothing here, so a save goes straight into its files; every close
+   (hos_relaunch.c hos_close_finish) waits up to 3 s for such a write to end before the process exits. The game's threads
+   go on meanwhile */
+static int writes_open;
+static int64_t last_write_ns;
+static void wrote_now(void) { __atomic_store_n(&last_write_ns, hos_now_ns(), __ATOMIC_RELAXED); }
+static int fs_writing(void) {
+    return __atomic_load_n(&writes_open, __ATOMIC_RELAXED) > 0 &&
+           hos_now_ns() - __atomic_load_n(&last_write_ns, __ATOMIC_RELAXED) < 1000000000LL;
+}
+void hos_fs_wait_writes(void) {
+    const int64_t t0 = hos_now_ns();
+    int waited = 0;
+    while (fs_writing() && hos_now_ns() - t0 < 3000000000LL) waited = 1, hos_sleep_ns(10000000);
+    if (waited) hos_log("stop: the game was writing a file: waited %.0f ms for it", (double)(hos_now_ns() - t0) / 1e6);
+}
+
 /* ---- mounts --------------------------------------------------------------------------------------------------- */
 HLE(_ZN2nn2fs22QueryMountRomCacheSizeEPm) { G64(ARG(0)) = 0x10000; RET(0); }
 HLE(_ZN2nn2fs8MountRomEPKcPvm) {
@@ -501,6 +519,7 @@ HLE(_ZN2nn2fs8OpenFileEPNS0_10FileHandleEPKci) {
     fh->refs = 1;
     fh->h = h;
     fh->writable = want_write;
+    if (want_write) __atomic_add_fetch(&writes_open, 1, __ATOMIC_RELAXED);
     snprintf(fh->path, sizeof fh->path, "%s", g);
     G64(ARG(0)) = new_handle(fh);
     if (hos_trace || fs_trace()) hos_log("fs: OpenFile(%s)", g);
@@ -577,7 +596,11 @@ HLE(_ZN2nn2fs9WriteFileENS0_10FileHandleElPKvmRKNS0_11WriteOptionE) {
     ov.OffsetHigh = (DWORD)(ARG(1) >> 32);
     DWORD put = 0;
     /* (hookshot) from guest memory only, and the whole size: a DWORD cut wrote less than asked and said so */
-    if (ARG(3) <= 0xFFFFFFFFu && hos_guest_range(ARG(2), ARG(3))) WriteFile(fh->h, GP(ARG(2)), (DWORD)ARG(3), &put, &ov);
+    if (ARG(3) <= 0xFFFFFFFFu && hos_guest_range(ARG(2), ARG(3))) {
+        wrote_now();   /* (hookshot, from Longshot #1422: a close waits for a save being written) */
+        WriteFile(fh->h, GP(ARG(2)), (DWORD)ARG(3), &put, &ov);
+        wrote_now();
+    }
     put_file(fh);
     RET(put == ARG(3) ? 0 : 0x2EE202);
 }
@@ -585,6 +608,7 @@ HLE(_ZN2nn2fs11SetFileSizeENS0_10FileHandleEl) {
     Handle *fh = get_file(c, ARG(0));
     LARGE_INTEGER sz;
     sz.QuadPart = (LONGLONG)ARG(1);
+    wrote_now();
     SetFilePointerEx(fh->h, sz, NULL, FILE_BEGIN);
     SetEndOfFile(fh->h);
     put_file(fh);
@@ -600,6 +624,7 @@ HLE(_ZN2nn2fs9CloseFileENS0_10FileHandleE) {
     /* (hookshot) out of the table first, then the open reference let go: a call on another thread still using it
        closes and frees it when it is done (put_file) */
     Handle *fh = get_file(c, ARG(0));
+    if (fh && fh->writable) __atomic_sub_fetch(&writes_open, 1, __ATOMIC_RELAXED);   /* (as the open counted it) */
     free_handle(ARG(0));
     InterlockedDecrement(&fh->refs);   /* (the open one; the one get_file took is put below) */
     put_file(fh);

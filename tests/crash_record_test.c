@@ -146,6 +146,7 @@ static size_t hos_log_redact(char *out, size_t cap, const char *line) { snprintf
 /* HOS_LOG */
 /* HOS_FATAL */
 void rx_close_asked(void) {}
+void hos_fs_wait_writes(void) {}
 /* CLOSE_FINISH */
 /* CONTROL_QUIT */
 static int relaunch_asked = 1;
