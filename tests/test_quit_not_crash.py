@@ -4,17 +4,23 @@ so that a driver whose compiler crashes on one pipeline does not crash every sta
 the pipeline cache (.built.warming) and the precompile (.running): two such starts and the step is let go, the precompile's
 notes dropped. Closing the window, the Insert menu's Quit and the control socket's quit end the process at once
 (ExitProcess: no destructor runs, no thread is joined), so a quit in a step used to count as a crash there: two quits in the
-precompile dropped its notes.
+precompile dropped its notes. And the close itself takes time (the caches' saves, up to 10 s for the workers to stop) with
+the window not answering: a player who quits again then ends the process (Force Quit, End task; the system at a log-out, a
+runner's kill after its quit), and that end came after a quit too. So the close puts the files back before anything else.
 
 The steps' marker code is taken from gpu/vk/vk_draw.cpp and the close from gpu/vk/vk_main.cpp, as they are, and run as
-starts that each end one way: through, a crash, or a quit (with no start-up screen; with it, the workers stopping in time;
-with it, a compile that does not stop within the close's wait). Two quits must leave each step as it was, a quit must
-neither count nor clear an earlier crash, and two crashes (one for the libraries) must still let the step go. Also the
-source: every close path calls the close first, and every marker is written through crash_markers. No game or GPU.
+starts that each end one way: through, a crash, a kill with no quit asked for, or a quit (with no start-up screen; with it,
+the workers stopping in time; with it, a compile that does not stop within the close's wait; and a quit whose process is
+then ended in the close's first other part, or while the close waits for the workers). Every quit comes while the step
+runs, before the start hands over to the game. Two quits must leave each step as it was, a quit must neither count nor clear
+an earlier crash, a quit then a crash is one crash, and two crashes or kills (one for the libraries) must still let the step
+go. Also the source: every close path calls the close first, the close puts the files back before anything else, and every
+marker is written through crash_markers. No game or GPU.
 
 python -I -B tests/test_quit_not_crash.py [--cxx g++] [--source <a checkout>]
 """
 import argparse
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -41,7 +47,7 @@ FIXTURE = r'''// tests/test_quit_not_crash.py: a start's steps that count the st
 
 namespace mkwvk {
 std::string dir, fate;
-std::atomic<bool> halt{false}, prep_running{false}, working{false};
+std::atomic<bool> halt{false}, prep_running{false}, working{false}, ending{false};
 struct Event {
     std::mutex mu;
     std::condition_variable cv;
@@ -55,9 +61,20 @@ void SetEvent(HANDLE e) {
     e->set = true;
     e->cv.notify_all();
 }
+/// A quit whose process is ended from outside while the close is at this point (quit-killed-early: the close's first part other
+/// than the files; quit-killed-waiting: its wait for the workers): the close stays here until then
+[[noreturn]] void ended_here() {
+    ending.store(true);
+    for (;;) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+}
 unsigned WaitForSingleObject(HANDLE e, unsigned ms) {   // (the close's 10 s, a hundredth of it here)
+    if (fate == "quit-killed-waiting") ended_here();
     std::unique_lock lk(e->mu);
     return e->cv.wait_for(lk, std::chrono::milliseconds(ms / 100), [e] { return e->set; }) ? WAIT_OBJECT_0 : WAIT_TIMEOUT;
+}
+/// One of the close's other parts, where vk_main.cpp has it (the caches' saves, FSR 4's and DLSS's close): each can take time
+void slow(const char* /*what*/) {
+    if (fate == "quit-killed-early") ended_here();
 }
 void logf(const char* fmt, ...) {
     va_list a;
@@ -83,7 +100,8 @@ struct NoteRef {};
 std::vector<NoteRef> pipe_notes_refs() { return std::vector<NoteRef>(3); }
 
 /// The step's work, begun. through: done at once. crash: the process ends there, nothing run after it. quit-screen: it goes on
-/// until the close stops it; quit and quit-slow: it never stops (no start-up screen, or a compile longer than the close waits)
+/// until the close stops it; the other quits and kill: it never stops (no start-up screen, or a compile longer than the close
+/// waits)
 void work() {
     std::printf("work\n");
     std::fflush(stdout);
@@ -125,7 +143,7 @@ bool libraries_alone(void (*progress)(size_t done, size_t total)) {   // (prepar
 }
 }   // namespace mkwvk
 
-extern "C" void mkwvk_close_asked(void) {   // (its preparation's stop and the files put back, in their order there)
+extern "C" void mkwvk_close_asked(void) {   // (as vk_main.cpp has it: the stop and the files as they are, the rest stand-ins)
     using namespace mkwvk;
 @CLOSE@
 }
@@ -149,18 +167,32 @@ int main(int argc, char** argv) {
         run();
         return 0;
     }
+    if (mkwvk::fate == "kill") {   // (ended from outside while the step works, no quit asked: End task, kill -9, power cut)
+        std::thread(run).detach();
+        while (!mkwvk::working.load() && !returned.load()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::_Exit(9);
+    }
     // A quit: the step at work on its thread and the close on another (the window's, the control socket's), then the
     // process ends at once, as ExitProcess does (host/posix/win32_posix.c: fflush(NULL), _exit)
     mkwvk::prep_running.store(mkwvk::fate != "quit");   // (the start-up screen's: the close stops the workers and waits)
     std::thread(run).detach();
     while (!mkwvk::working.load() && !returned.load()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    if (mkwvk::fate.rfind("quit-killed", 0) == 0) {
+        // (the close on the window's thread, which does not answer meanwhile: the player quits again, Force Quit or End task,
+        // and the process ends there, from outside: nothing more of the close runs)
+        std::thread(mkwvk_close_asked).detach();
+        while (!mkwvk::ending.load()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::_Exit(9);
+    }
     mkwvk_close_asked();
     std::fflush(nullptr);
     std::_Exit(0);
 }
 '''
 
-QUITS = ("quit", "quit-screen", "quit-slow")
+QUITS = ("quit", "quit-screen", "quit-slow", "quit-killed-early", "quit-killed-waiting")
+# (ended from outside: the starts that exit 9)
+KILLED = ("kill", "quit-killed-early", "quit-killed-waiting")
 # (how many starts that ended inside a step let it go)
 STRIKES = {"precompile": 2, "warm": 2, "predict": 2, "libraries": 1}
 
@@ -181,6 +213,39 @@ def between(text, start, end):
     return text[at:text.index(end, at)]
 
 
+def statements(body):
+    """A function body's statements at its top level, in order, comments dropped (an if with its block, and its else)."""
+    out, now, depth, at = [], [], 0, 0
+    while at < len(body):
+        if body.startswith("//", at):
+            line_end = body.find("\n", at)
+            at = len(body) if line_end < 0 else line_end
+            continue
+        if body.startswith("/*", at):
+            at = body.index("*/", at) + 2
+            continue
+        c = body[at]
+        if c in "\"'":   # (a literal, whole: what is in it is not code)
+            end = at + 1
+            while body[end] != c:
+                end += 2 if body[end] == "\\" else 1
+            now.append(body[at:end + 1])
+            at = end + 1
+            continue
+        now.append(c)
+        depth += (c in "({") - (c in ")}")
+        if depth == 0 and (c == ";" or (c == "}" and not body[at + 1:].lstrip().startswith("else"))):
+            out.append(" ".join("".join(now).split()))
+            now = []
+        at += 1
+    return [s for s in out if s and s != ";"]
+
+
+def close_parts(close):
+    """mkwvk_close_asked's statements, its using-directive left out"""
+    return [s for s in statements(close[close.index("{") + 1:close.rindex("}")]) if not s.startswith("using ")]
+
+
 def fixture_source(root):
     draw = (root / "gpu/vk/vk_draw.cpp").read_text(encoding="utf-8")
     main_cpp = (root / "gpu/vk/vk_main.cpp").read_text(encoding="utf-8")
@@ -191,11 +256,11 @@ def fixture_source(root):
     predict = block(draw, "void predict_run(void (*progress)(size_t done, size_t total)) {")
     prepare = block(draw, "bool prepare_run(")
     close = block(main_cpp, "void mkwvk_close_asked(void) {")
-    # (the parts of the close this is about, in their order: what else it closes (FSR 4, DLSS, the caches) is not)
-    parts = [block(close, "if (prep_running.load() && !prepare_stopped()) {")]
-    if "crash_markers::close();" in close:
-        parts.append("crash_markers::close();")
-    parts.sort(key=close.index)
+    # (the close in its order: the preparation's stop and the files put back as they are, each other part (the caches' saves,
+    # FSR 4's and DLSS's close) a stand-in that can take time, where a quit's process can be ended)
+    stop = block(close, "if (prep_running.load() && !prepare_stopped()) {")
+    parts = [stop if s.startswith("if (prep_running.load()") else s if "crash_markers::" in s
+             else 'slow("%s");' % re.match(r"[\w:]*", s).group(0) for s in close_parts(close)]
     return (FIXTURE.replace("@PRECOMPILE@", head)
             .replace("@WARM_HEAD@", between(warm, 'const std::string warming = precompile_built_path() + ".warming";',
                                             "// (by program, in the notes' order"))
@@ -210,7 +275,7 @@ def start(exe, folder, step, fate):
     """One start of the game that ends as told; True when it got to the step's work, False when it went without the step"""
     got = subprocess.run([str(exe), str(folder), step, fate], capture_output=True, text=True, timeout=60)
     worked = "work" in got.stdout.split("\n")
-    if got.returncode != (3 if worked and fate == "crash" else 0):
+    if got.returncode != (3 if worked and fate == "crash" else 9 if fate in KILLED else 0):
         raise SystemExit("the %s start (%s) ended with %d:\n%s%s" % (fate, step, got.returncode, got.stdout, got.stderr))
     return worked
 
@@ -233,10 +298,12 @@ def check_behaviour(exe, tmp):
         return folder
 
     for step, strikes in STRIKES.items():
-        crashes = ["crash"] * strikes
-        expect(step, crashes, [True] * strikes + [False], "a crash in the step at every start no longer lets it go")
+        for end in ("crash", "kill"):   # (a kill with no quit asked for counts as a crash does)
+            expect(step, [end] * strikes, [True] * strikes + [False],
+                   "a %s in the step at every start no longer lets it go" % end)
         for quit in QUITS:
             expect(step, [quit, quit], [True, True, True], "two quits counted as crashes")
+            expect(step, [quit, "crash"], [True, True, strikes > 1], "a quit then a crash: wanted one crash counted")
             if strikes == 2:
                 expect(step, ["crash", quit], [True, True, True], "a quit after a crash counted as a second crash")
                 expect(step, ["crash", quit, "crash"], [True, True, True, False], "a quit cleared the crash before it")
@@ -278,9 +345,9 @@ def check_source(root):
     close = block(main_cpp, "void mkwvk_close_asked(void) {")
     if "crash_markers::close();" not in close:
         problems.append("mkwvk_close_asked does not put the steps' files back (crash_markers::close)")
-    elif close.index("crash_markers::close();") < close.index("WaitForSingleObject(prep_ended"):
-        problems.append("mkwvk_close_asked puts the steps' files back before the workers stop: a crash while they stop "
-                        "would not count")
+    elif close_parts(close)[0] != "crash_markers::close();":
+        problems.append("mkwvk_close_asked does %s before it puts the steps' files back (crash_markers::close): a player who "
+                        "ends the game while that takes time is counted as a crash" % close_parts(close)[0].split("(")[0])
     draw = (root / "gpu/vk/vk_draw.cpp").read_text(encoding="utf-8")
     for written in ('fopen(running.c_str(), "wb")', 'fopen(warming.c_str(), "wb")', 'fopen(predict_pending_path().c_str(), "wb")'):
         if written in draw:
@@ -310,7 +377,8 @@ def main():
         problems = check_behaviour(exe, tmp) + check_source(root)
     if problems:
         raise SystemExit("FAIL:\n" + "\n".join("- " + p for p in problems))
-    print("PASS: a quit in a step leaves its file as the start found it; crashes still let the step go")
+    print("PASS: a quit in a step leaves its file as the start found it, also when its process is ended while it closes; "
+          "crashes and kills with no quit still let the step go")
 
 
 if __name__ == "__main__":

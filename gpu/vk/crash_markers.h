@@ -69,9 +69,12 @@ inline void end(const std::string& path) {
     std::remove(path.c_str());
 }
 
-/// The player is closing the game: every step still open has its file put back as its start found it, whether its workers
-/// stopped in time or are still at work. From then on begin() and end() do nothing: the files stay as the start found them
-/// until the process ends a moment later, whatever a worker still running does (a restart's new process may already read them)
+/// The player asked to quit (mkwvk_close_asked, first): every step still open has its file put back as its start found it,
+/// before the close saves the caches and stops the workers, so that the process ended meanwhile (Force Quit, End task, the
+/// system at a log-out) is not taken for a crash either. A worker that crashes the driver after this is not counted: one that
+/// does so at every start crashes the next start too, which counts. From then on begin() and end() do nothing: the files stay
+/// as the start found them until the process ends, whatever a worker still running does (a restart's new process may already
+/// read them)
 inline void close() {
     detail::State& s = detail::state();
     std::lock_guard lk(s.mu);
