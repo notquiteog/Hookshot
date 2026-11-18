@@ -8436,7 +8436,8 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     if (g_fine) fine_ns[FT_VERTEX] += prof_now() - fine_vertex_t0;
     if (!vertex_complete) occ.drop(kOccVertexInput);
     const VkIndexType itype = d.itype == 0 ? VK_INDEX_TYPE_UINT8_EXT : d.itype == 1 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
-    if (d.indexed && d.itype == 0 && !dev.index_uint8) SKIP_HERE();
+    // (quads read their indices on the CPU and draw with 32-bit ones: they need no uint8 index support)
+    if (d.indexed && d.itype == 0 && !dev.index_uint8 && d.prim != NVN_DRAW_PRIMITIVE_QUADS) SKIP_HERE();
     if (d.prim == NVN_DRAW_PRIMITIVE_QUADS) {   // (quads as two triangles each: indices made in the stream)
         if (d.indirect || d.count < 4) SKIP_HERE();
         if (d.count > (1 << 24)) SKIP_HERE();   // (hookshot: 4M quads at most; the game's count sized host vectors of up to 16 GB)
