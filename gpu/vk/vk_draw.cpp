@@ -5111,7 +5111,7 @@ void dynamic_state(VkCommandBuffer cmd, const NvnState& s, const Targets& at, Vk
         bool blends = false;
         for (int i = 0; i < at.n && !blends; i++) {
             const nvn_blend_st& b = s.blend[i];
-            blends = (s.color.blend_en >> i & 1) && at.color_format[i] && (!cur_program || target_write_mask(*cur_program, s, i)) &&
+            blends = (s.color.blend_en >> i & 1) && at.color_format[i] && target_write_mask(p, s, i) &&
                      (blend_factor(b.src_rgb) != VK_BLEND_FACTOR_ONE || blend_factor(b.dst_rgb) != VK_BLEND_FACTOR_ZERO);
         }
         if (eq_bias > 0 && d.dt && !d.dw && d.dop == VK_COMPARE_OP_EQUAL && !blends) {
