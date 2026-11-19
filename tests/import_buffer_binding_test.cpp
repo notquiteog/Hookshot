@@ -37,6 +37,10 @@ int64_t now_ms = 100;
 int64_t import_now_ms() { return now_ms; }
 unsigned creates = 0, allocations = 0, binds = 0, address_queries = 0, destroyed_buffers = 0, freed_memory = 0;
 unsigned sparse_calls = 0;
+uint32_t host_bits[2] = {1, 1};   // (the types vkGetMemoryHostPointerPropertiesEXT returns: first pointer, later ones)
+unsigned property_calls = 0;
+VkMemoryRequirements buffer_requirements{4096, 1, ~0u};
+uint32_t allocated_type = UINT32_MAX;
 unsigned owner_releases = 0;
 uintptr_t next_id = 1;
 std::map<VkBuffer, int> buffers;
@@ -63,7 +67,10 @@ struct ImportFence {
 size_t VirtualQuery(void*, MEMORY_BASIC_INFORMATION*, size_t) { return 0; }
 VkResult vkGetMemoryHostPointerPropertiesEXT(VkDevice, VkExternalMemoryHandleTypeFlagBits, const void*, VkMemoryHostPointerPropertiesEXT* hp) {
     if (fault == Fault::Properties) return VK_ERROR_OUT_OF_HOST_MEMORY;
-    hp->memoryTypeBits = 1; return VK_SUCCESS;
+    hp->memoryTypeBits = host_bits[std::min(property_calls++, 1u)]; return VK_SUCCESS;
+}
+void vkGetBufferMemoryRequirements(VkDevice, VkBuffer b, VkMemoryRequirements* req) {
+    assert(buffers.count(b)); *req = buffer_requirements;
 }
 VkResult vkCreateBuffer(VkDevice, const VkBufferCreateInfo* ci, const VkAllocationCallbacks*, VkBuffer* out) {
     creates++;
@@ -73,8 +80,8 @@ VkResult vkCreateBuffer(VkDevice, const VkBufferCreateInfo* ci, const VkAllocati
     if (failing(Fault::Create, allocation_kind)) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     *out = handle<VkBuffer>(next_id++); buffers.emplace(*out, allocation_kind); return VK_SUCCESS;
 }
-VkResult vkAllocateMemory(VkDevice, const VkMemoryAllocateInfo*, const VkAllocationCallbacks*, VkDeviceMemory* out) {
-    allocations++; *out = handle<VkDeviceMemory>(0xbeef);
+VkResult vkAllocateMemory(VkDevice, const VkMemoryAllocateInfo* ai, const VkAllocationCallbacks*, VkDeviceMemory* out) {
+    allocations++; if (ai) allocated_type = ai->memoryTypeIndex; *out = handle<VkDeviceMemory>(0xbeef);
     if (fence_up) fenced_allocations++;
     if (failing(Fault::Allocate, allocation_kind)) return VK_ERROR_OUT_OF_HOST_MEMORY;
     *out = handle<VkDeviceMemory>(next_id++); memories.insert(*out); return VK_SUCCESS;
@@ -159,6 +166,24 @@ void run(const std::string& route, const std::string& test) {
     if (test == "sparse-delegation") {
         assert(call(route, p, 128ull << 20)); assert(sparse_calls == 1 && binds == 0 && address_queries == 1);
         release(p); return;
+    }
+    if (test == "per-pointer-type" || test == "buffer-type-bits" || test == "buffer-too-big") {
+        // (VUID-VkMemoryAllocateInfo-memoryTypeIndex-01744: the type is one returned for this pointer; VUID-vkBindBufferMemory-memory-01035
+        // and None-10741: one the buffer allows, and the buffer fits in the memory)
+        dev.memory.memoryTypeCount = 2;
+        dev.memory.memoryTypes[1].propertyFlags = dev.memory.memoryTypes[0].propertyFlags;
+        if (test == "per-pointer-type") {
+            host_bits[1] = 2;
+            assert(call(route, p) && allocated_type == 0); release(p);
+            assert(call(route, p) && allocated_type == 1 && property_calls == 2); release(p); return;
+        }
+        if (test == "buffer-type-bits") {
+            host_bits[0] = 3; buffer_requirements.memoryTypeBits = 2;
+            assert(call(route, p) && allocated_type == 1); release(p); return;
+        }
+        buffer_requirements.size = 8192;
+        assert(!call(route, p) && allocations == 0 && binds == 0 && destroyed_buffers == 1 && !p.buffer);
+        empty(); assert(import_holds.rows.size() == 1); return;
     }
     const bool success = call(route, p);
     assert(owner_releases == destroyed_buffers);   // Every factory rollback preserves main's owner hook.

@@ -472,24 +472,12 @@ bool import_pool(uint64_t lo, uint64_t hi, Pool& p) {
         return true;
     }
 #endif
-    // (the host allocations' memory type: the same for every pointer, asked once)
-    static uint32_t type = UINT32_MAX;
-    if (type == UINT32_MAX) {
-        VkMemoryHostPointerPropertiesEXT hp{VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT};
-        if (vkGetMemoryHostPointerPropertiesEXT(dev.device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, ptr,
-                                                &hp) != VK_SUCCESS) {
-            import_remember_failure(lo, hi);
-            return false;
-        }
-        for (uint32_t i = 0; i < dev.memory.memoryTypeCount && type == UINT32_MAX; i++)   // (host visible, coherent)
-            if ((hp.memoryTypeBits >> i & 1) &&
-                (dev.memory.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
-                    (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
-                type = i;
-        if (type == UINT32_MAX) {
-            import_remember_failure(lo, hi);
-            return false;
-        }
+    // (the memory types this pointer can be imported as: asked for each pointer, the driver answers per pointer)
+    VkMemoryHostPointerPropertiesEXT hp{VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT};
+    if (vkGetMemoryHostPointerPropertiesEXT(dev.device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, ptr, &hp) !=
+        VK_SUCCESS) {
+        import_remember_failure(lo, hi);
+        return false;
     }
     t1 = clk::now();
     VkExternalMemoryBufferCreateInfo eb{VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO};
@@ -499,6 +487,21 @@ bool import_pool(uint64_t lo, uint64_t hi, Pool& p) {
     bi.size = bytes;
     bi.usage = kUsage;
     if (vkCreateBuffer(dev.device, &bi, nullptr, &p.buffer) != VK_SUCCESS) {
+        import_remember_failure(lo, hi);
+        return false;
+    }
+    // (the type must also be one the buffer allows, and the buffer must fit in the imported bytes)
+    VkMemoryRequirements req{};
+    vkGetBufferMemoryRequirements(dev.device, p.buffer, &req);
+    uint32_t type = UINT32_MAX;
+    for (uint32_t i = 0; i < dev.memory.memoryTypeCount && type == UINT32_MAX; i++)   // (host visible, coherent)
+        if ((hp.memoryTypeBits & req.memoryTypeBits) >> i & 1 &&
+            (dev.memory.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
+                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+            type = i;
+    if (type == UINT32_MAX || req.size > bytes) {
+        destroy_import_buffer(p.buffer);
+        p.buffer = VK_NULL_HANDLE;
         import_remember_failure(lo, hi);
         return false;
     }
