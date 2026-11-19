@@ -286,6 +286,30 @@ Pipeline-cache file ownership, temporary storage and failure behavior are descri
 | `RX_VK_FIFO=1`, `RX_VK_IMMEDIATE=1` | V-Sync On (FIFO) or Off (immediate) for one run, over the menu's V-Sync row |
 | `HOS_VCORES=0`, `HOS_CORES=<1..8>`, `HOS_RESERVE_CORE=0` | No virtual cores; the cores the game sees (6); no core kept for the replay (one is, with 8 or more logical processors) |
 
+
+#### The driver's own shader cache (Linux)
+
+Each start logs the driver's shader cache twice (`gpu/vk/driver_cache_env.h`):
+
+- `vk: driver shader cache at the start: N MB (...)` is the size of NVIDIA's folder and of each of Mesa's layouts
+  (`mesa_shader_cache`, `mesa_shader_cache_sf`, `mesa_shader_cache_db`) in Mesa's folder: `MESA_SHADER_CACHE_DIR`,
+  else `$XDG_CACHE_HOME`, else `~/.cache`. The count stops after 50,000 files or 250 ms; the size is then "at least".
+- `vk: driver shader cache: Mesa's cache in <folder> (<what chose it>), layout ...; RADV's VRS ...` says which folder this
+  start's driver cache is in and whether RADV's VRS is forced. A variable the host set or dropped itself is named in
+  `HOOKSHOT_DRIVER_ENV_SET` (a comma-separated list; not a switch), and this line calls it Longshot's. RADV forces VRS only on
+  gfx10.3 and later GPUs, where it has `VK_KHR_fragment_shading_rate`. It does so when `RADV_FORCE_VRS_CONFIG_FILE` names a
+  file that exists (the Steam Deck's Game Mode sets it for Half Rate Shading), or, without that variable, when
+  `RADV_FORCE_VRS` is other than `1x1`. Forced VRS gives every graphics pipeline another key. Measured on a Steam Deck OLED
+  (RADV, Mesa 26.2.0-devel): with Game Mode's file, empty or `1x1`, the 32,438 noted pipelines compiled at about 20 a second
+  (25-30 minutes) instead of loading in 22 s. The variable naming no file, or Mesa's folder alone, changed nothing.
+
+Each completed build of the noted or predicted pipelines adds its environment (keys and folder) to `cache/hookshot_driver_env.txt`,
+which keeps the last 8. The next start compares its own against that list. If no build had its keys, it warns that neither cache
+has its pipelines. If a build had its keys in another folder and the prediction ran, it adds an info line: the predicted
+pipelines are only in the driver's cache, so each is compiled when first drawn. The Builder prepares in the desktop's
+environment and Steam starts the game in its own, so read these lines first when the start from Steam compiles what the
+preparation built.
+
 ### Building
 
 A build reads and writes tens of gigabytes. When the game folder or the build files folder is on a hard drive,

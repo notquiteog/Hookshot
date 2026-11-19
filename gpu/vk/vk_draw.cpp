@@ -55,6 +55,7 @@
 #include "movie_upscale_policy.h"
 #include "skip_code.h"
 #include "driver_faults.h"
+#include "driver_cache_env.h"   // (the drivers' own caches as the environment chooses them, Linux)
 #include "fallback_size_policy.h"
 #include "translate_wait.h"
 #include "bounded_wait.h"   // (the load-at-create start's wait for its builds, bounded by their progress)
@@ -9400,6 +9401,7 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
         pipeline_cache_save(true);   // (in the file before the marker says they are there)
         // (not by the preparation's own process: warm_bounded.h leaves_marker)
         if (warm_bounded::leaves_marker(prepare_only, all, prepare_stopped())) precompile_built_write(total);
+        driver_env_note();
         crash_markers::end(warming);
     }
     logf("vk: precompile: %zu noted pipelines of %zu programs and %zu compute pipelines of %zu compute programs built into the "
@@ -9742,6 +9744,7 @@ void precompile_run(void (*progress)(size_t done, size_t total)) {
          std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(), read_ms);
     logf("vk: precompile: compute pipelines: %zu kept ready (%zu from the pipeline caches, %zu compiled now), %zu not made",
          cs_cached + cs_compiled, cs_cached, cs_compiled, cs_failed);
+    if (!gone_on && !prepare_stopped()) driver_env_note();   // (the environment the notes were built in, for later starts)
     // (every note built, by a run that got to its end: RX_VK_LOAD=create may load them from the caches from the next start on)
     if (!gone_on && !prepare_stopped()) precompile_built_write(graphics_n);
     predicted_check();
@@ -10004,6 +10007,7 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
     if (!prepare_stopped() && !out_of_time.load() && !gone_on) {
         predicted_sample_write(pre->predicted);
         predicted_keys_write(pre->made_keys);
+        driver_env_note();   // (they are in the driver's cache alone: found only in this folder)
     }
     // (gone on: what is stuck is left to play, as the stall guard says; a start that does it again would only stall again)
     if (!prepare_stopped()) crash_markers::end(predict_pending_path());   // (closed: the close writes `began` back, not counted)
@@ -10083,39 +10087,122 @@ void predicted_use_log() {
          (long long)predicted_met[3].load(), (long long)predicted_met[2].load(), (long long)predicted_met[0].load());
 }
 }  // namespace
-/// The driver's shader cache folders this process uses (NVIDIA's, Mesa's; on Windows NVIDIA's, AMD's, Intel's), in bytes
-uint64_t driver_cache_bytes(std::string* where) {
+/// The driver's shader cache folders this process uses (NVIDIA's, Mesa's layouts: driver_cache_env.h; on Windows NVIDIA's, AMD's,
+/// Intel's), in bytes. The walk is bounded: Mesa's folder is shared by every program the player runs, and a many-file cache can
+/// hold hundreds of thousands of files; past the bound the count is a floor (*partial)
+uint64_t driver_cache_bytes(std::string* where, bool* partial) {
     namespace fs = std::filesystem;
     std::vector<fs::path> dirs;
-    const auto env = [](const char* n) -> std::string { const char* v = getenv(n); return v ? v : ""; };
 #ifdef _WIN32
+    const auto env = [](const char* n) -> std::string { const char* v = getenv(n); return v ? v : ""; };
     const std::string local = env("LOCALAPPDATA");
     if (!local.empty())
         for (const char* d : {"NVIDIA\\GLCache", "AMD\\VkCache", "Intel\\ShaderCache"}) dirs.push_back(fs::path(local) / d);
 #else
-    const std::string home = env("HOME"), xdg = env("XDG_CACHE_HOME");
-    const fs::path cache = !xdg.empty() ? fs::path(xdg) : fs::path(home) / ".cache";
-    dirs.push_back(!env("__GL_SHADER_DISK_CACHE_PATH").empty() ? fs::path(env("__GL_SHADER_DISK_CACHE_PATH")) / "GLCache"
-                                                                  : cache / "nvidia" / "GLCache");
-    dirs.push_back(!env("MESA_SHADER_CACHE_DIR").empty() ? fs::path(env("MESA_SHADER_CACHE_DIR")) : cache / "mesa_shader_cache_db");
+    for (const std::string& d : driver_cache_env::folders(getenv)) dirs.push_back(fs::path(d));
 #endif
+    constexpr size_t kMaxEntries = 50000;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
+    size_t entries = 0;
+    bool cut = false;
     uint64_t total = 0;
     for (const fs::path& d : dirs) {
         std::error_code ec;
         if (!fs::is_directory(d, ec)) continue;
         uint64_t n = 0;
+        bool cut_here = false;
         for (auto it = fs::recursive_directory_iterator(d, fs::directory_options::skip_permission_denied, ec);
-             !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+             !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+            if (++entries > kMaxEntries || ((entries & 255) == 0 && std::chrono::steady_clock::now() > deadline)) {
+                cut = cut_here = true;
+                break;
+            }
             if (it->is_regular_file(ec)) n += it->file_size(ec);
+        }
         total += n;
-        if (where) *where += (where->empty() ? "" : ", ") + d.string() + " " + std::to_string(n >> 20) + " MB";
+        if (where)
+            *where += (where->empty() ? "" : ", ") + d.string() + (cut_here ? " at least " : " ") + std::to_string(n >> 20) + " MB";
+        if (cut) break;
     }
+    if (partial) *partial = cut;
     return total;
+}
+#ifndef _WIN32
+namespace {
+/// (Linux) Whether the driver keeps its cache as Mesa does (RADV, ANV, NVK, ...) rather than as NVIDIA's does
+bool driver_is_mesa() { return dev.driver_id != VK_DRIVER_ID_NVIDIA_PROPRIETARY && dev.driver_id != VK_DRIVER_ID_AMD_PROPRIETARY; }
+/// RADV on a GPU where it can force VRS: it has VK_KHR_fragment_shading_rate from gfx10.3 on, where radv_device.c reads its
+/// VRS switches (driver_cache_env.h)
+bool radv_vrs_capable() {
+    if (dev.driver_id != VK_DRIVER_ID_MESA_RADV || !dev.physical) return false;
+    uint32_t n = 0;
+    if (vkEnumerateDeviceExtensionProperties(dev.physical, nullptr, &n, nullptr) != VK_SUCCESS) return false;
+    std::vector<VkExtensionProperties> exts(n);
+    if (vkEnumerateDeviceExtensionProperties(dev.physical, nullptr, &n, exts.data()) != VK_SUCCESS) return false;
+    for (const VkExtensionProperties& e : exts)
+        if (!strcmp(e.extensionName, VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME)) return true;
+    return false;
+}
+driver_cache_env::Fingerprint driver_fingerprint(bool* radv_vrs = nullptr, bool* forced = nullptr) {
+    static const bool vrs = radv_vrs_capable();
+    const bool f = driver_cache_env::radv_vrs_forced(getenv, vrs, [](const std::string& path) {
+        std::error_code ec;
+        return std::filesystem::exists(path, ec);
+    });
+    if (radv_vrs) *radv_vrs = vrs;
+    if (forced) *forced = f;
+    return driver_cache_env::fingerprint(getenv, driver_is_mesa(), f);
+}
+/// hookshot_driver_env.txt: the environments the starts that built the noted pipelines here ran with (driver_cache_env.h records)
+std::string driver_env_path() { return cache_path("hookshot_driver_env.txt"); }
+std::string driver_env_read() {
+    std::string text;
+    if (FILE* f = fopen(driver_env_path().c_str(), "rb")) {
+        char buf[4096];
+        const size_t n = fread(buf, 1, sizeof buf, f);
+        text.assign(buf, n);
+        fclose(f);
+    }
+    return text;
+}
+}  // namespace
+#endif
+/// (Linux) The environment the noted (or predicted) pipelines were just built in, added to the records for later starts
+void driver_env_note() {
+#ifndef _WIN32
+    if (!dev.device) return;
+    const std::string text = driver_cache_env::records_text(driver_cache_env::records_read(driver_env_read()), driver_fingerprint());
+    const std::string path = driver_env_path(), part = path + ".part";
+    if (FILE* f = fopen(part.c_str(), "wb")) {
+        const bool ok = fwrite(text.data(), 1, text.size(), f) == text.size();
+        if (fclose(f) == 0 && ok) rename(part.c_str(), path.c_str());
+        else remove(part.c_str());
+    }
+#endif
 }
 void driver_cache_log(const char* when) {
     std::string where;
-    const uint64_t n = driver_cache_bytes(&where);
-    logf("vk: driver shader cache %s: %llu MB (%s)", when, (unsigned long long)(n >> 20), where.empty() ? "no folder found" : where.c_str());
+    bool partial = false;
+    const uint64_t n = driver_cache_bytes(&where, &partial);
+    logf("vk: driver shader cache %s: %s%llu MB (%s)", when, partial ? "at least " : "", (unsigned long long)(n >> 20),
+         where.empty() ? "no folder found" : where.c_str());
+#ifndef _WIN32
+    if (strcmp(when, "at the start") != 0 || !dev.device) return;
+    bool radv_vrs = false, forced = false;
+    const driver_cache_env::Fingerprint now = driver_fingerprint(&radv_vrs, &forced);
+    logf("vk: driver shader cache: %s", driver_cache_env::describe(getenv, driver_is_mesa(), radv_vrs, forced).c_str());
+    const driver_cache_env::Verdict v = driver_cache_env::compare(driver_cache_env::records_read(driver_env_read()), now);
+    if (v.other_keys) {
+        logf_at(log_warn, "vk: driver shader cache: this start's pipeline keys (%s) are not those of any start that built the "
+                          "pipelines here (the last: %s): neither our pipeline cache nor the driver's has its pipelines, and each "
+                          "is compiled again, before the title or in play", now.keys.c_str(), v.keys_before.c_str());
+    } else if (v.other_folder) {
+        std::error_code ec;
+        if (std::filesystem::exists(predicted_keys_path(), ec))
+            logf("vk: driver shader cache: the predicted pipelines were built into %s; this start uses %s, so each is compiled "
+                 "when it is first drawn", v.folder_before.c_str(), now.folder.c_str());
+    }
+#endif
 }
 /// (the start after a preparation, behind the game on a thread of its own) the sample asked of the driver, logged
 void predicted_check() {
