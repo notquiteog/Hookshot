@@ -261,12 +261,15 @@ class BakeStampTrapTests(unittest.TestCase):
         named = [os.path.join(vk, n) for n in
                  ("vk_shader.cpp", "vk_bank.cpp", "vk_state.h")]   # (nx2/translator_files.py FILES)
 
+        import translator_files   # (each file's text as the stamp reads it: its tokens for C and C++, issue 1611)
+
         def stamp(order):
             h = hashlib.sha1()
             for f in order:
+                rel = os.path.relpath(f, vk).replace("\\", "/")
                 with open(f, "rb") as src:
-                    h.update(os.path.relpath(f, vk).replace("\\", "/").encode()
-                             + src.read().replace(bytes((13, 10)), bytes((10,))))
+                    h.update(rel.encode() + translator_files.normal(
+                        rel, src.read().replace(bytes((13, 10)), bytes((10,)))))
             return h.hexdigest()[:16]
         self.assertNotEqual(bake.translator_stamp(), stamp(sorted(translator + named)),   # the WRONG order (trap)
                             "stamp matches the fully-sorted order: s6.4 trap")
