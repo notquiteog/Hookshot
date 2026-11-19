@@ -9,10 +9,22 @@ The fixture runs the real code cut from the source (handoff_on, cv_enter, cv_lea
 sema_acquire_for) over stubs: counted lock pairs and wake calls, and a fake clock whose wait can release the semaphore.
 - Broadcast: it moves the generation and wakes all, and every waiter not yet owed the mutex is owed it, up to
   cv_reserve's 8; none with mixed mutexes or HOS_NO_HANDOFF=1.
+- Whose hand-off it is (cv_leave): a reservation goes only to a waiter that was in when it was made. A thread that
+  holds the mutex, broadcasts, then waits with a zero timeout (it times out and leaves first) is owed nothing, and the
+  waiters the broadcast woke keep theirs; twice in a row too, and after a Signal. Each waiter takes the oldest it may,
+  so one that came in between two signals still finds the newer one. A condition variable made again (obj_lookup's
+  clear) hands off as before, and a waiter still in from before it (an earlier life) takes no hand-off, passes its wake
+  on (a wake-all) while one is owed, and is not counted out of the new counts (tests/test_cv_handoff_threads.py runs
+  that through the waits).
 - Semaphore: a count is taken at once, a zero timeout never waits, a release inside the timeout is taken, and the
   deadline ends the wait.
-Broken variants must fail: one wake instead of all, no generation move, one reservation, a single wait, a count of 0
-taken, no decrement.
+- wait_until (cut on its own, over a fake clock): a finite wait sleeps in whole ms rounded up, in steps below INFINITE
+  (0xFFFFFFFF ms is INFINITE on Windows), also for 2^32 ms and a saturated deadline.
+Broken variants must fail: one wake instead of all, no generation move, one reservation, anonymous reservations (any
+waiter takes any, as before), the newest one taken first, an earlier life's waiter taking a hand-off on its mutex or
+not passing its wake on, a reservation not stamped with its generation, a single
+wait, a count of 0 taken, no decrement, a long finite wait passed as a bare DWORD, its ms rounded in int64_t (a
+saturated deadline wraps). tests/test_cv_handoff_threads.py runs the same hand-offs on real threads.
 
 python -I -B tests/test_os_lifted_siblings.py [--cc gcc]
 """
@@ -26,9 +38,9 @@ from pathlib import Path
 RUN_ALL_ARGS = ["--cc", "gcc"]
 
 ROOT = Path(__file__).resolve().parents[1]
-PARTS = {"@HANDOFF@": "static int handoff_on(void) {", "@COUNT@": "static void cv_count_in(Obj *cv) {",
+PARTS = {"@HANDOFF@": "static int handoff_on(void) {", "@COUNTIN@": "static void cv_count_in(Obj *cv) {",
          "@ENTER@": "static void cv_enter(Obj *cv, Obj *m) {",
-         "@LEAVE@": "static int cv_leave(Obj *cv, Obj *m) {", "@RESERVE@": "static void cv_reserve(Obj *cv) {",
+         "@SAME@": "static int cv_same_life(Obj *cv, unsigned life) {", "@LEAVE@": "static int cv_leave(Obj *cv, Obj *m, uint64_t gen, unsigned life) {", "@RESERVE@": "static void cv_reserve(Obj *cv) {",
          "@BROADCAST@": "HLE(_ZN2nn2os26BroadcastConditionVariableEPNS0_21ConditionVariableTypeE) {",
          "@SEMA@": "static int sema_acquire_for(Obj *s, int64_t ns) {"}
 # (each acquire the guest SDK would otherwise run, as one line calling sema_acquire_for)
@@ -41,6 +53,9 @@ def block(source, marker):
     if marker not in source:
         raise SystemExit("FAIL: host/nn_os_sync.c has no '%s'" % marker.strip())
     start = source.index(marker)
+    line = source[start:source.index("\n", start)]
+    if line.rstrip().endswith("}"):   # (a function on one line)
+        return line
     return source[start:start + re.search(r"^}", source[start:], re.M).end()]
 
 
@@ -50,6 +65,7 @@ def check(cond, what):
 
 
 FIXTURE = r'''#define _CRT_SECURE_NO_WARNINGS
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,11 +83,13 @@ typedef struct Obj {
     uint64_t key;
     SRWLOCK lk;
     CONDITION_VARIABLE cv;
-    uint64_t gen;
+    unsigned life;
+    uint64_t gen;   /* (from here on: what obj_lookup clears, remake) */
+    int cv_waiting, cv_in, cv_owed, cv_mixed;
+    struct Obj *cv_mutex, *cv_owed_mutex[8];
+    uint64_t cv_owed_gen[8];
     int sem;
     int reserved;
-    int cv_waiting, cv_in, cv_owed, cv_mixed;   // (cv_in: #2708, the waiters inside under cv->lk)
-    struct Obj *cv_mutex, *cv_owed_mutex[8];
 } Obj;
 static Obj cvo, so, mo, mo2;
 enum { K_COND = 2, K_SEMA = 4 };
@@ -101,10 +119,9 @@ static int wait_until(Obj *o, int64_t deadline) {   /* (host/nn_os_sync.c's: 0 o
 }
 
 @HANDOFF@
-@COUNT@
+@COUNTIN@
 @ENTER@
-/* a waiter as the wait HLEs bring one in: counted (cv_count_in, before cv->lk), then in (cv_enter) */
-static void waiter_in(Obj *cv, Obj *m) { cv_count_in(cv); cv_enter(cv, m); }
+@SAME@
 @LEAVE@
 @RESERVE@
 @BROADCAST@
@@ -117,15 +134,34 @@ static void broadcast(void) {
     _ZN2nn2os26BroadcastConditionVariableEPNS0_21ConditionVariableTypeE(&c);
     CHECK(cvo.gen == g + 1 && wakealls == a + 1 && wakes == w && !cvo.lk.held);
 }
-/* all out: how many were owed their mutex (each owed one takes it, as mutex_take_owed does) */
-static int leave_all(Obj *m) {
+/* a waiter in, as WaitConditionVariable does: counted in before cv->lk, then in under it; its ticket is the generation
+   it read there (what it hands cv_leave) */
+static uint64_t enter(Obj *m) {
+    cv_count_in(&cvo);
+    const uint64_t g = cvo.gen;
+    cv_enter(&cvo, m);
+    return g;
+}
+/* one waiter out: whether it was owed its mutex (an owed one takes it, as mutex_take_owed does) */
+static int leave(Obj *m, uint64_t g) {
+    const int owed = cv_leave(&cvo, m, g, cvo.life);
+    if (owed) m->reserved--;
+    return owed;
+}
+/* n waiters in on m, their tickets in g */
+static void enter_n(Obj *m, uint64_t *g, int n) { for (int i = 0; i < n; i++) g[i] = enter(m); }
+/* all out, in order: how many were owed their mutex; nothing is left owed */
+static int leave_all(Obj *m, const uint64_t *g, int n) {
     int owed = 0;
-    while (cvo.cv_waiting) {
-        if (cv_leave(&cvo, m)) { owed++; m->reserved--; }
-    }
+    for (int i = 0; i < n; i++) owed += leave(m, g[i]);
+    CHECK(cvo.cv_waiting == 0 && cvo.cv_in == 0);
     CHECK(cvo.cv_owed == 0 && m->reserved == 0);
     return owed;
 }
+/* made again in place, as obj_lookup does: the condition variable's fields cleared, its life counted */
+static void remake(void) { memset(&cvo.gen, 0, sizeof cvo - offsetof(Obj, gen)); cvo.life++; }
+/* the thread that holds the mutex waits with a zero timeout after its signal: in, and at once out (TimedWait's timeout) */
+static int late_timeout(Obj *m) { return leave(m, enter(m)); }
 static int acquire(int sem, int64_t ns, int64_t release_after) {
     so.sem = sem;
     waits = 0;
@@ -138,34 +174,124 @@ static int acquire(int sem, int64_t ns, int64_t release_after) {
 int main(int argc, char **argv) {
     CHECK(argc == 2);
     const int handoff = atoi(argv[1]);   /* (HOS_NO_HANDOFF set by the caller) */
+    uint64_t g[10];
     /* Broadcast with nobody waiting: the generation moves, nothing is owed */
     broadcast();
     CHECK(mo.reserved == 0);
+    /* whose hand-off (review 1752): A waits; B, holding the mutex, broadcasts, then waits with a zero timeout. B times
+       out and leaves first, before A runs: B is owed nothing (it relocks behind A), A keeps its hand-off */
+    g[0] = enter(&mo);
+    broadcast();
+    CHECK(late_timeout(&mo) == 0);
+    CHECK(mo.reserved == (handoff ? 1 : 0) && cvo.cv_owed == (handoff ? 1 : 0));
+    CHECK(leave(&mo, g[0]) == handoff);
+    CHECK(cvo.cv_owed == 0 && mo.reserved == 0 && cvo.cv_in == 0 && cvo.cv_waiting == 0);
+    /* twice (sol, round 3): C and D wait; B broadcasts and times out twice: neither is B's, C and D each keep one */
+    enter_n(&mo, g, 2);
+    broadcast();
+    CHECK(late_timeout(&mo) == 0 && late_timeout(&mo) == 0);
+    CHECK(mo.reserved == (handoff ? 2 : 0));
+    CHECK(leave_all(&mo, g, 2) == (handoff ? 2 : 0));
+    /* a Signal's the same (#156: one waiter; the signaller's own zero-timeout wait does not take it) */
+    g[0] = enter(&mo);
+    cv_reserve(&cvo);
+    cvo.gen++;   /* (Signal: reserve, then move the generation, under cv->lk) */
+    CHECK(late_timeout(&mo) == 0);
+    CHECK(leave_all(&mo, g, 1) == (handoff ? 1 : 0));
     /* three waiters on one mutex: all wake and all are owed it */
-    for (int i = 0; i < 3; i++) waiter_in(&cvo, &mo);
+    enter_n(&mo, g, 3);
     broadcast();
     CHECK(mo.reserved == (handoff ? 3 : 0));
-    CHECK(leave_all(&mo) == (handoff ? 3 : 0));
+    CHECK(leave_all(&mo, g, 3) == (handoff ? 3 : 0));
     /* one owed by an earlier signal, two more in: the broadcast owes only the two */
-    waiter_in(&cvo, &mo);
+    g[0] = enter(&mo);
     if (handoff) cv_reserve(&cvo);
-    waiter_in(&cvo, &mo);
-    waiter_in(&cvo, &mo);
+    enter_n(&mo, g + 1, 2);
     broadcast();
     CHECK(mo.reserved == (handoff ? 3 : 0));
-    CHECK(leave_all(&mo) == (handoff ? 3 : 0));
+    CHECK(leave_all(&mo, g, 3) == (handoff ? 3 : 0));
     /* ten waiters: at most 8 owed (cv_reserve's limit), the others lock as anyone does */
-    for (int i = 0; i < 10; i++) waiter_in(&cvo, &mo);
+    enter_n(&mo, g, 10);
     broadcast();
     CHECK(mo.reserved == (handoff ? 8 : 0));
-    CHECK(leave_all(&mo) == (handoff ? 8 : 0));
+    CHECK(leave_all(&mo, g, 10) == (handoff ? 8 : 0));
     /* waiters with different mutexes: no hand-off */
-    waiter_in(&cvo, &mo);
-    waiter_in(&cvo, &mo2);
+    g[0] = enter(&mo);
+    g[1] = enter(&mo2);
     broadcast();
     CHECK(mo.reserved == 0 && mo2.reserved == 0);
-    cv_leave(&cvo, &mo), cv_leave(&cvo, &mo2);
+    CHECK(leave(&mo, g[0]) == 0 && leave(&mo2, g[1]) == 0);
     CHECK(cvo.cv_waiting == 0 && cvo.cv_owed == 0);
+    /* a waiter that came in between two broadcasts: A in, a broadcast (A's), E in, a broadcast (one more: E's). The late
+       zero-timeout waiter takes neither; A leaves and takes the older, E still finds the newer */
+    g[0] = enter(&mo);
+    broadcast();
+    g[1] = enter(&mo);
+    broadcast();
+    CHECK(mo.reserved == (handoff ? 2 : 0));
+    CHECK(late_timeout(&mo) == 0);
+    CHECK(leave(&mo, g[0]) == handoff);
+    CHECK(leave(&mo, g[1]) == handoff);
+    CHECK(cvo.cv_owed == 0 && mo.reserved == 0 && cvo.cv_in == 0);
+    /* the other order: E leaves first and takes the newer (the older is not its), then A the older */
+    g[0] = enter(&mo);
+    broadcast();
+    g[1] = enter(&mo);
+    broadcast();
+    CHECK(leave(&mo, g[1]) == handoff && leave(&mo, g[0]) == handoff);
+    CHECK(cvo.cv_owed == 0 && mo.reserved == 0);
+    /* one waiter in and one only counted in (between cv_count_in and cv_enter, #156): only the one in is owed, and the
+       other, in after the broadcast, does not take it even when it leaves first */
+    g[0] = enter(&mo);
+    cv_count_in(&cvo);
+    broadcast();
+    CHECK(mo.reserved == (handoff ? 1 : 0) && cvo.cv_owed == (handoff ? 1 : 0));
+    g[1] = cvo.gen;
+    cv_enter(&cvo, &mo);
+    CHECK(leave(&mo, g[1]) == 0);
+    CHECK(leave_all(&mo, g, 1) == (handoff ? 1 : 0));
+
+    /* made again with nothing in: a new waiter and a new broadcast hand off as before, and a zero-timeout waiter after
+       it takes nothing */
+    g[0] = enter(&mo);
+    broadcast();
+    CHECK(leave_all(&mo, g, 1) == (handoff ? 1 : 0));
+    CHECK(cvo.gen > 0);
+    remake();
+    g[0] = enter(&mo);
+    CHECK(g[0] == 0);
+    broadcast();
+    CHECK(late_timeout(&mo) == 0);
+    CHECK(leave_all(&mo, g, 1) == (handoff ? 1 : 0));
+    /* made again with a waiter still in (a misuse): the one from before (its life an earlier one) takes no hand-off
+       made for the waiter that came after, wakes all (the wake it came out at may have been that waiter's), and is not
+       counted out of the new counts */
+    g[0] = enter(&mo);
+    CHECK(g[0] > 0);   /* (held to it, it could take no reservation of the new life: gen starts at 0 again) */
+    const unsigned old_life = cvo.life;
+    remake();
+    g[1] = enter(&mo);
+    broadcast();
+    CHECK(mo.reserved == (handoff ? 1 : 0));
+    const int a0 = wakealls;
+    const int stale_owed = cv_leave(&cvo, &mo, g[0], old_life);
+    CHECK(stale_owed == 0 && cvo.cv_in == 1 && cvo.cv_waiting == 1 && cvo.cv_owed == handoff);
+    CHECK(wakealls == a0 + handoff);
+    CHECK(leave_all(&mo, g + 1, 1) == handoff);
+    /* two reservations on its mutex: the old-life waiter takes neither; the waiter that came in between the two
+       broadcasts takes the newer (the only one it may), the other the older */
+    g[0] = enter(&mo);
+    const unsigned older_life = cvo.life;
+    remake();
+    g[1] = enter(&mo);
+    broadcast();
+    g[2] = enter(&mo);
+    broadcast();
+    CHECK(mo.reserved == (handoff ? 2 : 0));
+    const int a1 = wakealls;
+    CHECK(cv_leave(&cvo, &mo, g[0], older_life) == 0 && wakealls == a1 + handoff);
+    CHECK(leave(&mo, g[2]) == handoff);
+    CHECK(leave(&mo, g[1]) == handoff && mo.reserved == 0 && cvo.cv_owed == 0 && cvo.cv_in == 0);
 
     /* semaphore: a count there is taken at once */
     CHECK(acquire(2, 0, 0) == 1 && so.sem == 1 && waits == 0);
@@ -192,6 +318,58 @@ int main(int argc, char **argv) {
 }
 '''
 
+# wait_until itself (the fixture above stubs it): the real one over a fake clock and a hos_cv_sleep that notes its ms
+WAIT_FIXTURE = r'''#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL:%d %s\n", __LINE__, #x); exit(1); } } while (0)
+typedef uint32_t DWORD;
+#define INFINITE 0xFFFFFFFFu
+typedef struct { int held; } SRWLOCK;
+typedef struct { int x; } CONDITION_VARIABLE;
+typedef struct Obj { SRWLOCK lk; CONDITION_VARIABLE cv; } Obj;
+static int64_t now_ns = 1000000000;
+static int64_t hos_now_ns(void) { return now_ns; }
+static int sleeps;
+static unsigned slept_ms;
+static int hos_cv_sleep(void *cv, void *lk, unsigned ms) { (void)cv, (void)lk; sleeps++; slept_ms = ms; return 1; }
+
+@UNTIL@
+
+/* a finite wait of left ns: one sleep, of whole ms rounded up, never INFINITE */
+static unsigned finite(int64_t deadline) {
+    sleeps = 0;
+    CHECK(wait_until(&(Obj){{0}, {0}}, deadline) == 1 && sleeps == 1);
+    CHECK(slept_ms != INFINITE);
+    return slept_ms;
+}
+/* the longest step: below INFINITE (0x7FFFFFFF or INFINITE - 1 ms), not a wrapped or truncated count */
+static int longest(unsigned ms) { return ms == 0x7FFFFFFF || ms == INFINITE - 1; }
+int main(void) {
+    Obj o = {{0}, {0}};
+    /* 0: forever */
+    CHECK(wait_until(&o, 0) == 1 && sleeps == 1 && slept_ms == INFINITE);
+    /* a deadline now or past: a timeout, no sleep */
+    sleeps = 0;
+    CHECK(wait_until(&o, now_ns) == 0 && wait_until(&o, now_ns - 5) == 0 && sleeps == 0);
+    /* short waits round up to whole ms (never 0: a 0 ms sleep would spin) */
+    CHECK(finite(now_ns + 1) == 1 && finite(now_ns + 1000000) == 1 && finite(now_ns + 1000001) == 2);
+    CHECK(finite(now_ns + (int64_t)0x7FFFFFFE * 1000000) == 0x7FFFFFFE);
+    /* 0xFFFFFFFE ms, 0xFFFFFFFF ms (INFINITE as a DWORD), 2^32 ms (0 as a DWORD), 2^32 + 5 ms, a saturated deadline
+       (INT64_MAX, as sema_acquire_for and event_wait make for a huge TimeSpan): one long step (~24 days or more), and the
+       caller waits again */
+    CHECK(finite(now_ns + (int64_t)0xFFFFFFFEu * 1000000) >= 0x7FFFFFFF);
+    CHECK(longest(finite(now_ns + (int64_t)0xFFFFFFFFu * 1000000)));
+    CHECK(longest(finite(now_ns + ((int64_t)1 << 32) * 1000000)));
+    CHECK(longest(finite(now_ns + (((int64_t)1 << 32) + 5) * 1000000)));
+    CHECK(longest(finite(INT64_MAX)));
+    /* a clock near 0 with a saturated deadline: left + 999999 ns does not fit an int64_t (rounding must not wrap) */
+    now_ns = 1;
+    CHECK(longest(finite(INT64_MAX)));
+    return 0;
+}
+'''
+
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
@@ -203,15 +381,12 @@ def main():
     for name, arg in SEMA_HLE.items():
         check(re.search(r"^HLE\(%s\) \{ RET\(sema_acquire_for\(obj\(ARG\(0\), K_SEMA\), %s\)\); \}$" % (name, re.escape(arg)), src, re.M),
               "%s is not the HLE's sema_acquire_for (left to the guest SDK, it never sees an HLE release)" % name)
-    # (the fixture stubs wait_until: its clamp, below INFINITE's 0xFFFFFFFF ms, is pinned here)
     wait = block(src, "static int wait_until(Obj *o, int64_t deadline) {")
-    check("(DWORD)(ms < 0x7FFFFFFF ? ms : 0x7FFFFFFF)" in wait,
-          "wait_until no longer caps one sleep below 0xFFFFFFFF ms (INFINITE): a long finite wait could sleep forever")
     env = {k: v for k, v in os.environ.items() if not k.startswith("HOS_")}
 
-    def build(tmp, name, **changed):
-        text = FIXTURE
-        for key, part in parts.items():
+    def build(tmp, name, fixture=FIXTURE, **changed):
+        text = fixture
+        for key, part in dict(parts, **{"@UNTIL@": wait}).items():
             text = text.replace(key, changed.get(key, part))
         c, exe = Path(tmp) / (name + ".c"), Path(tmp) / (name + ".exe")
         c.write_text(text, encoding="utf-8")
@@ -239,13 +414,44 @@ def main():
         broken("wake-one", "@BROADCAST@", "WakeAllConditionVariable(&cv->cv);", "WakeConditionVariable(&cv->cv);",
                "a broadcast waking one waiter passes")
         broken("no-gen", "@BROADCAST@", "cv->gen++;", "", "a broadcast not moving the generation passes")
-        broken("owe-one", "@BROADCAST@", "for (int n = cv->cv_waiting - cv->cv_owed; n > 0; n--) cv_reserve(cv);",
+        broken("owe-one", "@BROADCAST@", "for (int n = cv->cv_in - cv->cv_owed; n > 0; n--) cv_reserve(cv);",
                "cv_reserve(cv);", "a broadcast owing the mutex to one waiter passes")
+        eligible = "if (cv->cv_owed_gen[i] >= gen && (k < 0 || cv->cv_owed_gen[i] < cv->cv_owed_gen[k]))"
+        broken("anonymous", "@LEAVE@", eligible, "if ((void)gen, k < 0)",
+               "a waiter that came in after the broadcast taking its hand-off (anonymous reservations) passes")
+        broken("newest-first", "@LEAVE@", eligible,
+               "if (cv->cv_owed_gen[i] >= gen && (k < 0 || cv->cv_owed_gen[i] > cv->cv_owed_gen[k]))",
+               "a waiter taking the newest reservation it may (an older one is left to nobody) passes")
+        stale = "        if (cv->cv_owed) WakeAllConditionVariable(&cv->cv);\n        return 0;\n    }"
+        broken("stale-takes-own", "@LEAVE@", stale,
+               "        if (cv->cv_owed && cv->cv_owed_mutex[0] == m) return cv->cv_owed--, 1;\n" + stale,
+               "an old-life waiter taking a hand-off on its mutex (a later waiter's) passes")
+        broken("stale-no-pass-on", "@LEAVE@", stale, stale.replace("if (cv->cv_owed) WakeAllConditionVariable(&cv->cv);", ""),
+               "an old-life waiter not passing its wake on while a hand-off is owed passes")
+        broken("unstamped", "@RESERVE@", "cv->cv_owed_gen[cv->cv_owed] = cv->gen;", "cv->cv_owed_gen[cv->cv_owed] = 0;",
+               "a reservation not stamped with its generation passes")
         broken("wait-once", "@SEMA@", "while (s->sem <= 0 && wait_until(s, deadline) && hos_now_ns() < deadline) {}",
                "if (s->sem <= 0) wait_until(s, deadline);", "a timed acquire that waits once passes")
         broken("take-zero", "@SEMA@", "const int ok = s->sem > 0;", "const int ok = s->sem >= 0;",
                "a timed acquire taking a count of 0 passes")
-        broken("no-take", "@SEMA@", "if (ok) s->sem--;", "", "a timed acquire not taking the count passes")
+        broken("no-take", "@SEMA@", "if (ok) __atomic_store_n(&s->sem, s->sem - 1, __ATOMIC_RELEASE);", "",
+               "a timed acquire not taking the count passes")
+
+        # wait_until: a finite wait sleeps in steps below INFINITE (0xFFFFFFFF ms is INFINITE on Windows)
+        r = subprocess.run([str(build(tmp, "wait", WAIT_FIXTURE))], capture_output=True, text=True)
+        check(r.returncode == 0, "wait_until: not as expected\n%s" % r.stderr)
+        clamp = "ms >= INFINITE ? INFINITE - 1 : (DWORD)ms"
+        check(clamp in wait, "wait_until no longer has the line the broken variant 'no-clamp' changes")
+        r = subprocess.run([str(build(tmp, "wait-no-clamp", WAIT_FIXTURE, **{"@UNTIL@": wait.replace(clamp, "(DWORD)ms")}))],
+                           capture_output=True, text=True)
+        check(r.returncode != 0 and "FAIL:" in r.stderr,
+              "a wait_until passing a long finite wait to the sleep as a bare DWORD (INFINITE, or truncated) passes")
+        rounding = "const uint64_t ms = ((uint64_t)left + 999999) / 1000000;"
+        check(rounding in wait, "wait_until no longer has the line the broken variant 'signed-rounding' changes")
+        r = subprocess.run([str(build(tmp, "wait-signed", WAIT_FIXTURE, **{"@UNTIL@": wait.replace(
+            rounding, "const int64_t ms = (left + 999999) / 1000000;")}))], capture_output=True, text=True)
+        check(r.returncode != 0 and "FAIL:" in r.stderr,
+              "a wait_until rounding a saturated deadline's ms in int64_t (it wraps) passes")
 
 
 if __name__ == "__main__":
