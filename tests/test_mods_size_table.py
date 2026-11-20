@@ -225,7 +225,7 @@ void hos_log(const char *f, ...) { va_list ap; va_start(ap, f); printf("log: ");
 int hos_binding(int set, int button, int slot) { (void)set; (void)button; (void)slot; return -1; }
 int hos_sdl_pads(uint64_t *buttons, int32_t stick[4]) { (void)buttons; (void)stick; return 0; }
 int hos_xinput_pads(void) { return 0; } /* no controllers in this routing fixture */
-void hos_sdl_pad_first_name(char *out, size_t cap) { if (cap) *out = 0; }
+void hos_sdl_pad_first(char *out, size_t cap, int *type, int *sdl) { if (cap) *out = 0; if (type) *type = 0; if (sdl) *sdl = 0; }
 int hos_regions(uint64_t (*out)[2], int cap) { (void)out; (void)cap; return 0; }
 int64_t hos_now_ns(void) { return 0; }
 int rx_option(int id, int otherwise) { (void)id; return otherwise; }

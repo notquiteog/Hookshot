@@ -4,7 +4,7 @@
    the face's icon of the pad input bound to it (host/nn_hid.c's controls, the menu's Layout preset and Controls page). So
    the icons say which button to press on this pad, custom controls too.
 
-   The face: hookshot_options.ini's button_prompts (the menu's Button prompts row): 0 Auto, from the first controller's name
+   The face: hookshot_options.ini's button_prompts (the menu's Button prompts row): 0 Auto, from the first controller's type and name
    (SDL; with none, and none through XInput, the keyboard's), else 1 Switch, 2 Xbox, 3 PlayStation 4, 4 PlayStation 5, 5 Steam
    Deck, 6 Keyboard. The keyboard face (nx2/prompt_keys.py) points each Switch button at the icon of the first key bound to it,
    the sticks at the keys that move (the Controls page's: stick_shows) and the mouse that turns the camera, and keeps the
@@ -30,10 +30,11 @@
 #include <windows.h>
 #include "../gpu/vk/vk_api.h"   /* (HOS_SW_*, HOS_PAD_*, HOS_BIND_PAD) */
 #include "zstd.h"   /* (third_party/zstd: a mod's size table) */
+#include "hd_rumble.h"   /* (hd_rumble_kind: SDL's types of the Switch's controllers) */
 
 int hos_binding(int set, int button, int slot);   /* nn_hid.c */
 int hos_sdl_pads(uint64_t *buttons, int32_t stick[4]);   /* pad_sdl.c */
-void hos_sdl_pad_first_name(char *out, size_t cap);
+void hos_sdl_pad_first(char *out, size_t cap, int *type, int *sdl);
 int hos_mods_file(const char *rel, char *out, size_t cap);   /* mods.c */
 extern const char *hos_romfs_dir;   /* nn_fs.c: the game's RomFS folder */
 int hos_xinput_pads(void);   /* nn_hid.c */
@@ -97,16 +98,37 @@ static int contains(const char *text, const char *word) {   /* (any case) */
     return 0;
 }
 
-/* the face of a controller by its name (SDL's), HOS_PROMPT_*: "" no controller, the Switch's (the keyboard, the game's own
-   icons; or XInput without SDL) */
-static int face_of_name(const char *name) {
+/* the face of a controller by the type SDL gives it (sdl: the SDL it came from, 3 or 2; type: SDL_GetGamepadType's or
+   SDL_GameControllerGetType's number), HOS_PROMPT_*; -1 a type that names no face (unknown, standard, virtual, the others):
+   its name says then. SDL knows the type from the pad's USB ids, where names vary ("Wireless Controller" is a DualShock 4 or a
+   DualSense on some systems), and through Steam Input from the pad behind the stand-in */
+static int face_of_type(int sdl, int type) {
+    if (hd_rumble_kind(sdl, type) != HD_RUMBLE_NONE) return HOS_PROMPT_SWITCH;   /* (a Pro Controller, Joy-Cons) */
+    if (sdl == 3) {   /* (SDL_GAMEPAD_TYPE_XBOX360 2, XBOXONE 3, PS3 4, PS4 5, PS5 6) */
+        if (type == 2 || type == 3) return HOS_PROMPT_XBOX;
+        if (type == 4 || type == 5) return HOS_PROMPT_PS4;
+        if (type == 6) return HOS_PROMPT_PS5;
+    } else if (sdl == 2) {   /* (SDL_CONTROLLER_TYPE_XBOX360 1, XBOXONE 2, PS3 3, PS4 4, PS5 7) */
+        if (type == 1 || type == 2) return HOS_PROMPT_XBOX;
+        if (type == 3 || type == 4) return HOS_PROMPT_PS4;
+        if (type == 7) return HOS_PROMPT_PS5;
+    }
+    return -1;
+}
+
+/* the face of a controller by its name (SDL's) and type (face_of_type), HOS_PROMPT_*: "" no controller, the Switch's (the
+   keyboard, the game's own icons; or XInput without SDL). A name that says the maker's buttons wins, then the type (a name
+   that says none of them: "Wireless Controller", Steam Input's "Steam Virtual Gamepad"), else the Xbox's */
+static int face_of_pad(const char *name, int sdl, int type) {
     if (!name[0]) return HOS_PROMPT_SWITCH;
+    /* (a Steam Controller names its buttons as the Deck does: L1/R1, View, Menu, Steam. SDL3 calls it "Steam Controller";
+       SDL has no type for either, and Steam Input's stand-in for one says Xbox) */
+    if (contains(name, "steam deck") || contains(name, "steam controller")) return HOS_PROMPT_STEAMDECK;
     if (contains(name, "dualsense") || contains(name, "ps5")) return HOS_PROMPT_PS5;
     if (contains(name, "dualshock") || contains(name, "ps4") || contains(name, "playstation")) return HOS_PROMPT_PS4;
-    /* (a Steam Controller names its buttons as the Deck does: L1/R1, View, Menu, Steam. SDL3 calls it "Steam Controller") */
-    if (contains(name, "steam deck") || contains(name, "steam controller")) return HOS_PROMPT_STEAMDECK;
     if (contains(name, "nintendo") || contains(name, "switch") || contains(name, "joy-con")) return HOS_PROMPT_SWITCH;
-    return HOS_PROMPT_XBOX;   /* (Xbox pads, and the many that copy their layout) */
+    const int by_type = face_of_type(sdl, type);
+    return by_type >= 0 ? by_type : HOS_PROMPT_XBOX;   /* (Xbox pads, and the many that copy their layout) */
 }
 
 /* the first key bound to Switch button b (a Windows key code, the second slot's when the first is clear), 0 none */
@@ -138,9 +160,10 @@ static unsigned stick_shows(int i, const int *move) {
 
 static int keyboard_built;   /* (the build made the keyboard face: prompts/keyboard/; choose_face) */
 
-/* Auto's face: the first controller's (by SDL's name); with none, and none through XInput either, the keyboard's */
-static int auto_face(const char *name) {
-    return !name[0] && keyboard_built && !hos_xinput_pads() ? HOS_PROMPT_KEYBOARD : face_of_name(name);
+/* Auto's face: the first controller's (by SDL's name and type: sdl, the SDL it came from); with none, and none through XInput
+   either, the keyboard's */
+static int auto_face(const char *name, int sdl, int type) {
+    return !name[0] && keyboard_built && !hos_xinput_pads() ? HOS_PROMPT_KEYBOARD : face_of_pad(name, sdl, type);
 }
 
 /* HOS_PROMPT_* (faces[]) */
@@ -159,15 +182,16 @@ static int choose_face(const char *dir) {
     if (choice >= 1 && choice <= HOS_PROMPT_N) return choice - 1;
     /* Auto: the first controller SDL opens (it scans every second: up to 1.5 s for one, at the game's start) */
     char name[128] = "";
+    int type = 0, sdl = 0;
     uint64_t b = 0;
     int32_t s[4] = {0};
     for (int i = 0; i < 30 && !name[0]; i++) {
         hos_sdl_pads(&b, s);
-        hos_sdl_pad_first_name(name, sizeof name);
+        hos_sdl_pad_first(name, sizeof name, &type, &sdl);
         if (!name[0]) Sleep(50);
     }
-    const int face = auto_face(name);
-    hos_log("prompts: auto: controller \"%s\": %s", name[0] ? name : "(none)", faces[face]);
+    const int face = auto_face(name, sdl, type);
+    hos_log("prompts: auto: controller \"%s\" (SDL%d type %d): %s", name[0] ? name : "(none)", sdl, type, faces[face]);
     return face;
 }
 
@@ -1158,8 +1182,9 @@ static int live_face(void) {
     if (choice >= 1 && choice <= HOS_PROMPT_N) return choice - 1;
     if (choice < 0) return live_face_now;   /* (no menu: the start's) */
     char name[128] = "";
-    hos_sdl_pad_first_name(name, sizeof name);
-    return auto_face(name);
+    int type = 0, sdl = 0;
+    hos_sdl_pad_first(name, sizeof name, &type, &sdl);
+    return auto_face(name, sdl, type);
 }
 
 /* nn_hid.c, as the game reads its controller (every frame; looked at every 100 ms): the face or the controls changed, or a
