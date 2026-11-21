@@ -126,9 +126,9 @@ class LinuxPreflightTests(unittest.TestCase):
             dest = Path(cmd[cmd.index("--extract") + 1])
             (dest / "exefs").mkdir(parents=True)
             (dest / "romfs").mkdir()
-            for names, there in self.make.ROMFS_NEEDED:   # (what the read romfs must hold: authored stand-ins, as zstd)
+            for names, kind in self.make.game_profile.OOT.romfs_needed:   # (what Ocarina's romfs must hold: authored stand-ins, as zstd)
                 path = dest / "romfs" / names[0]
-                if there is os.path.isdir:
+                if kind == "dir":
                     path.mkdir(parents=True, exist_ok=True)
                 else:
                     path.parent.mkdir(parents=True, exist_ok=True)

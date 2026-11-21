@@ -41,7 +41,7 @@ DEFAULT_HEAPDEF = "System/HeapSize/Default.Nin_Ounce_NVN2.HeapDef.byml.zs"
 
 
 def game_files(romfs, heapdef=HEAPDEF):
-    """What the build and the game's start need from a romfs (make_game.ROMFS_NEEDED), as authored stand-ins. The .zs ones
+    """What the build and Ocarina's start need from a romfs (game_profile.OOT.romfs_needed), as authored stand-ins. The .zs ones
     start as zstd, so the damaged-file check reads them as whole"""
     (romfs / "Pack").mkdir(parents=True, exist_ok=True)
     (romfs / "Pack" / "ZsDic.pack.zs").write_bytes(b"\x28\xb5\x2f\xfd" + b"authored dictionary stand-in")

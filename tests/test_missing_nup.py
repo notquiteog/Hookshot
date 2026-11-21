@@ -30,9 +30,9 @@ class MissingNupTests(unittest.TestCase):
         self.out, self.work = self.root / "output", self.root / "work"
         (self.out / "romfs").mkdir(parents=True)
         (self.out / "romfs/asset").write_bytes(b"authored asset")
-        for name in make_game.ROMFS_NEEDED:   # (what a romfs needs to be reused: authored stand-ins, starting as zstd)
+        for name in make_game.game_profile.OOT.romfs_needed:   # (what Ocarina's romfs needs to be reused: authored stand-ins, as zstd)
             path = self.out / "romfs" / name[0][0]
-            if name[1] is os.path.isdir:
+            if name[1] == "dir":
                 path.mkdir(parents=True, exist_ok=True)
             else:
                 path.parent.mkdir(parents=True, exist_ok=True)
