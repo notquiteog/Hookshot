@@ -3,7 +3,8 @@ runtime_dirs).
 
 A game the Builder installs has its real hookshot.exe in bin\\ beside ..\\image.bin, and a small launcher of the same name
 in the game folder. Streamline looked only beside the exe (bin\\, bin\\streamline\\), so files put "beside the game" as the
-readme said were never found. Now the game folder's streamline\\ and the game folder are looked in too, after the exe's;
+readme said were never found. Now the game folder's streamline\\, its ngx\\ (where the DLSS tick puts NVIDIA's runtimes,
+and where a player's Windows log showed all of DLSS 5's files) and the game folder are looked in too, after the exe's;
 and NGX direct finds nvngx_dlssnr.dll in that streamline\\ folder, so one copy serves both back ends.
 
 This cuts search_dirs out of the source and compiles it with stand-ins for the five Win32 calls it makes (an exe path, the
@@ -76,11 +77,13 @@ int main() {
     g_exe = L"C:\\Games\\OoT\\bin\\hookshot.exe";
     g_files = {L"C:\\Games\\OoT\\image.bin"};
     expect("an installed game: bin's folders, then the game folder's",
-           {L"C:\\Games\\OoT\\bin\\streamline", L"C:\\Games\\OoT\\bin", L"C:\\Games\\OoT\\streamline", L"C:\\Games\\OoT"});
+           {L"C:\\Games\\OoT\\bin\\streamline", L"C:\\Games\\OoT\\bin", L"C:\\Games\\OoT\\streamline", L"C:\\Games\\OoT\\ngx",
+            L"C:\\Games\\OoT"});
     g_exe = L"C:\\Games\\OoT\\BIN\\hookshot.exe";
     g_files = {L"C:\\Games\\OoT\\image.bin"};
     expect("BIN in capitals is bin",
-           {L"C:\\Games\\OoT\\BIN\\streamline", L"C:\\Games\\OoT\\BIN", L"C:\\Games\\OoT\\streamline", L"C:\\Games\\OoT"});
+           {L"C:\\Games\\OoT\\BIN\\streamline", L"C:\\Games\\OoT\\BIN", L"C:\\Games\\OoT\\streamline", L"C:\\Games\\OoT\\ngx",
+            L"C:\\Games\\OoT"});
     g_exe = L"C:\\Games\\OoT\\bin\\hookshot.exe";
     g_files = {};
     expect("a bin folder with no image.bin above it is no game folder", {L"C:\\Games\\OoT\\bin\\streamline", L"C:\\Games\\OoT\\bin"});
@@ -91,7 +94,8 @@ int main() {
     g_files = {L"C:\\Games\\OoT\\image.bin"};
     g_env = L"D:\\sl";
     expect("RX_VK_STREAMLINE_DIR first",
-           {L"D:\\sl", L"C:\\Games\\OoT\\bin\\streamline", L"C:\\Games\\OoT\\bin", L"C:\\Games\\OoT\\streamline", L"C:\\Games\\OoT"});
+           {L"D:\\sl", L"C:\\Games\\OoT\\bin\\streamline", L"C:\\Games\\OoT\\bin", L"C:\\Games\\OoT\\streamline",
+            L"C:\\Games\\OoT\\ngx", L"C:\\Games\\OoT"});
     return failed ? 1 : 0;
 }
 """

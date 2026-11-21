@@ -78,7 +78,7 @@ std::string narrow(const std::wstring& w) {
 /// Where sl.interposer.dll may be: RX_VK_STREAMLINE_DIR, then a `streamline` folder beside the
 /// executable, then the executable's own folder; and, for a game the Builder installed (the real
 /// hookshot.exe in bin\\ beside image.bin, with a small launcher of the same name in the game folder),
-/// the game folder's `streamline` folder and the game folder itself: where the readme says to put them.
+/// the game folder's `streamline` folder, its `ngx` folder and the game folder itself: where the readme says to put them.
 /// A player who drops NVIDIA's DLLs next to the game should not also have to set an environment variable.
 std::vector<std::wstring> search_dirs() {
     std::vector<std::wstring> dirs;
@@ -99,6 +99,10 @@ std::vector<std::wstring> search_dirs() {
                 const std::wstring game = dir.substr(0, up);
                 if (GetFileAttributesW((game + L"\\image.bin").c_str()) != INVALID_FILE_ATTRIBUTES) {
                     dirs.push_back(game + L"\\streamline");
+                    // (and ngx, where the DLSS tick puts NVIDIA's runtimes and where players put the rest of NVIDIA's files:
+                    // a player's Windows log with all of them there read "no sl.interposer.dll", while NGX direct ran the
+                    // same nvngx_dlssnr.dll from it)
+                    dirs.push_back(game + L"\\ngx");
                     dirs.push_back(game);
                 }
             }

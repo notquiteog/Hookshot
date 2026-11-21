@@ -168,9 +168,9 @@ not answer is reported as such) and logs them. Where NGX does not answer for the
 ## What a player needs
 
 Windows x64 only. Streamline's interposer and plugins are DLLs; on Linux, run the Windows build under
-Proton, which is where this was measured for Elysium. These go in the game folder's `streamline` folder, or the game
-folder itself, or wherever `RX_VK_STREAMLINE_DIR` points (`vk_streamline.cpp` `search_dirs`: then `bin\streamline` and
-`bin\`, beside the real `hookshot.exe` of a game the Builder installed). NGX direct looks in that `streamline` folder
+Proton, which is where this was measured for Elysium. These go in the game folder's `ngx` folder (beside DLSS's runtimes), its `streamline`
+folder, or the game folder itself, or wherever `RX_VK_STREAMLINE_DIR` points (`vk_streamline.cpp` `search_dirs`: first
+`bin\streamline` and `bin\`, beside the real `hookshot.exe` of a game the Builder installed). NGX direct looks in that `streamline` folder
 too (`vk_dlss.cpp` `runtime_dirs`), so one `nvngx_dlssnr.dll` serves both back ends.
 
 **Where they come from:** not from NVIDIA's public releases. Streamline v2.14.16's SDK zip (checked 2026-11-14) has
