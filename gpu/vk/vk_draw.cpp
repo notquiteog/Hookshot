@@ -5112,7 +5112,7 @@ void dynamic_state(VkCommandBuffer cmd, const NvnState& s, const Targets& at, Vk
         bool blends = false;
         for (int i = 0; i < at.n && !blends; i++) {
             const nvn_blend_st& b = s.blend[i];
-            blends = (s.color.blend_en >> i & 1) && at.color_format[i] && target_write_mask(p, s, i) &&
+            blends = (s.color.blend_en >> i & 1) && at.color_format[i] && (!cur_program || target_write_mask(*cur_program, s, i)) &&
                      (blend_factor(b.src_rgb) != VK_BLEND_FACTOR_ONE || blend_factor(b.dst_rgb) != VK_BLEND_FACTOR_ZERO);
         }
         if (eq_bias > 0 && d.dt && !d.dw && d.dop == VK_COMPARE_OP_EQUAL && !blends) {
@@ -9425,8 +9425,7 @@ void precompile_warm(void (*progress)(size_t done, size_t total)) {
 /// Without them every start of rc.7 on an RX 5600 XT and an RX 5700 XT (AMD's Windows driver, the compute fallback, a new
 /// translator: every fallback pipeline compiled again) sat at 0%, "Loading the shader cache", until the window was closed,
 /// and the close lost what was built (Longshot #1373, #1405). The workers' state is on the heap: let go once they are done,
-/// never freed when the game went on without them. A pass that took RX_VK_PRECOMPILE_SAVE_S writes the pipeline cache before
-/// the title, as precompile_run's does (precompile_save.h)
+/// never freed when the game went on without them.
 void precompile_at_create(void (*progress)(size_t done, size_t total)) {
     const auto t0 = std::chrono::steady_clock::now();
     pcache_init();
@@ -9539,21 +9538,6 @@ void precompile_at_create(void (*progress)(size_t done, size_t total)) {
          notes_n, plan.keys.size(), plan.shipped, plan.learned, kept_n, kept_pipes, kept_cold,
          end == bounded_wait::End::kStalled ? ", some still being built" : "",
          std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
-    // (fallback pipelines that took this long were compiled, not found: written before the title, the start-up screen saying
-    // so, as precompile_run does; a start closed before then kept none of them, and the next one compiled them all again)
-    static const int save_s = precompile_save::after_s(getenv("RX_VK_PRECOMPILE_SAVE_S"));
-    const double build_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - built0).count();
-    if (precompile_save::due(build_s, save_s, end == bounded_wait::End::kStalled, prepare_stopped(),
-                             env_on("HOOKSHOT_PREPARE_ONLY"))) {
-        const auto s0 = std::chrono::steady_clock::now();
-        prepare_saving_now.store(true, std::memory_order_relaxed);
-        pipeline_cache_save(true);
-        prepare_saving_now.store(false, std::memory_order_relaxed);
-        logf("vk: precompile: load at create: its pipelines took %.0f s (compiled, not found in the caches): the pipeline cache "
-             "%s, in %.0f ms, before the title (RX_VK_PRECOMPILE_SAVE_S=0: not)", build_s,
-             precompile_save::said(pcache_save_outcome).c_str(),
-             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - s0).count());
-    }
     predicted_check();
 }
 
@@ -10154,7 +10138,10 @@ driver_cache_env::Fingerprint driver_fingerprint(bool* radv_vrs = nullptr, bool*
     return driver_cache_env::fingerprint(getenv, driver_is_mesa(), f);
 }
 /// hookshot_driver_env.txt: the environments the starts that built the noted pipelines here ran with (driver_cache_env.h records)
-std::string driver_env_path() { return cache_path("hookshot_driver_env.txt"); }
+std::string driver_env_path() {
+    const std::string notes = pipe_notes_path();   // (beside the pipeline notes, as hookshot_compute_variants.bin)
+    return notes.substr(0, notes.size() - strlen("hookshot_pipelines.bin")) + "hookshot_driver_env.txt";
+}
 std::string driver_env_read() {
     std::string text;
     if (FILE* f = fopen(driver_env_path().c_str(), "rb")) {
