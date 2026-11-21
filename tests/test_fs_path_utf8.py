@@ -46,7 +46,7 @@ def main():
 #define CHECK(c) do { if (!(c)) { fprintf(stderr, "FAIL: %s at line %d\n", #c, __LINE__); return 1; } } while (0)
 /* a real file in a folder past 240 characters, opened as the game names it: one separator, and two before "Stream" */
 static int long_path_opens(const char *temp) {
-    char dir[HOS_FS_PATH], path[HOS_FS_PATH];
+    char dir[HOS_FS_PATH], path[HOS_FS_PATH + 32];   /* (room for dir and "\\\\Stream\\voice.bwav": mingw gcc -Werror=format-truncation) */
     wchar_t wide[HOS_FS_PATH + 8];
     int at = snprintf(dir, sizeof dir, "%s", temp);
     const char *parts[] = {"romfs", "Voice", "Resource", "Stream"};

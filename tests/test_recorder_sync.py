@@ -377,6 +377,7 @@ def exit_test(cxx, headers, out, recorder_text, name):
     (d / "vk_work.h").write_text((VK / "vk_work.h").read_text(encoding="utf-8"), encoding="utf-8")
     (d / "vk_recorder.h").write_text(recorder_text, encoding="utf-8")
     (d / "gpu_wait_stats.h").write_text((VK / "gpu_wait_stats.h").read_text(encoding="utf-8"), encoding="utf-8")
+    (d / "vk_new.h").write_text((VK / "vk_new.h").read_text(encoding="utf-8"), encoding="utf-8")   # (NewNothrow, issue 1280: vk_recorder.h includes it)
     src = str(ROOT / "tests" / "recorder_exit_test.cpp")
     flags = ["-std=c++20", "-include", ENV_ON_H, "-O2", "-Wall", "-Wextra", "-Werror", "-DVK_NO_PROTOTYPES", "-D_CRT_SECURE_NO_WARNINGS"]
     for cmd in ([cxx, *flags, "-shared", "-DRX_EXIT_DLL", "-I" + str(d), "-I" + str(headers), src, "-o", str(d / "rx_exit.dll")],
