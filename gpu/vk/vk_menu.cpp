@@ -4943,6 +4943,9 @@ void menu_tick() {
     fullscreen_tick();
     game_lang_tick();
     outputs_follow_screen();
+    // (and when no start-up screen showed, as with RX_VK_PRECOMPILE=0: the upscalers' questions and the DLSS block are
+    // asked here, at the game's first frame; once in all, so a start with the screen has them already)
+    if (dev.device) probe_upscalers_soon();
     enum { K_N = 17 };
     static bool held[K_N];
     static const int keys[K_N] = {VK_INSERT, VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_ESCAPE, VK_F1,   // (F1: for keyboards without Insert)
