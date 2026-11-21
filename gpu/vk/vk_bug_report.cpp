@@ -293,7 +293,7 @@ std::string url_part(const std::string& s) {
 }  // namespace
 
 std::string redact(const std::string& line, const std::string& home, const std::string& user, bool windows) {
-    // (one implementation with the host's log and crash window: compat/hookshot_redact.h)
+    // (one implementation with the host's log: compat/hookshot_redact.h)
     std::string out(line.size() * 7 + 1, '\0');
     out.resize(hookshot_redact_line(out.data(), out.size(), line.data(), line.size(), home.c_str(), user.c_str(), windows));
     return out;

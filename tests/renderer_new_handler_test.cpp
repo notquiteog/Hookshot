@@ -12,6 +12,7 @@
 #include <new>
 #include <string>
 
+#define _Static_assert static_assert   // (gpu/render/rx_nvn.h is C; as tests/invalidate_vcore_test.cpp)
 #include "gpu/vk/vk_api.h"
 #include "gpu/vk/vk_new.h"
 

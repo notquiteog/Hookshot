@@ -42,34 +42,33 @@ def main():
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-static int relaunch_asked, order, exited, restarted, window_logs, clean_ends;
+static int relaunch_asked, order, exited, restarted, window_logs;
 static void rx_close_asked(void) { assert(order == 0); order = 1; }
 static void hos_log(const char *fmt, ...) {
     if (strstr(fmt, "close work done")) { assert(order == 1); order = 2; }
     if (strstr(fmt, "display: window closed")) window_logs++;
 }
 static void hos_log_flush(void) { assert(order == 2); order = 3; }
-void hos_crash_clean_end(void) { assert(order == 3); order = 4; clean_ends++; }
 void hos_fs_wait_writes(void) { assert(order == 1); }
-static void relaunch(void) { assert(order == 4); restarted++; }
-static void ExitProcess(unsigned code) { assert(order == 4 && code == 0); exited++; }
+static void relaunch(void) { assert(order == 3); restarted++; }
+static void ExitProcess(unsigned code) { assert(order == 3 && code == 0); exited++; }
 /* ACTUAL_FINISH */
 /* ACTUAL_CLOSE */
 /* ACTUAL_QUIT */
 int main(void) {
     order = 1;
     hos_close_finish();
-    assert(order == 4 && clean_ends == 1 && exited == 0 && restarted == 0);   /* returning after flush and clean-end */
+    assert(order == 3 && exited == 0 && restarted == 0);   /* returning after the flush */
     order = 0; relaunch_asked = 1;
     game_quit();
-    assert(exited == 1 && restarted == 0 && window_logs == 0 && clean_ends == 2);
+    assert(exited == 1 && restarted == 0 && window_logs == 0);
     puts("PASS: control quit flushes the shared tail, ignores pending restart and does not claim a window closed");
     order = 1; exited = 0;
     hos_window_closed_exit();
-    assert(exited == 1 && restarted == 1 && window_logs == 1 && clean_ends == 3);
+    assert(exited == 1 && restarted == 1 && window_logs == 1);
     order = 1; exited = restarted = window_logs = 0; relaunch_asked = 0;
     hos_window_closed_exit();
-    assert(exited == 1 && restarted == 0 && window_logs == 1 && clean_ends == 4);
+    assert(exited == 1 && restarted == 0 && window_logs == 1);
     puts("PASS: window close still flushes before its optional relaunch and ExitProcess");
 }
 '''

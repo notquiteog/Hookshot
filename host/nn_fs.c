@@ -624,7 +624,7 @@ HLE(_ZN2nn2fs9CloseFileENS0_10FileHandleE) {
     /* (hookshot) out of the table first, then the open reference let go: a call on another thread still using it
        closes and frees it when it is done (put_file) */
     Handle *fh = get_file(c, ARG(0));
-    if (fh && fh->writable) __atomic_sub_fetch(&writes_open, 1, __ATOMIC_RELAXED);   /* (as the open counted it) */
+    if (fh->writable) __atomic_sub_fetch(&writes_open, 1, __ATOMIC_RELAXED);   /* (as the open counted it) */
     free_handle(ARG(0));
     InterlockedDecrement(&fh->refs);   /* (the open one; the one get_file took is put below) */
     put_file(fh);

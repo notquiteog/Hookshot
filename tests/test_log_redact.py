@@ -277,7 +277,7 @@ def source_checks():
     assert fatal.index("hos_log_redact(clean, sizeof clean, buf);") < fatal.index('"[hos %s] FATAL: %s"')
     # (hookshot: the run before's log is not kept here, and there is no crash window: the line as written is redacted)
     menu = (ROOT / "gpu/vk/vk_bug_report.cpp").read_text(encoding="utf-8")
-    redact = menu[menu.index("std::string redact(const std::string& line"):menu.index("std::string cpu_name() {")]
+    redact = menu[menu.index("std::string redact(const std::string& line"):menu.index("std::string system_text() {")]
     assert "hookshot_redact_line(" in redact
 
 

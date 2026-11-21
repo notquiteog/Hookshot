@@ -226,8 +226,7 @@ HLE(_ZN2nn5codec31CalculateDecoderImagePoolBufferEPmS1_RKNS0_27VideoDecoderImage
 /* InitializeDecoderImagePool(pool, void* memory, size, Preference const&, u32 count): pool_init, for a preference of
    either layout (0 x 0: the default 1280 x 720, format 2) */
 static void pool_init(Ctx *c, int pw, int ph, int format) {
-    Pool *o = (Pool *)calloc(1, sizeof *o);
-    if (!o) hos_fatal(NULL, "video: out of memory for an image pool");
+    Pool *o = (Pool *)hos_xcalloc(1, sizeof *o, "video: image pool");
     o->w = pw ? pw : 1280, o->h = ph ? ph : 720;
     o->format = format;
     o->count = (int)ARG(4) > 0 ? (int)ARG(4) : 1;

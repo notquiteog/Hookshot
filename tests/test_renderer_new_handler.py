@@ -52,7 +52,7 @@ def check_sites(main):
     if "std::set_new_handler(new_refused)" not in init:
         raise SystemExit("FAIL: mkwvk_init installs no new_handler: a C++ allocation refused at the commit limit throws "
                          "std::bad_alloc that nothing catches, and the game ends with exception 0x20474343 (issue 1280)")
-    if init.index("host = &host_storage;") > init.index("std::set_new_handler(new_refused)"):
+    if init.index("host = h;") > init.index("std::set_new_handler(new_refused)"):
         raise SystemExit("FAIL: mkwvk_init installs the new_handler before it has the host to stop the game through")
     for path in sorted(VK.glob("*.cpp")) + sorted(VK.glob("*.h")):
         if path.name == "vk_new.h":
