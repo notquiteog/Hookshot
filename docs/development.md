@@ -580,7 +580,7 @@ through (inputs timed in frames, screenshots, waits for the game's state, the In
 | Path | What |
 |---|---|
 | `docs/design.md` | why mkw-recomp's pipeline, the architecture, MKW's lessons as rules, stages, testing |
-| `nx2/` | the lift pipeline and its tests (mkw-recomp's, made game-neutral; `kit.py` has the paths), and `make_game.py`, which the builders run |
+| `nx2/` | the lift pipeline and its tests (mkw-recomp's, made game-neutral; `kit.py` has the paths), and `make_game.py`, which the builders run. Every script the build runs calls `long_paths.install()` as it loads, so its file calls take paths past Windows' 260 characters (a Builder, work folder or game folder deep in the file system, #1115); a new one does too, and joins `ENTRY_SCRIPTS` in `tests/test_build_long_paths.py` |
 | `host/` | the standalone Horizon runtime (TOTKPort's `hos/` as adapted by mkw-recomp), with the native NVN2 layer `nvn_native.c`; `host/posix` has the Win32 calls on Linux |
 | `gpu/vk/` | the Vulkan back end (`hookshot_vk.dll`, `hookshot_vk.so`), with Eden's shader recompiler and sirit |
 | `gpu/render/`, `gpu/third_party/` | the WebGPU renderer the Windows exe falls back to when it was built with wgpu-native, its op stream (`rx_nvn.h`), suyu's decoders |
