@@ -149,6 +149,7 @@ are taken without their crash-record parts, and #1459 without its crash window.
 | [#557](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/557) | Zelda Ootr | fix(linux): a saves move that fails part way brings back what it moved |
 | [#630](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/630) | HumanBean | fix(build): one build at a time in a work folder, so a second build doesn't compile again what the first is compiling |
 | [#655](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/655) | NitnekLeBorgne | fix(linux): follow deep slave graphs for the slow-disk warning |
+| [#804](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/804) | d4nkn3ss | test(build): the make_game checks let go of the work folder's lock, so Windows can delete their temporary folders (with #630) |
 | [#863](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/863) | llun | fix(build): a romfs without the game's heap definition is refused too, also from a .nup and for an update |
 | [#900](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/900) | Zelda Ootr | fix(linux): a start from the Steam Deck's Game Mode no longer compiles every pipeline the preparation built |
 | [#948](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/948) | HumanBean | fix(scripts): dev_packs.py makes a folder only when it isn't there, for a Windows sandbox |
