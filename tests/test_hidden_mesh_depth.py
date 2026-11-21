@@ -287,7 +287,7 @@ def main():
     # at all with the parallel replay, whose workers draw at once)
     mode = block(temporal, "int temporal_hidden_mesh_mode() {")
     for need in ('env_switch("RX_VK_DLSS_FADED") != 0', 'env_switch("RX_VK_DLSS_FADED_LOG") == 1',
-                 "const bool parallel = par_threads() >= 2;", "return parallel ? 0 :"):
+                 "const bool parallel = replay_par_threads() >= 2;", "return parallel ? 0 :"):
         if need not in mode:
             raise SystemExit("vk_temporal.cpp temporal_hidden_mesh_mode(): lost " + need)
     # (the parallel replay as the renderer runs it, the player's switch or the game profile's (Mario Kart World's 4): not the
@@ -295,7 +295,10 @@ def main():
     if 'env_switch("RX_VK_PARALLEL")' in mode or 'getenv("RX_VK_PARALLEL")' in mode:
         raise SystemExit("vk_temporal.cpp temporal_hidden_mesh_mode(): asks RX_VK_PARALLEL itself, not par_threads(), and so "
                          "misses the game profile's parallel replay")
-    par = block((VK / "vk_replay.cpp").read_text(encoding="utf-8"), "int par_threads() {")
+    replay_src = (VK / "vk_replay.cpp").read_text(encoding="utf-8")
+    if "int replay_par_threads() { return par_threads(); }" not in replay_src:
+        raise SystemExit("vk_replay.cpp: no replay_par_threads(), par_threads' name outside its anonymous namespace")
+    par = block(replay_src, "int par_threads() {")
     for need in ('getenv("RX_VK_PARALLEL")', 'getenv("HOOKSHOT_PROFILE_VK_PARALLEL")'):
         if need not in par:
             raise SystemExit("vk_replay.cpp par_threads(): lost " + need + ", which temporal_hidden_mesh_mode() rests on")

@@ -3350,6 +3350,8 @@ uint32_t crc32(const uint8_t* p, size_t n, uint32_t c = 0xFFFFFFFFu) {
     return c;
 }
 } // namespace
+/// (the parallel replay's threads, par_threads above, for vk_temporal.cpp's hidden-mesh rule: RX_VK_PARALLEL or the game profile's)
+int replay_par_threads() { return par_threads(); }
 
 // Called while replaying, including workers joined before the next signal is issued.
 // The current logical value may already have completed before a stopped queue resumes.

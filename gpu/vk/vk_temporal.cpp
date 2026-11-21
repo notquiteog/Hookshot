@@ -918,7 +918,7 @@ void temporal_idle() {
 }
 
 // ---- (hookshot, #1370) the depth draws of hidden meshes (vk_draw.cpp hidden_depth_draw has the why) ----
-int par_threads();   // (vk_replay.cpp: RX_VK_PARALLEL, else the game profile's HOOKSHOT_PROFILE_VK_PARALLEL; read at the first draw)
+int replay_par_threads();   // (vk_replay.cpp par_threads: RX_VK_PARALLEL, else the game profile's HOOKSHOT_PROFILE_VK_PARALLEL)
 int temporal_hidden_mesh_mode() {
     static const int mode = [] {
         const bool rule = env_switch("RX_VK_DLSS_FADED") != 0;          // (unset: on)
@@ -926,10 +926,10 @@ int temporal_hidden_mesh_mode() {
         // (the parallel replay on 2 threads or more (vk_replay.cpp par_threads: RX_VK_PARALLEL, or the game profile's
         // vk_parallel, as Mario Kart World's 4) draws a frame's segments on several threads at once, where the one table is
         // drawn from by one thread at a time: nothing here runs then)
-        const bool parallel = par_threads() >= 2;
+        const bool parallel = replay_par_threads() >= 2;
         if (parallel)
             logf("vk: upscaler: faded: the parallel replay is on (%d threads, RX_VK_PARALLEL or the game profile): hidden meshes' "
-                 "depth draws are drawn", par_threads());
+                 "depth draws are drawn", replay_par_threads());
         else if (rule)
             logf("vk: upscaler: faded: while a temporal upscaler or frame generation draws, the depth draws of a skinned mesh "
                  "that had colour and has had none for %u frames are left out until its colour is back (RX_VK_DLSS_FADED=0 "
