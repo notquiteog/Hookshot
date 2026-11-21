@@ -1554,8 +1554,12 @@ void auto_profile() {
     hw.mesh_native = dev.mesh_capable;   // (the card's, not this run's mode: Linux AMD's Automatic is Compute, #2245)
     hw.mesh_as_compute = dev.mesh_capable && !dev.mesh_shader;
     hw.rtx = hw.vendor == ::auto_settings::NVIDIA && strstr(p.deviceName, "RTX");
-    // (RDNA 4: "AMD Radeon RX 9070 XT", RADV's "(RADV GFX1201)")
-    hw.rdna4 = hw.vendor == ::auto_settings::AMD && (strstr(p.deviceName, "RX 9") || strstr(p.deviceName, "GFX12"));
+    // (RDNA 4 by PCI device id, from Longshot #1839 by gmourao: Navi 48, 0x7550 RX 9070 series and 0x7551 Radeon AI PRO R9700;
+    // Navi 44, 0x7590 RX 9060 series. A driver may name the card "AMD Radeon Graphics", which the name check missed; the name
+    // stays the fallback for cards not yet listed: "AMD Radeon RX 9070 XT", RADV's "(RADV GFX1201)")
+    hw.rdna4 = hw.vendor == ::auto_settings::AMD &&
+               (p.deviceID == 0x7550 || p.deviceID == 0x7551 || p.deviceID == 0x7590 || strstr(p.deviceName, "RX 9") ||
+                strstr(p.deviceName, "GFX12"));
     // (the Steam Deck's APU, LCD and OLED, or SteamOS's own flag)
     const char* deck = getenv("SteamDeck");
     hw.handheld = (deck && atoi(deck) == 1) || strstr(p.deviceName, "Custom GPU 0405") || strstr(p.deviceName, "Custom GPU 0932");
