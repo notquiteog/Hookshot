@@ -26,6 +26,14 @@ def main():
                  "vk: DLSS   neural rendering (DLSS 5): "):
         if line not in log:
             raise SystemExit("dlss_status_log: the line %r is gone" % line)
+    # (DLSS 5 off on Windows: the files a player needs, by name, readme.md's table; each reason one sentence)
+    at = log.rindex("#ifdef _WIN32")   # (the DLSS 5 line's: the last in the function)
+    windows = log[at:log.index("#else", at)]
+    for name in ("sl.interposer.dll", "sl.common.dll", "sl.pcl.dll", "sl.dlss_nr.dll", "nvngx_dlssnr.dll", "ngx or streamline"):
+        if name not in windows:
+            raise SystemExit("dlss_status_log: DLSS 5's off line on Windows does not name %s" % name)
+    if "auto sentence = " not in log or "s.back() == '.'" not in log:
+        raise SystemExit("dlss_status_log: a reason's own full stop gets another after it")
     menu = (VK / "vk_menu.cpp").read_text(encoding="utf-8")
     probe = block(menu, "static void probe_upscalers_soon() {")
     if "std::call_once(once," not in probe or probe.index("dlss_probe();") > probe.index("dlss_status_log();"):

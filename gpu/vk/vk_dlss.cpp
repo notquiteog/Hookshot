@@ -1382,15 +1382,27 @@ void dlss_status_log() {
         const bool ngx_ok = dlssnr_ngx::built_with_sdk() && dlss_why() == DLSS_OK && dlssnr_ngx::capable();
         if (ngx_ok) nr = "on through NGX direct";
         else {
+            // (each reason as one sentence: theirs end in a full stop, and one is added only where it has none)
+            auto sentence = [](std::string s) {
+                while (!s.empty() && (s.back() == '.' || s.back() == ' ')) s.pop_back();
+                return s + ".";
+            };
             const char* sw = streamline::nr_why();
             const char* nw = dlssnr_ngx::why();
-            nr = std::string("off: Streamline: ") +
-                 (!streamline::built_with_sdk() ? "not in this renderer"
-                  : *sw                         ? sw
-                                                : "no sl.interposer.dll found (the line above names the folders)") +
-                 "; NGX direct: " + (!dlssnr_ngx::built_with_sdk() ? "not in this renderer" : *nw ? nw : "NGX does not offer it") +
-                 ". NVIDIA has not published DLSS 5's files (sl.dlss_nr.dll, nvngx_dlssnr.dll): they are the player's own, in "
-                 "the game folder's streamline folder";
+            nr = "off: Streamline: " +
+                 sentence(!streamline::built_with_sdk() ? "not in this renderer"
+                          : *sw                         ? sw
+                                                        : "no sl.interposer.dll found (the line above names the folders)") +
+                 " NGX direct: " +
+                 sentence(!dlssnr_ngx::built_with_sdk() ? "not in this renderer" : *nw ? nw : "NGX does not offer it");
+#ifdef _WIN32
+            // (the files by name, readme.md's DLSS 5 table: NVIDIA's to ship, and not in its public releases)
+            nr += " Its files are not in NVIDIA's public releases, so none is fetched: Streamline needs sl.interposer.dll, "
+                  "sl.common.dll, sl.pcl.dll and sl.dlss_nr.dll, and both need nvngx_dlssnr.dll beside them, in the game "
+                  "folder's ngx or streamline folder (readme: DLSS 5 neural rendering).";
+#else
+            nr += " No file put beside the game turns it on here.";
+#endif
         }
     }
     logf("vk: DLSS   neural rendering (DLSS 5): %s", nr.c_str());
