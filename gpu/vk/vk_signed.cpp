@@ -150,6 +150,8 @@ bool safe(const std::string& p, const char* what, const char* kind) {
 }
 }  // namespace
 
+bool folder_owned_safely(const std::string& dir, const char* what) { return safe(dir, what, "the folder"); }
+
 bool owned_safely(const std::string& path, const char* what) {
     const size_t cut = path.find_last_of('/');
     const std::string dir = cut == std::string::npos ? std::string(".") : cut == 0 ? std::string("/") : path.substr(0, cut);

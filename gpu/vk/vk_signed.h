@@ -37,6 +37,8 @@ HMODULE load(const std::wstring& path, const wchar_t* signer, const char* what, 
 #else
 /// Whether `path` and its folder belong to this user or root and no one else may write either (the log says why not).
 bool owned_safely(const std::string& path, const char* what);
+/// The same for a folder alone (one a library loader searches: NVIDIA's NGX takes its runtimes from the folders it is given)
+bool folder_owned_safely(const std::string& dir, const char* what);
 #endif
 
 }  // namespace mkwvk::signed_dll

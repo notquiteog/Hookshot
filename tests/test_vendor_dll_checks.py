@@ -10,7 +10,8 @@ and AMD's DLLs had no check at all. That code is Windows-only (WinTrust, CryptoA
 
 Linux: shared objects are not signed. AMD's FSR 4 .so is loaded only when it and its folder are this user's or root's and
 writable by no one else, its group only when that is the user's own (Ubuntu's umask 002 makes 664 files and 775 folders);
-that part is compiled here and run on real files and folders.
+that part is compiled here and run on real files and folders. NVIDIA's NGX on Linux loads its runtimes from the folders it
+is given, unsigned: an existing one is given only when it passes the same check (vk_dlss.cpp runtime_dirs).
 
 python -I -B tests/test_vendor_dll_checks.py [--cxx clang++]
 """
@@ -90,6 +91,11 @@ def check_linux(cxx, fail):
     k = fsr4.find("if (!signed_dll::owned_safely(path, kLoader)) continue;")
     if k < 0 or k > fsr4.find("dlopen(path.c_str()", k):
         fail("vk_fsr4.cpp must check AMD's .so is safely owned before it dlopens it")
+    dlss = (ROOT / "gpu/vk/vk_dlss.cpp").read_text(encoding="utf-8")
+    dirs = body(dlss, "std::vector<fs::path> runtime_dirs(const fs::path& game) {")
+    lin = dirs[dirs.index("#else"):]
+    if "signed_dll::folder_owned_safely(" not in lin or "dirs.swap(safe);" not in lin:
+        fail("Linux's NGX runtime folders are no longer checked: NGX loads unsigned runtimes from a folder others may write")
     linux = src[src.index("#else\nnamespace {"):src.rindex("#endif")]
     code = ("#include <string>\n#include <sys/stat.h>\n#include <unistd.h>\nnamespace mkwvk { void logf(const char*, ...); }\n"
             "namespace mkwvk::signed_dll {\nbool owned_safely(const std::string& path, const char* what);\n" +
