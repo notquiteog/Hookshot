@@ -1,5 +1,203 @@
 # Changelog
 
+## [2.3.0-rc.28](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.27...v2.3.0-rc.28) (2026-11-15)
+
+
+### Bug Fixes
+
+* **host:** a game's sizes and counts stay inside its memory, and file handles live until their last call ([#95](https://github.com/notquiteog/Hookshot/issues/95)) ([06d7b87](https://github.com/notquiteog/Hookshot/commit/06d7b876bec64bcc43d38841d0a2ce82258d9ff8))
+* **shaders:** malformed shader input is refused, not out-of-bounds access or undefined behaviour ([#94](https://github.com/notquiteog/Hookshot/issues/94)) ([171c855](https://github.com/notquiteog/Hookshot/commit/171c855c625517eb42272969c0514251da04026d))
+
+## [2.3.0-rc.27](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.26...v2.3.0-rc.27) (2026-11-15)
+
+
+### Features
+
+* **builder:** "Your games", a list of the built games with Play, in every Builder window ([#72](https://github.com/notquiteog/Hookshot/issues/72)) ([c3060fb](https://github.com/notquiteog/Hookshot/commit/c3060fbe3e2f7d42d73e30e314549253572d1413))
+* **ro:** a game's NRO modules are lifted with it, and nn::ro loads them from the lift ([#89](https://github.com/notquiteog/Hookshot/issues/89)) ([112a391](https://github.com/notquiteog/Hookshot/commit/112a391dbe35d76dec6e23064c73de559074bafc))
+* **setup:** a full Windows setup, every part in one release file, so a new install downloads nothing ([#83](https://github.com/notquiteog/Hookshot/issues/83)) ([b252100](https://github.com/notquiteog/Hookshot/commit/b2521001218cad59a4112180ef2eef9adb3269ac))
+
+
+### Bug Fixes
+
+* **dlss:** the DLSS tick keeps the release's renderer, and a build without it keeps NVIDIA's runtimes ([#82](https://github.com/notquiteog/Hookshot/issues/82)) ([afa7854](https://github.com/notquiteog/Hookshot/commit/afa785496573581fed0f8fe0c8c47f7eee002370))
+* dump names, packed files, setup lists and chat text from outside are checked before use ([#86](https://github.com/notquiteog/Hookshot/issues/86)) ([4df1ad1](https://github.com/notquiteog/Hookshot/commit/4df1ad1b4330580a941b9bdcae103774fffd3c6f))
+* **fs:** answer GetSaveDataSize, the user save data's size and journal ([#91](https://github.com/notquiteog/Hookshot/issues/91)) ([55c3bfd](https://github.com/notquiteog/Hookshot/commit/55c3bfdee191d08afa08923bb982a52bfb8745a8))
+* GameShare's guest displays and the audio output's notification, answered ([#93](https://github.com/notquiteog/Hookshot/issues/93)) ([0f231f2](https://github.com/notquiteog/Hookshot/commit/0f231f2fedc2c48f21f5b353ded7f351d00125fa))
+
+## [2.3.0-rc.26](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.25...v2.3.0-rc.26) (2026-11-15)
+
+
+### Bug Fixes
+
+* **hid:** every GetTouchScreenState&lt;N&gt; and GetTouchScreenStates&lt;N&gt;, N 1 to 16, answered ([#88](https://github.com/notquiteog/Hookshot/issues/88)) ([2edac4e](https://github.com/notquiteog/Hookshot/commit/2edac4e2d9d884678356a9eb2d9788b28852f33b))
+* **svc:** GetInfo 16 answers the process's system resource size, so virtual address memory is on where the game has it ([#81](https://github.com/notquiteog/Hookshot/issues/81)) ([196efe5](https://github.com/notquiteog/Hookshot/commit/196efe562abb886aac82e8b04df8f58c85de35a5))
+
+## [2.3.0-rc.25](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.24...v2.3.0-rc.25) (2026-11-15)
+
+
+### Features
+
+* **account:** as many users as the game profile says, and a user selector ([#11](https://github.com/notquiteog/Hookshot/issues/11)) ([1a75f74](https://github.com/notquiteog/Hookshot/commit/1a75f744a171f5b43df59f55db9c1b8ffb368414))
+
+
+### Bug Fixes
+
+* **build:** a game without Ocarina's icon font skips the button prompts with a line, not a traceback ([#68](https://github.com/notquiteog/Hookshot/issues/68)) ([9a8669b](https://github.com/notquiteog/Hookshot/commit/9a8669bf91d318e0ada756e291a07e861748864f))
+
+## [2.3.0-rc.24](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.23...v2.3.0-rc.24) (2026-11-15)
+
+
+### Bug Fixes
+
+* **vk:** Bananza's cave ground and walls: pass-through geometry stages, drawn ([#78](https://github.com/notquiteog/Hookshot/issues/78)) ([244ddac](https://github.com/notquiteog/Hookshot/commit/244ddacfe6f906b4265c3434b8d473945819bcba))
+
+## [2.3.0-rc.23](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.22...v2.3.0-rc.23) (2026-11-15)
+
+
+### Bug Fixes
+
+* **setup:** every part a Windows install downloads comes from this repository's builder-parts ([#79](https://github.com/notquiteog/Hookshot/issues/79)) ([53bc45a](https://github.com/notquiteog/Hookshot/commit/53bc45ac4169a6a1f4417c62eb5883098518d71b))
+
+## [2.3.0-rc.22](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.21...v2.3.0-rc.22) (2026-11-15)
+
+
+### Features
+
+* **launcher:** Mario Kart World and Donkey Kong Bananza in RecompLauncher, each game asking for its own copy ([#74](https://github.com/notquiteog/Hookshot/issues/74)) ([0f154a4](https://github.com/notquiteog/Hookshot/commit/0f154a49d15623e9edb097d7e8cd73c725c2e2cf))
+* **vk:** the program census counts the programs that read a texture handle from a table ([#75](https://github.com/notquiteog/Hookshot/issues/75)) ([cce324b](https://github.com/notquiteog/Hookshot/commit/cce324baacc6f5ffa8c025720d89e3060c87f6f3))
+
+
+### Bug Fixes
+
+* **vk:** the preparation's compute step counts, so the watchdog does not stop it as a stuck driver ([#73](https://github.com/notquiteog/Hookshot/issues/73)) ([8608a43](https://github.com/notquiteog/Hookshot/commit/8608a430e81700fb428408d9644a669719f9acea))
+
+## [2.3.0-rc.21](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.20...v2.3.0-rc.21) (2026-11-15)
+
+
+### Bug Fixes
+
+* **vk:** OoT's clustered lights sample their own shadow maps (handle tables as descriptor arrays, from Longshot) ([#57](https://github.com/notquiteog/Hookshot/issues/57)) ([932d225](https://github.com/notquiteog/Hookshot/commit/932d225e86f6d709555843e55c826b96dd4f165b))
+
+## [2.3.0-rc.20](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.19...v2.3.0-rc.20) (2026-11-15)
+
+
+### Features
+
+* **prepare:** Compile shaders All or Most, All the default (from Longshot) ([#69](https://github.com/notquiteog/Hookshot/issues/69)) ([aacff92](https://github.com/notquiteog/Hookshot/commit/aacff9289a1ab26191d9937b5a104ab8d221d7d5))
+
+## [2.3.0-rc.19](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.18...v2.3.0-rc.19) (2026-11-15)
+
+
+### Features
+
+* **vk:** quick pipelines for draws whose full build is not done (from Longshot) ([#62](https://github.com/notquiteog/Hookshot/issues/62)) ([b806813](https://github.com/notquiteog/Hookshot/commit/b80681335cc70f9455384e13a3637f0aae26e5e8))
+
+
+### Documentation
+
+* **worklist:** adult Link near-black for a moment in Zora's Domain, under the shadow row ([#66](https://github.com/notquiteog/Hookshot/issues/66)) ([dadc389](https://github.com/notquiteog/Hookshot/commit/dadc389b7d44e6c419d6f347ee54a47c38b71d26))
+
+## [2.3.0-rc.18](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.17...v2.3.0-rc.18) (2026-11-14)
+
+
+### Features
+
+* **profile:** Mario Kart World 1.0.0 builds and plays from main (not released yet) ([#65](https://github.com/notquiteog/Hookshot/issues/65)) ([bdbf77d](https://github.com/notquiteog/Hookshot/commit/bdbf77da7b14c7559779c4d2ab3fdc744abde314))
+
+
+### Documentation
+
+* **worklist:** row 2.1's Castle Town and Hyrule Field frame profiled, and two cuts that gained nothing ([#63](https://github.com/notquiteog/Hookshot/issues/63)) ([816541c](https://github.com/notquiteog/Hookshot/commit/816541cc82a50386717b6e5ae04fe7f52dcfb6d0))
+
+
+### Tests
+
+* the pointer check's reader always takes once after the last publish ([#56](https://github.com/notquiteog/Hookshot/issues/56)) ([47825ea](https://github.com/notquiteog/Hookshot/commit/47825eaea1dacc43b2a7cb0fa412bb872d79499f))
+
+## [2.3.0-rc.17](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.16...v2.3.0-rc.17) (2026-11-14)
+
+
+### Bug Fixes
+
+* **nvn:** PushGraphicsConstants is checked against the blit pass, and says so when a game pushes something else ([#58](https://github.com/notquiteog/Hookshot/issues/58)) ([d8588cb](https://github.com/notquiteog/Hookshot/commit/d8588cb1b1fac7240c3be68894cae0ee6b011f11))
+
+## [2.3.0-rc.16](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.15...v2.3.0-rc.16) (2026-11-14)
+
+
+### Features
+
+* **profile:** the graphics scale enum a game is answered, and Donkey Kong Bananza's is 0 (it drew at 80%) ([#59](https://github.com/notquiteog/Hookshot/issues/59)) ([fdbfb7a](https://github.com/notquiteog/Hookshot/commit/fdbfb7aa5ed984130f608b34324da8d9dc175bc9))
+
+
+### Bug Fixes
+
+* **vk:** the game's occlusion queries get the GPU's counts, and a leaner draw path (from Longshot) ([#30](https://github.com/notquiteog/Hookshot/issues/30)) ([bfa73dd](https://github.com/notquiteog/Hookshot/commit/bfa73dde8abb42c1fe4c87324c760f3104253283))
+
+## [2.3.0-rc.15](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.14...v2.3.0-rc.15) (2026-11-14)
+
+
+### Features
+
+* **vk:** the parallel replay's default is the game profile's, handed to the renderer at run time ([#55](https://github.com/notquiteog/Hookshot/issues/55)) ([2c46057](https://github.com/notquiteog/Hookshot/commit/2c4605773f5bab727a08497cce100aa19e386443))
+
+
+### Documentation
+
+* **longshot:** name each pick's author, which [#29](https://github.com/notquiteog/Hookshot/issues/29)'s squash kept for 3 of 12 ([#53](https://github.com/notquiteog/Hookshot/issues/53)) ([bb08123](https://github.com/notquiteog/Hookshot/commit/bb081232b89f6ffdfba9631365522d74a1c07d8d))
+
+## [2.3.0-rc.14](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.13...v2.3.0-rc.14) (2026-11-14)
+
+
+### Bug Fixes
+
+* Ocarina and engine fixes from Longshot, through its 514591a3 ([#29](https://github.com/notquiteog/Hookshot/issues/29)) ([44a8a29](https://github.com/notquiteog/Hookshot/commit/44a8a29a0b934a568853b41f0fcca8a8b66aea3f))
+
+## [2.3.0-rc.13](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.12...v2.3.0-rc.13) (2026-11-14)
+
+
+### Bug Fixes
+
+* **release:** a file with no digest yet is hashed, not a 404 that ends the upload ([#49](https://github.com/notquiteog/Hookshot/issues/49)) ([af05c99](https://github.com/notquiteog/Hookshot/commit/af05c99bf56178266fa829fe1d3a648417c65aed))
+
+
+### Documentation
+
+* **worklist:** where the memory row's 13.5 GB of RSS is ([#50](https://github.com/notquiteog/Hookshot/issues/50)) ([aa67a9f](https://github.com/notquiteog/Hookshot/commit/aa67a9fb2f4400edcff8901ddd6fb06e1bec8922))
+
+## [2.3.0-rc.12](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.11...v2.3.0-rc.12) (2026-11-14)
+
+
+### Bug Fixes
+
+* **runtime:** a moving floor carries Link above 100 fps as at 60 ([#25](https://github.com/notquiteog/Hookshot/issues/25)) ([f54dc31](https://github.com/notquiteog/Hookshot/commit/f54dc315ad50350b1a74ec34a55b14dcdc96594d))
+
+
+### Documentation
+
+* Donkey Kong Bananza plays from main alone, and its page moves here from the fork ([#46](https://github.com/notquiteog/Hookshot/issues/46)) ([0e63f92](https://github.com/notquiteog/Hookshot/commit/0e63f925694d8877962597abac2f92e08405e178))
+* **worklist:** the memory row measured over a 42-minute session on main ([#48](https://github.com/notquiteog/Hookshot/issues/48)) ([07d84c5](https://github.com/notquiteog/Hookshot/commit/07d84c551ce943165fe9e3cb74aae78877c2e00b))
+
+## [2.3.0-rc.11](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.10...v2.3.0-rc.11) (2026-11-14)
+
+
+### Bug Fixes
+
+* **control:** a bench run or a launch never leaves its game running ([#34](https://github.com/notquiteog/Hookshot/issues/34)) ([1766ce0](https://github.com/notquiteog/Hookshot/commit/1766ce0ab2def32a71d017089205da0a15a375ad))
+
+## [2.3.0-rc.10](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.9...v2.3.0-rc.10) (2026-11-14)
+
+
+### Features
+
+* **profile:** Donkey Kong Bananza 3.2.0, with the movie catch-up off for its guide player ([#42](https://github.com/notquiteog/Hookshot/issues/42)) ([b820af9](https://github.com/notquiteog/Hookshot/commit/b820af98bbfccd04debd455fcb336fd168a23906))
+
+
+### Bug Fixes
+
+* **fs:** answer EnsureSaveData, which crashed Donkey Kong Bananza at boot once null reads fault ([#40](https://github.com/notquiteog/Hookshot/issues/40)) ([1195b90](https://github.com/notquiteog/Hookshot/commit/1195b90ae31dec4a78e97a28bdf3559113c05ce3))
+* **video:** every submission fills one buffer: an early acquire is reserved, and the end has its own picture ([#41](https://github.com/notquiteog/Hookshot/issues/41)) ([2fcc3d0](https://github.com/notquiteog/Hookshot/commit/2fcc3d0b753d9ebd868a1a2b4374acba2e34eab5))
+
 ## [2.3.0-rc.9](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.8...v2.3.0-rc.9) (2026-11-14)
 
 

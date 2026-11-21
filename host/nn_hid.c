@@ -1033,11 +1033,12 @@ static void read_input(uint64_t *buttons, int32_t stick[4]) {
     static const char *native_env;
     static int native_looked;
     if (!native_looked) native_looked = 1, native_env = getenv("HOS_MOUSE_NATIVE");
-    const int native = native_env ? atoi(native_env) != 0 : rx_option(6, 0);
+    const int mode = native_env ? atoi(native_env) != 0 : rx_option(6, 0);   /* (2: Off, the mouse never captured) */
+    const int native = mode == 1;
     int hos_mouse_native(void);
     void hos_mouse_native_free(int free);
     const uint64_t game_stick = (1ULL << B_ZR) | (1ULL << B_L) | (1ULL << B_R);
-    int captured = 0, as_stick = !native;
+    int captured = 0, as_stick = mode == 0;
     if (native) {
         mouse_setup();
         mouse_sens_keys();
@@ -1071,9 +1072,15 @@ volatile int64_t hos_hid_last_read;
 
 /* GetNpadStates(State* out, int count, unsigned int const& npadId): the latest state first */
 static void npad_states(Ctx *c) {
+    enum { NPAD_STATES_MAX = 16 };   /* (the SDK's lifo holds 16: NpadStateCountMax) */
     uint64_t out = ARG(0);
     int count = (int)ARG(1);
-    uint32_t id = G32(ARG(2));
+    /* (hookshot) the count is the game's: at most the 16 the console keeps, none below 0, and the states it asks for
+       wholly in its memory (a count of 0x7fffffff wrote states over the host's) */
+    if (count < 0) count = 0;
+    if (count > NPAD_STATES_MAX) count = NPAD_STATES_MAX;
+    if (count) GR(out, (uint64_t)count * STATE_SIZE);
+    uint32_t id = *(const uint32_t *)GR(ARG(2), 4);
     uint64_t buttons = 0;
     int32_t stick[4] = {0};
     int connected = id == NPAD_NO1;
@@ -1370,22 +1377,59 @@ HLE(_ZN2nn3hid6detail21EnqueueVibrationValueERKNS0_21VibrationDeviceHandleERKNS0
 }
 HLE(_ZN2nn3hid6detail28FlushEnqueuedVibrationValuesEv) { RET(0); }
 
-/* ---- (mkw-recomp) the touch screen: none touched. GetTouchScreenStates<16>(TouchScreenState<16>*, int count) ->
-   states written: one, with no touches (the lifted SDK version read the touch screen's shared memory, which this
-   runtime does not have). TouchScreenState<16>: {s64 sampling number, s32 count, s32 reserved, TouchState[16]}. */
+/* ---- (mkw-recomp) the touch screen: none touched. TouchScreenState<N>: {s64 sampling number, s32 count, s32 reserved,
+   TouchState[N] of 0x28 bytes}. Left to the lifted SDK, every read went to the touch screen's shared memory, which this
+   runtime does not have, and aborted (svcBreak). The SDK has both reads for every N from 1 to 16, and a game uses
+   whichever it was built with: Mario Kart World GetTouchScreenStates<16>, Donkey Kong Bananza GetTouchScreenState<1>
+   (lr 0x82e7eee0 on its 3.2.0 sdk), Kirby Air Riders (Dragoon) GetTouchScreenState<16>. So all 32 are answered: one
+   state, no touch, a sampling number that goes up with each read. A buffer not wholly the game's is not written.
+   (One HLE line each: nx2/standalone.py finds the handlers by their HLE( lines, not through a macro.) */
 HLE(_ZN2nn3hid21InitializeTouchScreenEv) {}
 static volatile LONG64 touch_sampling;
-HLE(_ZN2nn3hid20GetTouchScreenStatesILm16EEEiPNS0_16TouchScreenStateIXT_EEEi) {
-    if ((int)ARG(1) < 1) { RET(0); return; }
-    memset(GP(ARG(0)), 0, 16 + 16 * 0x28);
+/* GetTouchScreenState<N>(TouchScreenState<N>*): the latest state */
+static void touch_state(Ctx *c, int n) {
+    const uint64_t size = 16 + (uint64_t)n * 0x28;
+    if (!hos_guest_range(ARG(0), size)) return;
+    memset(GP(ARG(0)), 0, size);
+    G64(ARG(0)) = (uint64_t)InterlockedIncrement64(&touch_sampling);
+}
+/* GetTouchScreenStates<N>(TouchScreenState<N>* out, int count) -> states written: one (the latest), when one is asked for */
+static void touch_states(Ctx *c, int n) {
+    const uint64_t size = 16 + (uint64_t)n * 0x28;
+    if ((int)ARG(1) < 1 || !hos_guest_range(ARG(0), size)) { RET(0); return; }
+    memset(GP(ARG(0)), 0, size);
     G64(ARG(0)) = (uint64_t)InterlockedIncrement64(&touch_sampling);
     RET(1);
 }
-/* (dkb) GetTouchScreenState<1>(TouchScreenState<1>*): the latest state alone, with no touch, as the plural above. The
-   lifted SDK's read aborted: Donkey Kong Bananza reads the touch screen this way on its first frames
-   (svcBreak, from nn::hid::GetTouchScreenState<1>, lr 0x82e7eee0 on its 3.2.0 sdk). TouchScreenState<1>:
-   {s64 sampling number, s32 count, s32 reserved, TouchState[1]}. */
-HLE(_ZN2nn3hid19GetTouchScreenStateILm1EEEvPNS0_16TouchScreenStateIXT_EEE) {
-    memset(GP(ARG(0)), 0, 16 + 1 * 0x28);
-    G64(ARG(0)) = (uint64_t)InterlockedIncrement64(&touch_sampling);
-}
+HLE(_ZN2nn3hid19GetTouchScreenStateILm1EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 1); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm2EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 2); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm3EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 3); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm4EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 4); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm5EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 5); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm6EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 6); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm7EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 7); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm8EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 8); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm9EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 9); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm10EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 10); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm11EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 11); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm12EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 12); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm13EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 13); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm14EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 14); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm15EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 15); }
+HLE(_ZN2nn3hid19GetTouchScreenStateILm16EEEvPNS0_16TouchScreenStateIXT_EEE) { touch_state(c, 16); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm1EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 1); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm2EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 2); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm3EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 3); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm4EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 4); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm5EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 5); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm6EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 6); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm7EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 7); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm8EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 8); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm9EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 9); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm10EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 10); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm11EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 11); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm12EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 12); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm13EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 13); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm14EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 14); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm15EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 15); }
+HLE(_ZN2nn3hid20GetTouchScreenStatesILm16EEEiPNS0_16TouchScreenStateIXT_EEEi) { touch_states(c, 16); }

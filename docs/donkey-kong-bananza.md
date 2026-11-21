@@ -1,105 +1,118 @@
 # Donkey Kong Bananza on this engine
 
-This branch (`fork/donkey-kong-bananza`) points Hookshot, the Ocarina of Time recompilation, at *Donkey Kong Bananza*
-(Switch 2), the way Lakitu (Mario Kart World) and Dragoon (Kirby Air Riders) were started. Game data never enters
-this repository: the dump is read where it lies, and the extraction, the lift and the builds stay in the gitignored
-`work/`. Where a value comes from the game, this page says how it was found.
+*Donkey Kong Bananza* (Switch 2) builds and plays from this repository with its own game profile (`dkb` in
+`nx2/game_profile.py`, chosen by main's build id). It is in the release: RecompLauncher shows it as a
+tile of its own, which asks for its own copy, and the builder checks that copy against the profile
+(`make_game.py --game-dkb=<copy>`). Game data never enters this repository: the dump is read where it lies, and the
+extraction, the lift and the builds stay in the gitignored `work/`. Where a value comes from the game, this page says
+how it was found.
 
-## 1. Where it stands (2026-11-13)
+## 1. Where it stands (2026-11-14)
 
 | | State |
 |---|---|
 | The dump | `Donkey Kong Bananza.nup`: base v0, update **v458752 (3.2.0)**, add-on content `040074a01bf13001` (romfs only, 7,270 files) |
 | Identity | program `040074A01BF12000`, main build `e25c90c1c136638885659fd55bf8a03b3403489d`, sdk `18265dae...`, SDK and NVN 20.5.19, no subsdk modules |
-| Game profile | `dkb` in `nx2/game_profile.py` on Hookshot's seam (#10), chosen by main's build id; identity, saves in `hookshot-dkb`, the movie catch-up off (`video_catchup`); proposed to main as notquiteog/Hookshot#42 |
-| Lift | 188,678 functions, 9,102,462 instructions, **100.0000 %** translated, 2,175 jump tables, no TLS descriptors |
-| Build | 24 min cold with 6 jobs on a loaded i5-13600K, under 2 min after a host change |
-| Boot | **reaches gameplay**: the first-start menu (Normal / Assist Mode), the opening cutscene, the mining tunnel with the HUD, punching, walking, climbing, gold, NPC lines; 60 fps at 700-4,400 draws a frame on an RTX 5060 Ti (Linux, NVIDIA 615.71.09) |
-| Where it stops | not found yet past the tunnel's guide movies: with the video buffer reservations (#41) the guide looped 52 times in 5 minutes without an abort (2026-11-14). Since #20, the boot needs the `EnsureSaveData` answer (#40) |
+| Game profile | `dkb`: identity only, saves in `hookshot-dkb`, the movie catch-up off (`video_catchup=False`), not released |
+| Lift | 188,676 functions, 9,102,448 instructions, **100.0000 %** translated, 2,175 jump tables (1,986 bounded) |
+| Plays | from `main` alone: the first-start menu (Normal / Assist Mode), the opening cutscene, the mining tunnel with the HUD, punching, walking, climbing, gold, the guide movies (72 loops in one run, no abort); median 60.0 fps at 380-4,800 draws a frame on an RTX 5060 Ti (Linux, NVIDIA 615.71.09) |
+| Where it stops | nowhere found yet: 7 minutes of scripted play past the tunnel's guide with no abort. Scripted input does not get through the tutorial; a person playing is the next test |
 
 ## 2. What stopped it, in boot order, and what fixed it
 
-1. **`nup.py` crashed on the package's add-on content title** (no exefs, directory `0xffffffff`): `IndexError` before
-   `make_game.py --check` could name the build. Absent parts now walk to nothing, and the default title is the newest
-   one with an exefs. `tests/test_nup_addon_title.py`.
-2. **`sm:` speaks TIPC on this firmware**, and its GetServiceHandle reply carried no handle, so the SDK aborted
-   (`nn::streamplay::detail::CreateUserServiceByHipc`, svcBreak). `sm:` now answers TIPC, with a session per service
-   whose requests are answered empty, and logs the service's name. `tests/test_sm_tipc.py`.
-3. **Offline answers** the SDK gives when a thing is absent, where the generic stub said it was there:
+Each is a pull request to this repository, with Bananza and Ocarina runs.
+
+1. **#12:** `nup.py` crashed on the package's add-on content title (no exefs, directory `0xffffffff`).
+2. **#14:** offline answers where the generic stub said a thing was there, or the lifted SDK reached IPC and aborted:
    `streamplay::GetRequiredMemorySize` 0 (no GameShare), `bcat::MountDeliveryCacheStorage` 0x47a,
-   `account::LoadCachedNintendoAccountInfo` 0x1907c, `account::GetLastOpenedUser` the one user.
-4. **`hid::GetTouchScreenState<1>`**, the single-state read, aborted in the lifted SDK (as `GetNpadState` did for
-   Dragoon). It is answered with no touch. After this the game reached its first-start menu.
-5. **Guide movies through SDK 20's `nn::codec` forms** (`InitializeVp9Decoder` without an output mode, the
-   out-pointer ready event, `CodecMode` preferences and pools, the work-buffer size, the native image handle): the
-   stubs answered them and the movie thread aborted at the first punch. They now go to the libavcodec VP9 decoder
-   already here, and the pool's size is written back at +0x20 / +0x22 where the player reads it.
+   `account::LoadCachedNintendoAccountInfo` 0x1907c, `account::GetLastOpenedUser` the one user. With these, the game
+   opens no service through `sm:` (no `ipc:` line in a whole run).
+3. **#15:** `hid::GetTouchScreenState<1>`, the single-state read, aborted in the lifted SDK. After this the game
+   reached its first-start menu.
+4. **#16:** the guide movies' SDK 20 `nn::codec` forms (`InitializeVp9Decoder` without an output mode, the out-pointer
+   ready event, `CodecMode` preferences and pools, the work-buffer size, the native image handle) go to the VP9
+   decoder already here. The pool's fields after the SDK's 24 bytes are the game's own; the runtime leaves them alone.
+5. **#40:** `fs::EnsureSaveData` answered. Since #20 (null guest reads fault on Linux too), the lifted SDK's read
+   through a null fs proxy crashed the boot.
+6. **#41 and #42:** the guide movies' player aborted after one to sixteen loops. It counts every picture it submits.
+   The runtime finished more buffers than that: an acquire before any submission was reached at the next one, while
+   its picture went elsewhere, and the end filled no buffer while acquires after it got one again. Its catch-up also
+   skipped pictures. Now an early acquire is reserved for the next picture and the end has its own picture (#41), and
+   Bananza's profile turns the catch-up off (#42).
 
-Also fixed on the way, because they would have bitten any second game:
+Also fixed on the way, because they would have bitten any second game: saves in a folder per game
+(`GAME_SAVES_DIR`, part of #10), and the build's shader census without Ocarina's `Pack/ZsDic.pack.zs` (#17).
 
-- **Saves.** On Linux every fork of this engine kept saves in `$XDG_DATA_HOME/hookshot`, so a second game would have
-  read and overwritten Ocarina's. Each game now has its own folder (`GAME_SAVES_DIR`: Ocarina `hookshot`, Bananza
-  `hookshot-dkb`), and a profile header without one does not compile.
-- **The build's shader census** assumed Ocarina's `Pack/ZsDic.pack.zs` and failed at the end of every Bananza build.
+## 3. Open
 
-## 3. Open, roughly in the order they stop play
+1. **`nvnCommandBufferPushGraphicsConstants`: checked, not needed (a tripwire).** The game pushes `{1/w, 1/h, w, h}`
+   into graphics root table 0, which its full-screen blit shaders read as constant bank 24. The replay already gives
+   those reads values: the recompiler lowers bank 24 to bank 17, and `BlitConstantsPass`
+   (`gpu/vk/eden/shader_recompiler/ir_opt/position_pass.cpp`) answers a blit covering the whole render target. A build
+   that logged every distinct push (2026-11-14: first start, the tunnel, the guide, 5 minutes of play) saw one call
+   site, main 0x808ca7e0 (`PushGraphicsConstants(cmdbuf, 0, 0, 16, data)`, the two `fdiv`s from 1.0 at 0x808ca7a8 and
+   0x808ca7cc), and three distinct blocks:
 
-1. **Fixed (notquiteog/Hookshot#41, #42): the movie player's abort.** The player counts what it submits; the runtime finished more buffers than that (an acquire before any submission was reached at the next one while its picture went elsewhere, and the end filled no buffer while acquires after it got one again) and the catch-up skipped pictures. Now an early acquire is reserved for the next picture, the end has its own picture, and Bananza's profile turns the catch-up off. The rest of this item is the history: **The movie player's abort** after many loops of a guide movie: `FATAL: the game aborted (nn::diag::detail::AbortImpl)
-   (lr 0x80e3ae94)` on MovieOperateThread. The function at main+0xe1ada0 takes the first entry of a list at
-   object+0xc30 under a lock and aborts when it is empty. Hookshot's decoder signals a buffer's sync point at once (or
-   marks it idle); dkb-pc-recomp found the player needs it signalled only when a picture has been decoded into that
-   buffer, up to 8 packets queued before a buffer is reserved, "not ready" as 0x1c266f, and a Flush that keeps
-   pictures already decoded into reserved buffers. That model is the fix to write (their `runtime/ov_codec.c`).
-2. **`nvnCommandBufferPushGraphicsConstants`** is not implemented (logged, answered 0). The game pushes
-   `{1/w, 1/h, w, h}` into graphics root table 0, which its blit shaders read as bank 24 (dkb-pc-recomp). Nothing
-   looked wrong yet.
-3. **Virtual-core waits** of 200-850 ms appeared while the PC was loaded (load average 79, other builds). dkb-pc-recomp
-   lists 23 recursive spin-lock loops in 3.2.0 main that stall heap and RomFS loads under virtual cores; measure
-   on an idle PC before acting.
-4. **Add-on content**: `aoc::CountAddOnContent` is the generic stub's 0, so the DLC (mounted as "EmeraldRush" on a
+   | Block | Bound target | Viewport |
+   |---|---|---|
+   | 1/2304, 1/1296, 2304, 1296 | 2304x1296 | 0,0 2304x1296 |
+   | 1/1536, 1/864, 1536, 864 | 1536x864 | 0,0 1536x864 |
+   | 1/1676, 1/943, 1676, 943 | 1676x943 | 0,0 1676x943 |
+
+   Each is the pass's value word for word, so taking the pushed bytes would draw the same picture. The HLE now checks
+   every push against what the pass gives and logs once when a game pushes something else
+   (`HOS_NVN_PUSH_LOG=1`: the counts). The sizes are from before #59, when the game drew at 80% of its 2880x1620
+   (see 4); at its full size the blocks are 2880x1620's and its scenes', and still the pass's.
+2. **Virtual-core waits: not real on an idle PC.** Waits of 200-850 ms appeared once with the PC loaded (load average 79).
+   Measured again in a quiet window (2026-11-14, first start, the tunnel, the guide and about 8 minutes of play, the
+   load sampled every 10 s): at load 10 or less the longest wait in each 5-second window had a median of 3.0 ms, three
+   windows reached 50 ms or more (167.8 ms in the first start's load, 111.5 and 90.0 ms in play), none 200 ms. While a
+   test suite ran beside it (load 13-50) the median rose to 21 ms, with a worst of 117.6 ms. The 23 recursive spin-lock
+   loops dkb-pc-recomp lists in 3.2.0 main are not worth patching on this evidence.
+3. **Add-on content**: `aoc::CountAddOnContent` is the generic stub's 0, so the DLC (mounted as "EmeraldRush" on a
    console) is not offered. Not needed to play the base game.
-5. **`oe::GetCurrentGraphicsScale`**: Hookshot answers Ocarina's meaning; Bananza maps an int enum 0..2 differently
-   (dkb-pc-recomp answers 2). The game renders at its own 2880x1620 now.
-6. **`oe::GetDisplayVersion`** answers "1.8.0" (the game logs `ReleaseVersion : 320 (nmeta=1.8.0)`). The update's
-   real string is not in the dump; left alone.
+4. **`oe::GetCurrentGraphicsScale`: fixed, Bananza renders at its full size.** The host answered Ocarina's enum 1
+   (x0.8). Bananza reads it as an enum: main 0x8033e9b4 and 0x80569324 keep a mode byte, and 0x803ad180 and 0x805695d0
+   index a float table `{3, 12, 16}` with it. With 1 it drew at 80% of its 2880x1620 (2304x1296; scenes 1536x864). Its
+   profile now answers 0 (`graphics_scale`), so it draws at 2880x1620 (scenes 1920x1080). Measured in a quiet window on an
+   RTX 5060 Ti (2026-11-14, alternating 1, 0, 0, 1): GPU time 1.70 → 2.20 ms a frame (median; p90 2.40 → 2.90), 60.0 fps
+   either way. A card about 9 times slower would go from about 15 to about 20 ms, under 60 fps:
+   `HOS_GRAPHICS_SCALE_ENUM=1` gives the old answer.
+   **Open:** that variable is the only way back to 80% for a slow card. The scale wants to be a choice in the game's
+   menu (full size or 80%), not an environment variable.
+5. **`oe::GetDisplayVersion`** answers "1.8.0" (the game logs `ReleaseVersion : 320 (nmeta=1.8.0)`). The update's real
+   string is not in the dump.
+6. **Not tried:** sound (every run had `HOS_AUDIO=0`), Windows, AMD, the add-on content, play past the tutorial.
 
 ## 4. dkb-pc-recomp: what was taken
 
 [dkb-pc-recomp](https://github.com/Lucas-blip-png/dkb-pc-recomp) (`bananza` at `fac48bc`) already plays this game, on a
-different architecture (TotK Recomp's: `recomp/`, `runtime/`). It is GPL-3.0-or-later as a whole, with the files from
-TotK Recomp under MIT; there is no clause on later changes. Our dump's ExeFS is byte-identical to its `dkb458752`
-target (SHA-256 of main, sdk, rtld and npdm all match), so its 3.2.0 findings apply unchanged.
+different architecture (TotK Recomp's). It is GPL-3.0-or-later as a whole, with the files from TotK Recomp under MIT.
+Our dump's ExeFS is byte-identical to its `dkb458752` target (SHA-256 of main, sdk, rtld and npdm all match), so its
+3.2.0 findings apply unchanged.
 
-No code was copied: Hookshot's host is shaped differently, and each answer was written here. What was taken are
-facts it found by running the game, credited where they are used:
+No code was copied: each answer was written here. What was taken are facts it found by running the game, credited
+where they are used:
 
-| Rank | Finding | Taken? |
-|---|---|---|
-| 1 | Offline answers on 3.2.0: streamplay memory 0, BCAT 0x47a, cached account 0x1907c, last opened user | yes (`host/nn_applet.c`) |
-| 2 | SDK 20 `nn::codec` VP9 names, and the pool size at +0x20 / +0x22, the preference's +8 / +10 | yes (`host/nn_video.c`) |
-| 3 | The movie player's sync-point model (signal on decode, 8 queued packets, 0x1c266f, Flush keeps pictures) | not yet: the next fix (section 3.1) |
-| 4 | NVN2 procs Hookshot lacks (`DeviceGetFlags`, `RegisterFastClear*`, `DeviceMessageBuffer*`, `PushGraphicsConstants`, HDR window metadata, ...) | not needed so far: answered 0 and logged; only PushGraphicsConstants was called |
-| 5 | Storage usage for colour textures the game binds as images (upscaler output) | not needed: the picture is right |
-| 6 | NVN API minor 30 gate at main+0x5c61ac | not needed: Hookshot's 231.40 passes |
-| 7 | Memory: below 8 GiB the game crashes at start; it asks ~9 GiB | already met (9,809 MB) |
-| 8 | Spin-lock loop heads in 3.2.0 main | not yet: measure first (section 3.3) |
-| 9 | Pacing: the 31.25 MHz tick, report timestamps, no held presents, or the game drops to 20 fps | not needed: 60 fps |
-| 10 | `GetCurrentGraphicsScale` enum, dynamic-resolution controller sites (38db98 on 3.2.0), the 2880x1620 virtual display | not yet (quality, not boot) |
-| 11 | Add-on content mount ("EmeraldRush") | not yet |
-| 12 | Layer-change crash guards (1.0.0 only, main+0x410680) | not reached |
+| Finding | Taken? |
+|---|---|
+| Offline answers on 3.2.0: streamplay memory 0, BCAT 0x47a, cached account 0x1907c, last opened user | yes (#14) |
+| SDK 20 `nn::codec` VP9 names, the preference's +8 / +10 | yes (#16) |
+| `fs::EnsureSaveData` answered above IPC | yes (#40) |
+| The movie decoder's model: a reserved buffer filled by the next picture, an end packet filling a buffer | yes (#41) |
+| NVN2 procs Hookshot lacks (`DeviceGetFlags`, `RegisterFastClear*`, `DeviceMessageBuffer*`, `PushGraphicsConstants`, HDR window metadata, ...) | not needed so far: only `PushGraphicsConstants` was called, and its blocks are what the blit pass gives (section 3.1) |
+| NVN API minor 30 gate at main+0x5c61ac | not needed: Hookshot's 231.40 passes |
+| Memory: below 8 GiB the game crashes at start; it asks ~9 GiB | already met (9,809 MB) |
+| Spin-lock loop heads in 3.2.0 main | not yet: measure first (section 3.2) |
+| `GetCurrentGraphicsScale` enum, the dynamic-resolution controller (main+0x38db98), the 2880x1620 virtual display | not yet (quality, not boot) |
+| Add-on content mount ("EmeraldRush") | not yet |
 
-The full survey, with addresses, sources and licences, is kept with the session notes, outside this repository.
-
-## 5. Running it here
-
-The build and the runs use the repository's toolchain (`HOOKSHOT_JOBS` modest: the PC is shared):
+## 5. Running it
 
 ```sh
-python -I nx2/make_game.py --nup "<Donkey Kong Bananza.nup>" --out work/game --work work/build --no-prepare-shaders
-python -I scripts/hookshot_ctl.py launch work/game --data work/data --env HOS_AUDIO=0 --env RX_VK_PRECOMPILE=0
+python -I nx2/make_game.py --nup "<Donkey Kong Bananza.nup>" --out work/game-dkb --work work/build --no-prepare-shaders
+python -I scripts/hookshot_ctl.py launch work/game-dkb --data work/data-dkb --env HOS_AUDIO=0 --env RX_VK_PRECOMPILE=0
 ```
 
-`--data` keeps a run's saves in a folder of its own. Every run so far had `HOS_AUDIO=0`: sound is untested, and so
-are Windows, AMD, a real controller (input came from the control bridge) and the add-on content. At the first start press A once the menu takes input (about 40 s
-in), Normal Mode loads the opening; Y punches. Add `--env HOS_NO_MOVIES=1` to get past the guide movies until 3.1 is
-fixed.
+The profile is chosen by the dump's build id; saves go to `hookshot-dkb` under `--data` (or `$XDG_DATA_HOME`). At the
+first start, press A once the menu takes input (about 40 s in): Normal Mode loads the opening, and Y punches.

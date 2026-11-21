@@ -81,7 +81,7 @@ class Profile(object):
 
     def __init__(self, key, game, program_id=None, version=None, build_id=None, main_base=None,
                  patch_modules=(), code_patch_module=None, gfx=EMPTY_GFX, upscale=EMPTY_UPSCALE, hooks=EMPTY_HOOKS,
-                 npad_players=1, account_users=1, video_catchup=True, released=True, notes=""):
+                 npad_players=1, account_users=1, video_catchup=True, vk_parallel=None, released=True, graphics_scale=None, version_name="", notes=""):
         self.key = key                                # HOOKSHOT_GAME=<this>
         self.game = game                              # the game's name, for logs
         self.program_id = program_id                  # as nx2/dump.py reports it
@@ -100,9 +100,19 @@ class Profile(object):
         # a movie skips pictures behind its clock (host/nn_video.c's catch-up, for Ocarina's intro and its sound); off
         # for a game whose movie player counts every picture it submitted
         self.video_catchup = video_catchup
+        # The renderer's parallel replay (gpu/vk/vk_replay.cpp par_threads): the threads that record one command buffer,
+        # as RX_VK_PARALLEL gives them, or None for the renderer's own default (off). It helps a game that hands over most
+        # of a frame in one command buffer and costs one that does not (docs/performance.md: Ocarina loses a fifth), so it
+        # is the game's. Handed to the renderer at run time (HOOKSHOT_PROFILE_VK_PARALLEL); RX_VK_PARALLEL still overrides
+        self.vk_parallel = vk_parallel
         # in the release: recomplauncher.json's games[] (nx2/game_folders.py released()). A profile main builds but the
         # release does not offer yet says False (docs/one-engine.md step 5: a game joins with its games[] row)
         self.released = released
+        # the version as a player knows it ("1.0.0"), for the launcher's label of this game's copy (nx2/game_folders.py)
+        self.version_name = version_name
+        # what nn::oe::GetCurrentGraphicsScale answers in w0: an enum, 0 the full scale, 1 x0.8, 2 x0.667 (host/nn_applet.c);
+        # None: the host's own answer (1, or 0 when an output size is set)
+        self.graphics_scale = graphics_scale
         self.notes = notes
 
     def __repr__(self):
@@ -114,6 +124,7 @@ OOT = Profile(
     game="The Legend of Zelda: Ocarina of Time",
     program_id="0400486024DEC000",
     version=131072,                 # the update; base v65536
+    version_name="version 131072",
     build_id="e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348",
     main_base=0x80020000,           # after rtld's 0x20000 bytes in Eden's layout (nx2/image.py)
     # (the order lift.py has always installed them in: two modules may add C at one site, in this order)
@@ -153,6 +164,7 @@ DKB = Profile(
     # to dkb-pc-recomp's dkb458752 target, whose 3.2.0 addresses therefore apply to this lift unchanged.
     program_id="040074A01BF12000",
     version=458752,
+    version_name="3.2.0",
     build_id="e25c90c1c136638885659fd55bf8a03b3403489d",
     main_base=0x80020000,
     # Empty on purpose until measured, as a number that looks right is worse than none: patch modules (none needed to
@@ -163,17 +175,50 @@ DKB = Profile(
     # The guide movies' player counts every picture it submitted: one the catch-up skips is never handed back, and the
     # player aborts at its loop's flush (main+0xe1ada0 from 0x8189b900; with skips, after 1-2 loops).
     video_catchup=False,
-    # Built from main, not offered by the release yet: joining it (games[] in recomplauncher.json, and the builder
-    # checking each game's copy, which the launcher's schema cannot yet) is a decision of its own (one-engine.md step 5)
-    released=False,
+    # In the release: its own tile in RecompLauncher (recomplauncher.json games[]), its own copy asked for (inputs[]),
+    # which the builder checks against this profile's build id (make_game.py --game-<key>)
+    released=True,
+    # Bananza sizes its render targets by GetCurrentGraphicsScale's enum (main 0x8033e9b4 / 0x80569324 keep it as a mode
+    # byte, 0x803ad180 / 0x805695d0 index a float table {3, 12, 16} with it): with the host's 1 it drew at 80% of its
+    # 2880x1620 (2304x1296; scenes 1536x864 / 1676x943), with 0 at the full size (2880x1620; 1920x1080 / 2095x1179)
+    graphics_scale=0,
     notes="Identity measured on the dump; movie catch-up off (the guide player counts every picture).",
+)
+
+MKW = Profile(
+    key="mkw",
+    game="Mario Kart World",
+    # Measured on the dump (Mario Kart World [0400C3F00006E000][v0].nup, base v0 = 1.0.0, no update): nx2/make_game.py
+    # --check reported the program id and main's build id, and nx2/lift.py's image line put main at 0x80020000. The same
+    # build id and RomFS count (205,660 files) are mkw-recomp's 1.0.0 row (adriadam10/mkw-recomp@5ff4fbb,
+    # recomp/versions.py, MIT, Copyright (c) 2026 Adria). 1.8.0 (main d00e4f39...) is another executable, with other
+    # addresses: not this profile's. See docs/mario-kart-world.md.
+    program_id="0400C3F00006E000",
+    version=0,
+    version_name="1.0.0",
+    build_id="9e244438c3d8ef1c703a6a85ef99c4f000000000",
+    main_base=0x80020000,
+    # Empty on purpose until measured: patch modules (a widescreen, lens or jitter patch is a new module), gfx (the
+    # frame limiter), hooks (gfx_clock, the present poll), upscale (program keys, from RX_VK_SHADER_CENSUS), and
+    # graphics_scale (what the game makes of oe::GetCurrentGraphicsScale is not read yet).
+    npad_players=1,
+    account_users=1,
+    # The parallel replay on 4 threads: this game records most of a race frame in one command buffer. Measured on one
+    # RTX 5060 Ti (Linux, NVIDIA 615.71.09, i5-13600K) in a Mushroom Cup race, on/off/off/on twice: the median 1.5-5 fps
+    # up, the minimum up to 6, the replay ~2 ms shorter and its thread half as busy (#55). Not measured elsewhere;
+    # Ocarina loses a fifth with it (docs/performance.md). RX_VK_PARALLEL=0 turns it off.
+    vk_parallel=4,
+    # In the release: its own tile in RecompLauncher (recomplauncher.json games[]), its own copy asked for (inputs[]),
+    # which the builder checks against this profile's build id (make_game.py --game-<key>)
+    released=True,
+    notes="Identity measured on the dump; the parallel replay on 4 threads (measured in a race).",
 )
 
 # The profile for a dump whose build no profile knows: nothing patched, nothing hooked, one player.
 NONE = Profile(key="none", game="an unknown game",
                notes="No profile knows this build: lifted without patches, and the runtime recognises nothing in it.")
 
-GAMES = collections.OrderedDict((p.key, p) for p in (OOT, DKB, NONE))
+GAMES = collections.OrderedDict((p.key, p) for p in (OOT, DKB, MKW, NONE))
 
 # Ocarina stays the default where there is no dump to go by (the committed header, the game-free checks), because it
 # is the only game whose values have been measured and checked by running it.
@@ -327,6 +372,13 @@ def emit_header(profile=None):
     w("/* 1: a movie skips pictures behind its clock (host/nn_video.c; HOS_VIDEO_NO_CATCHUP=1 turns it off); 0: never, for")
     w("   a game whose movie player counts every picture it submitted */")
     w("#define GAME_VIDEO_CATCHUP %d" % (1 if p.video_catchup else 0))
+    w("")
+    w("/* the renderer's parallel replay threads (RX_VK_PARALLEL's default, handed over at run time as")
+    w("   HOOKSHOT_PROFILE_VK_PARALLEL by host/hos_main.c); -1: the renderer's own default (off) */")
+    w("#define GAME_VK_PARALLEL %d" % (-1 if p.vk_parallel is None else int(p.vk_parallel)))
+    w("")
+    w("/* what nn::oe::GetCurrentGraphicsScale answers in w0 (0 the full scale, 1 x0.8, 2 x0.667); -1: the host's own answer */")
+    w("#define GAME_GRAPHICS_SCALE %d" % (-1 if p.graphics_scale is None else int(p.graphics_scale)))
     w("")
     w("#endif /* GAME_PROFILE_H */")
     return "\n".join(out) + "\n"

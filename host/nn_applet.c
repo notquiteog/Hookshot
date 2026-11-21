@@ -1,7 +1,8 @@
 /* nn::oe (applet), nn::account, nn::time, nn::pl, nn::err: what a game asks the system about itself.
    The answers describe a docked console in English (HOS_LANGUAGE / language.txt: another language) with one user,
-   "Player". */
+   "Player", or as many as the game profile or HOS_ACCOUNT_USERS says (nn::account below). */
 #include "hos.h"
+#include "game_profile.h"   /* (GAME_GRAPHICS_SCALE, and how many users the console has) */
 #include "hos_paths.h"
 #include "hos_wide_size.h"
 #include <stdio.h>
@@ -233,32 +234,174 @@ HLE(_ZN2nn2oe38SetUserInactivityDetectionTimeExtendedEb) {}
 HLE(_ZN2nn2oe25TryPopNotificationMessageEPj) { RET(0); }
 HLE(_ZN2nn2oe22PopNotificationMessageEv) { for (;;) hos_sleep_ns(1000000000LL); }
 
-/* ---- nn::account: one user ------------------------------------------------------------------------------------ */
-static const uint64_t user_uid[2] = {0x0000000000000001ULL, 0x5a3c9e1f0b7d2468ULL};
+/* ---- nn::account: the users ----------------------------------------------------------------------------------
+   One user, "Player", unless the game profile or HOS_ACCOUNT_USERS says more: HOS_ACCOUNT_USERS=<1..8>, unset the
+   profile's count (game_profile.h: Ocarina's 1; Dragoon's Kirby Air Riders profile says 4, a user per player). User 1 is
+   the one there always was, uid and all, so its save folder (<user>/save/<uid>: nn_fs.c) is the same one; users 2 and up
+   are "Player 2" and on, each with a uid and so a save folder of its own.
+
+   A UserHandle is three words: the uid, and a third word, 1 from TryOpenPreselectedUser and 0 from OpenUser, as this
+   runtime always wrote them (Ocarina opens its user both ways). Which users are open is counted here, because that is what the user selector answers by: the console's selector is an applet that shows
+   the accounts and lets a player pick one; there is no picker here, so ShowUserSelector hands out the first user not
+   open yet, which is what a game that opens one user per player in turn gets from players who each pick their own.
+   Its settings (UserSelectionSettings) are not read: their layout is the SDK's and is not known here, so what the game
+   asked for is logged instead (its first bytes), and the first real run says what it holds. With every user open it
+   answers a failure, not a user: the console's "cancelled" Result is not known here and is not invented, and the one
+   property the answer needs is that it is not success. */
+#define ACCOUNT_USERS_MAX 8
+#define ACCOUNT_FAILURE 0x7C7C   /* (an account error, as the network service's below: module 124, not success) */
+static const uint64_t user_uid[2] = {0x0000000000000001ULL, 0x5a3c9e1f0b7d2468ULL};   /* (user 1's, as always) */
+static volatile LONG account_open[ACCOUNT_USERS_MAX];   /* (each user's open handles) */
+static int account_pushed[ACCOUNT_USERS_MAX], account_npushed;
+
+static int account_users(void) {
+    static int n;
+    if (!n) {
+        const char *e = getenv("HOS_ACCOUNT_USERS");
+        int v = e && *e ? atoi(e) : GAME_ACCOUNT_USERS;
+        v = v < 1 ? 1 : v > ACCOUNT_USERS_MAX ? ACCOUNT_USERS_MAX : v;
+        if (v > 1) hos_log("account: %d users (%s)", v, e && *e ? "HOS_ACCOUNT_USERS" : "the game profile");
+        n = v;
+    }
+    return n;
+}
+/* a user's uid: user 0 is user_uid itself, user i its first word plus i */
+static void account_uid(int user, uint64_t uid[2]) {
+    uid[0] = user_uid[0] + (uint64_t)user;
+    uid[1] = user_uid[1];
+}
+/* which user a uid is, or -1 for one that is not a user here */
+static int account_user_of(uint64_t lo, uint64_t hi) {
+    if (hi != user_uid[1] || lo < user_uid[0]) return -1;
+    const uint64_t i = lo - user_uid[0];
+    return i < (uint64_t)account_users() ? (int)i : -1;
+}
+static void account_put_handle(uint64_t at, int user, uint64_t third) {
+    uint64_t uid[2];
+    account_uid(user, uid);
+    G64(at) = uid[0];
+    G64(at + 8) = uid[1];
+    G64(at + 16) = third;
+    InterlockedIncrement(&account_open[user]);
+}
+
 HLE(_ZN2nn7account10InitializeEv) {}
-/* TryOpenPreselectedUser(UserHandle*) -> bool. A handle is three words; ours carries the uid. */
+/* TryOpenPreselectedUser(UserHandle*) -> bool: the first user, the one the console started the game as */
 HLE(_ZN2nn7account22TryOpenPreselectedUserEPNS0_10UserHandleE) {
-    G64(ARG(0)) = user_uid[0];
-    G64(ARG(0) + 8) = user_uid[1];
-    G64(ARG(0) + 16) = 1;
+    account_put_handle(ARG(0), 0, 1);
     RET(1);
 }
-HLE(_ZN2nn7account9CloseUserERKNS0_10UserHandleE) {}
-/* GetUserId(Uid*, UserHandle const&) -> Result */
-HLE(_ZN2nn7account9GetUserIdEPNS0_3UidERKNS0_10UserHandleE) {
-    G64(ARG(0)) = user_uid[0];
-    G64(ARG(0) + 8) = user_uid[1];
+/* OpenUser(UserHandle*, Uid const&) -> Result: a handle of that uid, success, as this runtime always answered (Ocarina
+   opens its user so). A uid that is not a user here is opened all the same, and logged: what the console answers for
+   one is not known here, and Ocarina's answer stays the one it had. */
+HLE(_ZN2nn7account8OpenUserEPNS0_10UserHandleERKNS0_3UidE) {
+    const int user = account_user_of(G64(ARG(1)), G64(ARG(1) + 8));
+    if (user < 0) {
+        hos_log("account: OpenUser of uid %016llx%016llx, not a user here: opened all the same (lr %#llx)",
+                (unsigned long long)G64(ARG(1) + 8), (unsigned long long)G64(ARG(1)), (unsigned long long)c->x[30]);
+        G64(ARG(0)) = G64(ARG(1));
+        G64(ARG(0) + 8) = G64(ARG(1) + 8);
+        G64(ARG(0) + 16) = 0;
+    } else account_put_handle(ARG(0), user, 0);
     RET(0);
 }
-/* GetNickname(Nickname*, Uid const&) -> Result: Nickname is char[33] */
+HLE(_ZN2nn7account9CloseUserERKNS0_10UserHandleE) {
+    const int user = account_user_of(G64(ARG(0)), G64(ARG(0) + 8));
+    if (user >= 0 && account_open[user] > 0) InterlockedDecrement(&account_open[user]);
+}
+/* GetUserId(Uid*, UserHandle const&) -> Result: the handle's own uid; for a handle that names no user here, user 1's, as
+   this runtime always answered every handle */
+HLE(_ZN2nn7account9GetUserIdEPNS0_3UidERKNS0_10UserHandleE) {
+    const int user = account_user_of(G64(ARG(1)), G64(ARG(1) + 8));
+    uint64_t uid[2];
+    account_uid(user < 0 ? 0 : user, uid);
+    G64(ARG(0)) = uid[0];
+    G64(ARG(0) + 8) = uid[1];
+    RET(0);
+}
+/* GetNickname(Nickname*, Uid const&) -> Result: Nickname is char[33]. "Player", then "Player 2" and on */
 HLE(_ZN2nn7account11GetNicknameEPNS0_8NicknameERKNS0_3UidE) {
+    const int user = account_user_of(G64(ARG(1)), G64(ARG(1) + 8));
     memset(GP(ARG(0)), 0, 33);
-    memcpy(GP(ARG(0)), "Player", 6);
+    if (user > 0) snprintf((char *)GP(ARG(0)), 33, "Player %d", user + 1);
+    else memcpy(GP(ARG(0)), "Player", 6);
     RET(0);
 }
 HLE(_ZN2nn7account16GetUserExistenceEPbRKNS0_3UidE) {
-    *(uint8_t *)GP(ARG(0)) = G64(ARG(1)) == user_uid[0] && G64(ARG(1) + 8) == user_uid[1];
+    *(uint8_t *)GP(ARG(0)) = account_user_of(G64(ARG(1)), G64(ARG(1) + 8)) >= 0;
     RET(0);
+}
+/* GetUserCount(int*) -> Result */
+HLE(_ZN2nn7account12GetUserCountEPi) {
+    G32(ARG(0)) = (uint32_t)account_users();
+    RET(0);
+}
+/* (mkw-recomp) ListAllUsers(int* count, Uid* out, int max) -> Result */
+HLE(_ZN2nn7account12ListAllUsersEPiPNS0_3UidEi) {
+    int n = account_users();
+    if ((int)ARG(2) < n) n = (int)ARG(2) > 0 ? (int)ARG(2) : 0;
+    for (int i = 0; ARG(1) && i < n; i++) {
+        uint64_t uid[2];
+        account_uid(i, uid);
+        G64(ARG(1) + 16 * (uint64_t)i) = uid[0];
+        G64(ARG(1) + 16 * (uint64_t)i + 8) = uid[1];
+    }
+    if (ARG(0)) G32(ARG(0)) = (uint32_t)n;
+    RET(0);
+}
+/* ShowUserSelector(Uid*, UserSelectionSettings const&) -> Result: the first user not open (see above) */
+HLE(_ZN2nn7account16ShowUserSelectorEPNS0_3UidERKNS0_21UserSelectionSettingsE) {
+    static int logged;
+    if (!ARG(0)) {
+        RET(ACCOUNT_FAILURE);
+        return;
+    }
+    if (logged++ < 8) {
+        char hex[3 * 32 + 1] = " none";   /* (no settings given: the console's defaults) */
+        if (ARG(1)) {
+            const uint8_t *b = (const uint8_t *)GP(ARG(1));
+            for (int i = 0; i < 32; i++) snprintf(hex + 3 * i, 4, " %02x", b[i]);
+        }
+        hos_log("account: ShowUserSelector (lr %#llx), settings%s ...", (unsigned long long)c->x[30], hex);
+    }
+    for (int user = 0; user < account_users(); user++)
+        if (!account_open[user]) {
+            uint64_t uid[2];
+            account_uid(user, uid);
+            G64(ARG(0)) = uid[0];
+            G64(ARG(0) + 8) = uid[1];
+            hos_log("account: ShowUserSelector chose user %d (no user picker here)", user + 1);
+            RET(0);
+            return;
+        }
+    hos_log("account: ShowUserSelector with every one of the %d users open: answered a failure, as if cancelled",
+            account_users());
+    RET(ACCOUNT_FAILURE);
+}
+/* PushOpenUsers(): the open users, kept for PopOpenUsers. PopOpenUsers(int* count, UserHandle* out, int max) -> Result:
+   them, opened again, then none. A game started fresh has none pushed, as on the console */
+HLE(_ZN2nn7account13PushOpenUsersEv) {
+    account_npushed = 0;
+    for (int user = 0; user < account_users(); user++)
+        if (account_open[user]) account_pushed[account_npushed++] = user;
+    hos_log("account: PushOpenUsers: %d", account_npushed);
+}
+HLE(_ZN2nn7account12PopOpenUsersEPiPNS0_10UserHandleEi) {
+    int n = account_npushed < (int)ARG(2) ? account_npushed : (int)ARG(2) > 0 ? (int)ARG(2) : 0;
+    if (!ARG(1)) n = 0;
+    for (int i = 0; i < n; i++) account_put_handle(ARG(1) + 24 * (uint64_t)i, account_pushed[i], 1);
+    if (ARG(0)) G32(ARG(0)) = (uint32_t)n;
+    account_npushed = 0;
+    RET(0);
+}
+/* LoadProfileImage(size_t* size, void* out, size_t max, Uid const&) -> Result: there is no profile image here, and a
+   made-up picture is not given: a failure, with no size */
+HLE(_ZN2nn7account16LoadProfileImageEPmPvmRKNS0_3UidE) {
+    static int logged;
+    if (!logged++) hos_log("account: LoadProfileImage: no profile images here, answered a failure (lr %#llx)",
+                           (unsigned long long)c->x[30]);
+    if (ARG(0)) G64(ARG(0)) = 0;
+    RET(ACCOUNT_FAILURE);
 }
 /* (dkb) GetLastOpenedUser(Uid*) -> Result: the one user, the only one ever opened. Donkey Kong Bananza asks for it
    after TryOpenPreselectedUser; the generic stub left the Uid zero, which names no user. (dkb-pc-recomp's
@@ -301,6 +444,28 @@ HLE(_ZN2nn10streamplay21GetRequiredMemorySizeENS0_14StreamPlayTypeENS0_13Streami
     static volatile LONG told;
     if (!InterlockedExchange(&told, 1)) hos_log("streamplay: GameShare is not available: GetRequiredMemorySize -> 0");
     RET(0);
+}
+/* nn::streamplay::CreateIndividualDisplays(int count) / DestroyIndividualDisplays(): a display for each GameShare guest.
+   No guest ever joins here (GameShare is not available, above), so there is nothing to make: success. Left to the
+   lifted SDK it initialized the Switch 2 vi layer (nn::vi::sdk::Initialize), locked a mutex of a structure never set
+   up and read guest 0: Kirby Air Riders (Dragoon) makes three right after its audio starts. */
+HLE(_ZN2nn10streamplay24CreateIndividualDisplaysEi) {
+    static volatile LONG told;
+    if (!InterlockedExchange(&told, 1)) hos_log("streamplay: CreateIndividualDisplays(%d): no GameShare guests here", (int)ARG(0));
+    RET(0);
+}
+HLE(_ZN2nn10streamplay25DestroyIndividualDisplaysEv) { RET(0); }
+/* nn::streamplay::GetNativeWindowHandle(GuestId) -> the guest's native window: a window of its own for each guest id
+   (0x100 zeroed bytes, as nn_vi.c's own), which no guest ever draws to here */
+HLE(_ZN2nn10streamplay21GetNativeWindowHandleENS0_7GuestIdE) {
+    static uint64_t windows[8];
+    static SRWLOCK lock = SRWLOCK_INIT;
+    const uint64_t id = ARG(0) & 7;
+    AcquireSRWLockExclusive(&lock);
+    if (!windows[id]) windows[id] = hos_sys_alloc(0x100, 16);
+    const uint64_t w = windows[id];
+    ReleaseSRWLockExclusive(&lock);
+    RET(w);
 }
 
 /* ---- nn::time: the host clock --------------------------------------------------------------------------------- */
@@ -443,23 +608,6 @@ HLE(_ZN2nn5prepo12AsyncContext9GetResultEv) { RET(0); }
 HLE(_ZN2nn5prepo12AsyncContextD1Ev) {}
 
 /* ---- (mkw-recomp) MKW's account and oe calls TOTK never made: the one user, offline ------------------------- */
-/* ListAllUsers(int* count, Uid* out, int max) -> Result */
-HLE(_ZN2nn7account12ListAllUsersEPiPNS0_3UidEi) {
-    const int n = (int)ARG(2) > 0 ? 1 : 0;
-    if (n && ARG(1)) {
-        G64(ARG(1)) = user_uid[0];
-        G64(ARG(1) + 8) = user_uid[1];
-    }
-    if (ARG(0)) G32(ARG(0)) = (uint32_t)n;
-    RET(0);
-}
-/* OpenUser(UserHandle*, Uid const&) -> Result */
-HLE(_ZN2nn7account8OpenUserEPNS0_10UserHandleERKNS0_3UidE) {
-    G64(ARG(0)) = G64(ARG(1));
-    G64(ARG(0) + 8) = G64(ARG(1) + 8);
-    G64(ARG(0) + 16) = 0;
-    RET(0);
-}
 /* the network service account: not available (the game stays offline) */
 HLE(_ZN2nn7account32IsNetworkServiceAccountAvailableEPbRKNS0_10UserHandleE) {
     *(uint8_t *)GP(ARG(0)) = 0;
@@ -469,6 +617,19 @@ HLE(_ZN2nn7account36EnsureNetworkServiceAccountAvailableERKNS0_10UserHandleE) { 
 HLE(_ZN2nn7account26GetNetworkServiceAccountIdEPNS0_23NetworkServiceAccountIdERKNS0_10UserHandleE) {
     G64(ARG(0)) = 0;
     RET(0x7C7C);
+}
+/* (hookshot) the scale enum GetCurrentGraphicsScale answers in w0: 0 the full scale, 1 x0.8, 2 x0.667. The game profile's
+   (GAME_GRAPHICS_SCALE: Donkey Kong Bananza 0, which sizes its render targets by it), else x1 for a chosen output size and
+   x0.8 as before. HOS_GRAPHICS_SCALE_ENUM=0|1|2: that one, a test of what a game does with each */
+static int graphics_scale_enum(int output_chosen) {
+    static int forced = -2;
+    if (forced == -2) {
+        const char *e = getenv("HOS_GRAPHICS_SCALE_ENUM");
+        forced = e && *e >= '0' && *e <= '2' && !e[1] ? *e - '0' : -1;
+    }
+    if (forced >= 0) return forced;
+    if (GAME_GRAPHICS_SCALE >= 0) return GAME_GRAPHICS_SCALE;
+    return output_chosen ? 0 : 1;
 }
 /* nn::oe::GetCurrentGraphicsScale() -> float (docked/handheld render scale): 1.0 */
 HLE(_ZN2nn2oe23GetCurrentGraphicsScaleEv) {
@@ -482,7 +643,7 @@ HLE(_ZN2nn2oe23GetCurrentGraphicsScaleEv) {
     uint32_t bits;
     memcpy(&bits, &one, 4);
     c->vreg[0][0] = bits, c->vreg[0][1] = 0;
-    c->x[0] = output_mode() ? 0 : 1;   /* (the scale enum the game reads, w0: x1 for a chosen output, x0.8 as before) */
+    c->x[0] = graphics_scale_enum(output_mode());   /* (the scale enum the game reads, w0) */
 }
 HLE(_ZN2nn2oe42SetGraphicsScaleChangedNotificationEnabledEb) {}
 HLE(_ZN2nn2oe31EnterExitRequestHandlingSectionEv) {}
