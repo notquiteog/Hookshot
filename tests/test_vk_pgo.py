@@ -114,7 +114,7 @@ def check_release():
           "if [ -f work/hookshot_vk.profdata ]; then VK_PGO=$ROOT/work/hookshot_vk.profdata" in appimage and
           'xz -dc assets/profiles/hookshot_vk.profdata.xz > "$VKW/hookshot_vk.shipped.profdata"' in appimage)
     check("the AppImage carries assets/ (the committed profile, for a player's own renderer with DLSS or FSR 4)",
-          "cp -a nx2 host scripts LICENSE README.md assets tools.lock" in appimage)
+          "cp -a nx2 host game scripts LICENSE readme.md assets " in appimage)   # (this tree's copy line)
     check("and a developer's own profile when the checkout has one",
           "for f in hot_funcs.txt hot_order.txt hookshot_pieces.prof hookshot_vk.profdata; do" in appimage)
     docs = (ROOT / "docs" / "development.md").read_text(encoding="utf-8")

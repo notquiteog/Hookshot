@@ -216,6 +216,7 @@ case-sensitive, and an unknown one is ignored.
 | `RX_VK_LOG_PROGRAM_LIFE=1` | The programs' life: a log line at each program the game makes (its shaders set) or frees and at each program's first draw or dispatch (what it needed: a program read from the cache, a translation, a pipeline from a cache or compiled, left out, and how long after its create call), and a `program census` line every 600 presents |
 | `RX_VK_PRESENT_THREAD=1` | On (off by default: the game's thread presents). Where the device has a second queue that can present to the window (a second queue of the replay's family, else a compute family's): each present is made on a thread and queue of its own once the frame's copy into the window is done, and the game's thread goes on at once (with NVIDIA's driver on Wayland the present otherwise waits ~2.4 ms a frame for the GPU there). One present out at most; under V-Sync On (FIFO) with `VK_KHR_present_wait`, until it is shown. The log has the fence's and the present's time (and how long after it the frame was shown) every 600 presents |
 | `HOS_PGO=<file>` | In a run of an `RX_PGO=gen` build: `<file>.reset` clears the counters, `<file>.dump` writes them to `<file>`. It is read before `hookshot_env.txt`, so set it in the environment |
+| `RX_VK_PGO_FILE=<file>` | The same in a run of an `RX_VK_PGO=gen` renderer, for the renderer's own counters ([the renderer's play profile](#the-renderers-play-profile)); set it in the environment too |
 
 The periodic `GPU-bound wait` log value is **recording-slot reuse only** (the line says so), not a bottleneck test.
 `host time in GPU resource waits` separately sums host-clock time inside nonzero-timeout Vulkan fence and timeline
@@ -355,6 +356,7 @@ A build reads and writes tens of gigabytes. When the game folder or the build fi
 | `RX_TARGET=windows` | On Linux: the Windows game, with llvm-mingw's Linux build in `HOOKSHOT_MINGW` |
 | `RX_RELEASE=1` | A release build (`make_game.py` sets it): no console window, the shaders prepared before the title |
 | `RX_PGO=gen` or `RX_PGO=<file>` | The hot code counting its branches for a profile, or built with one (`make_game.py` passes the shipped profile) |
+| `RX_VK_PGO=gen` or `RX_VK_PGO=<file>` | The Vulkan back end's own files counting their branches for a profile, or built with one (`make_game.py` passes `work/hookshot_vk.profdata` when it is there, else the committed `assets/profiles/hookshot_vk.profdata.xz`; a compiler that can't read it builds without): [the renderer's play profile](#the-renderers-play-profile) |
 | `RX_HOT_OPT=<level>` | The hot pieces' optimisation level (default `O2`); `O1` for [a faster build for development](#a-faster-build-for-development) |
 | `RX_MARCH=<level>` | The CPU level to build for (default this PC's: `x86-64-v3`, else `x86-64-v2`, else `x86-64`) |
 | `RX_VK_ONLY=1` | Only the Vulkan back end, with no lift |
@@ -426,6 +428,54 @@ The report keeps its per-program counts and adds `code` rows with the native sta
 recorded, including programs loaded from the cache. The four keys are vertex/mesh/compute, fragment, task and the
 header-only stage; zero means no key was available. Distinct tuples for the same program stay separate. These are
 recorded-query identities, not a complete draw replay or display timestamps. The queries can perturb frame timing.
+#### The renderer's play profile
+
+The Vulkan back end is built with a play profile of its own (after
+[ProjectReLink](https://github.com/pixl27/ProjectReLink)): `assets/profiles/hookshot_vk.profdata.xz`, committed, with
+its note in `assets/profiles/README.md` (where and how Longshot recorded it, and what it measured there: about -4 to -5 % frame
+time standing and -3 % running in the Market on an RTX 3090). Every build that compiles the renderer uses it: a
+player's (with DLSS or FSR 4 too), the AppImage's, a developer's. A checkout's own `work/hookshot_vk.profdata` is used in
+its place, and `RX_VK_PGO` set by hand (`gen`, or another file) in place of both. Recording a new one:
+
+1. **Build a renderer that counts**, `RX_VK_PGO=gen`: the back end's own files (`gpu/vk/*.cpp` and suyu's texture
+   decoders; not Eden's recompiler, sirit, Dear ImGui or zstd) are built with `-fprofile-instr-generate`, still at
+   `-O2`, and the module gets its own copy of `host/pgo_rt.c`. As a pack of a change (`base` takes it the same way),
+   or the renderer alone:
+   ```
+   RX_VK_PGO=gen python -I scripts/dev_packs.py pack <dir> vk-count
+   RX_VK_PGO=gen OOT_WORK=<work> RX_RELEASE=1 RX_VK_ONLY=1 python -I nx2/build.py --standalone
+   ```
+   It runs slower than the ordinary one (every branch of those files adds to a counter in memory, from every thread):
+   it is for recording, never for numbers.
+2. **Record a run**: start the game with `RX_VK_PGO_FILE=<file>` in the environment. Create `<file>.reset` once the
+   place has loaded (the counters start again), play the places the profile should know, then create `<file>.dump`:
+   the counters are written to `<file>` within half a second and the `.dump` file goes. Several places can each be
+   dumped to a file of their own.
+3. **Merge** with the `llvm-profdata` of the compiler that built it:
+   `llvm-profdata merge -o work/hookshot_vk.profdata <file> [<file> ...]`.
+4. **Build with it**: `make_game.py` copies `work/hookshot_vk.profdata` to its work folder and passes it
+   (`RX_VK_PGO=<file>`), unless `RX_VK_PGO` is set already; without one it unpacks the committed profile there
+   (`hookshot_vk.shipped.profdata`) and passes that. Either only when this compiler reads it, on every system (a
+   profile from a newer LLVM than the compiler's would stop the build): else the renderer is built without one.
+   To ship it: `xz -9e -c work/hookshot_vk.profdata > assets/profiles/hookshot_vk.profdata.xz`, the note in
+   `assets/profiles/README.md` updated, in a pull request. `nx2/build.py` run on its own takes it only from
+   `RX_VK_PGO`. `dev_packs.py` builds a pack of the renderer alone with its base's profile. The lift key leaves
+   `RX_VK_PGO` out, and only the back end's own objects (35 files) are named by the profile's contents: another profile
+   builds those again and nothing else, and the shader caches stay (their stamp is the translator's sources).
+
+A profile fits the compiler target it was recorded with: llvm-mingw's for Windows players, clang's for Linux (C++
+names differ between the two wherever a type's width does, and the code differs where it asks which system it is on).
+Runs from both can be merged into one file: a function is matched by its name and the hash of its shape, and what
+matches nothing is left out. For the same reason a profile ages rather than breaks: a function whose branches changed
+since the recording, or a new one, is compiled as if there were no profile (clang's warning for it is among those
+the build silences), the rest keep theirs. The committed profile is one for every build for now, recorded on Linux:
+a Windows build matches the renderer's own functions and leaves the C++ library's out. On Linux the AppImage's back
+end comes built (`HOOKSHOT_VK_PREBUILT`), with the profile `scripts/linux/appimage.sh` finds as `make_game.py` does; a
+player's build there compiles the back end, with the AppImage's copy of the profile, with DLSS or FSR 4.
+
+The file holds the names of the back end's functions (recorded on Longshot's renderer, #569 and #599), a hash of each one's shape and how often
+each branch ran: nothing of the game's code or data. It says which code paths the recorded places exercised, no more.
+
 #### Testing a change against a base
 
 A full build of a new game folder is more than an hour on some PCs, most of it the shader preparation, which starts
