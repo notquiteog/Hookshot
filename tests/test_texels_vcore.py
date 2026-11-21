@@ -32,6 +32,7 @@ typedef struct { int kind, done; nvn_tex t; unsigned level, layer0; NVNcopyRegio
 static int started = 1;
 static int keep_early(early_call *c) { (void)c; return 0; }
 static int nvn_fmt_bpb(int f, int *bw, int *bh) { (void)f; *bw = *bh = 1; return 4; }
+static const nvn_tex *safe_tex(const nvn_tex *t, nvn_tex *copy, const char *what) { (void)copy; (void)what; return t; }   // (main's #102 check: a usable texture as is)
 static int held = 1, during = -1, calls = 0;
 int hos_vcore_away(void) { if (!held) return 0; held = 0; return 1; }
 void hos_vcore_back(void) { held = 1; }
