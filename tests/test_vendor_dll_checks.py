@@ -135,12 +135,23 @@ def check_linux(cxx, fail):
             fail("owned_safely took a library other accounts could have written, or refused a safe one")
 
 
+def check_windows_includes(fail):
+    """A file that calls Windows' signature API includes its headers itself (CI compiles no Windows code: moving the signer
+    to vk_signed.cpp took <wintrust.h> out of vk_streamline.cpp, whose trusted_signature still needs it)"""
+    for path in sorted((ROOT / "gpu" / "vk").glob("*.cpp")):
+        src = path.read_text(encoding="utf-8")
+        for call, header in (("WinVerifyTrust(", "<wintrust.h>"), ("CryptQueryObject(", "<wincrypt.h>")):
+            if call in src and "#include " + header not in src and "#include <softpub.h>" not in src:
+                fail("%s calls %s without including %s (or <softpub.h>)" % (path.name, call.rstrip("("), header))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cxx", default=os.environ.get("CXX", "clang++"), help="GCC/Clang C++ compiler")
     args = parser.parse_args()
     failures = []
     check_windows(failures.append)
+    check_windows_includes(failures.append)
     if os.name != "nt":
         cxx = shutil.which(args.cxx)
         if not cxx:

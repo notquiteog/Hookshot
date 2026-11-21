@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include <softpub.h>   // (trusted_signature: a DLSS 5 model's signature, whoever's it is)
+#include <wintrust.h>
 
 #include "vk_signed.h"
 #include "vk_streamline_api.h"
