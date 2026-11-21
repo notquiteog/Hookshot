@@ -1771,7 +1771,6 @@ void mkwvk_close_asked(void) {
     dlss_fg_close();   // (NVIDIA DLSS Frame Generation through NGX: its feature let go before the process exits, vk_dlss.cpp)
 }
 
-static MkwVkHost host_storage;
 
 extern "C"
 #ifdef _WIN32
@@ -1782,8 +1781,8 @@ __attribute__((visibility("default")))
 const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
     using namespace mkwvk;
     if (!h) return nullptr;
-    if (h->version < 14 || h->version > MKWVK_API_VERSION) {
-        std::fprintf(stderr, "vk: host version mismatch: host has %u, expected %u (or >= 14)\n", h->version, MKWVK_API_VERSION);
+    if (h->version != MKWVK_API_VERSION) {
+        std::fprintf(stderr, "vk: host version mismatch: host has %u, expected %u\n", h->version, MKWVK_API_VERSION);
         return nullptr;
     }
     host = h;
@@ -1824,7 +1823,7 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
         }).detach();
 #endif
     }
-    table.version = h->version;
+    table.version = MKWVK_API_VERSION;
     table.start = start;
     table.resize = resize;
     table.describe = describe;
