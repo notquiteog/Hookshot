@@ -9,7 +9,7 @@ own content size, and it is capped at 64 MiB (the largest record of a whole Ocar
 This cuts program_cache_payload out of the source, compiles it with the repository's zstd decoder (third_party/zstd) and
 runs it on frames written here: zstd's raw blocks, valid frames with no compressor needed.
 
-python -I -B tests/test_program_cache_payload.py [--cc clang] [--cxx clang++]
+python -I -B tests/test_program_cache_payload.py [--cxx clang++]   (zstd's C compiled by it, as C)
 """
 import argparse
 import os
@@ -18,7 +18,7 @@ import shutil
 import subprocess
 import tempfile
 
-RUN_ALL_ARGS = ["--cc", "{cc}", "--cxx", "{cxx}"]
+RUN_ALL_ARGS = ["--cxx", "{cxx}"]
 ROOT = Path(__file__).resolve().parents[1]
 ZSTD = ROOT / "third_party" / "zstd" / "lib"
 ZSTD_C = ("common/debug.c", "common/entropy_common.c", "common/error_private.c", "common/fse_decompress.c", "common/xxhash.c",
@@ -92,12 +92,11 @@ def cut(text, start):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cc", default=os.environ.get("CC", "clang"))
     parser.add_argument("--cxx", default=os.environ.get("CXX", "clang++"))
     args = parser.parse_args()
-    cc, cxx = shutil.which(args.cc), shutil.which(args.cxx)
-    if not cc or not cxx:
-        raise SystemExit("compiler not found: %s / %s" % (args.cc, args.cxx))
+    cxx = shutil.which(args.cxx)
+    if not cxx:
+        raise SystemExit("compiler not found: %s" % args.cxx)
     src = (ROOT / "gpu/vk/vk_progcache.cpp").read_text(encoding="utf-8")
     consts = "".join(line + "\n" for line in src.splitlines()
                      if line.startswith(("constexpr uint32_t kCompressedKind", "constexpr uint64_t kMaxUnpacked")))
@@ -113,7 +112,7 @@ def main():
         objs = []
         for f in ZSTD_C:
             o = t / (Path(f).stem + ".o")
-            r = subprocess.run([cc, "-O1", "-c", "-w", "-DZSTD_DISABLE_ASM", "-I" + str(ZSTD), "-I" + str(ZSTD / "common"), str(ZSTD / f), "-o", str(o)],
+            r = subprocess.run([cxx, "-x", "c", "-O1", "-c", "-w", "-DZSTD_DISABLE_ASM", "-I" + str(ZSTD), "-I" + str(ZSTD / "common"), str(ZSTD / f), "-o", str(o)],
                                capture_output=True, text=True, timeout=180, creationflags=flags)
             if r.returncode:
                 raise SystemExit("zstd's %s does not compile:\n%s" % (f, r.stdout + r.stderr))
