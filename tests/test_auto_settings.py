@@ -50,7 +50,7 @@ def check_source():
     if "constexpr int kAutoPreset" in menu:
         raise SystemExit("vk_menu.cpp defines kAutoPreset again: vk_menu.h has it")
     # (the upscaler set before the tier's rows: apply_preset snaps the Render resolution to it)
-    auto = body(menu, "void apply_auto() {")
+    auto = body(menu, "void apply_auto(bool keep_own) {")
     if not auto.index("opts.dlss = c.upscaler;") < auto.index("apply_preset(c.tier);"):
         raise SystemExit("apply_auto: opts.dlss must be set before apply_preset")
     # (the Output resolution Auto set is kept by its size: the choices' numbers follow the screen's modes, #2566)

@@ -31,6 +31,7 @@ static uint64_t same_address(uint64_t a) {
 static Host host_stand_in{same_address};
 static Host* host = &host_stand_in;
 
+#define NVN_TEX_MAX_BYTES (16ull << 30)   // (gpu/render/rx_nvn.h: guest_cpu_wrote's bound here)
 /* ACTUAL */
 
 int main() {
