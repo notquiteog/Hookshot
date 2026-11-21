@@ -27,6 +27,7 @@ import sys
 import tempfile
 import unittest
 
+RUN_ALL_MODULES = ["capstone"]   # (the lift case runs nx2/lift.py, which reads the code with capstone)
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "nx2"), str(ROOT / "third_party" / "a64-kit" / "tools")]
 spec = importlib.util.spec_from_file_location("build_long_paths", ROOT / "nx2" / "build.py")

@@ -1694,7 +1694,8 @@ def romfs_missing(romfs, exefs=None):
     needed = romfs_needed_for(exefs)
     if not needed:
         try:
-            return None if any(True for _ in os.scandir(folder)) else "files"
+            with os.scandir(folder) as entries:   # (closed at once: on Windows an open listing keeps the folder from being deleted)
+                return None if any(True for _ in entries) else "files"
         except OSError:
             return "files"
     return next((names[0] for names, there in needed
