@@ -135,15 +135,15 @@ CASES = [
     ("C:\\Users\\John Smith\\Games\\x\n", "C:\\Users\\John Smith", "John Smith", 1, "%USERPROFILE%\\Games\\x\n"),
     ("c:/users/john smith/Games\n", "C:\\Users\\John Smith", "John Smith", 1, "%USERPROFILE%/Games\n"),
     ("D:\\Users\\JOHN SMITH\\x\n", "C:\\Users\\John Smith", "John Smith", 1, "D:\\Users\\<user>\\x\n"),
-    ("C:\\Users\\Mary Jane Watson\\OneDrive\\Documents\\Longshot\\logs\n", "C:\\Users\\Mary Jane Watson", "Mary Jane Watson", 1,
-     "%USERPROFILE%\\OneDrive\\Documents\\Longshot\\logs\n"),
+    ("C:\\Users\\Mary Jane Watson\\OneDrive\\Documents\\Hookshot\\logs\n", "C:\\Users\\Mary Jane Watson", "Mary Jane Watson", 1,
+     "%USERPROFILE%\\OneDrive\\Documents\\Hookshot\\logs\n"),
     ("C:\\Users\\Seán O'Brien\\AppData\\Local\\Temp\\x.tmp and E:\\Users\\Seán O'Brien\\Games\n",
      "C:\\Users\\Seán O'Brien", "Seán O'Brien", 1,
      "%USERPROFILE%\\AppData\\Local\\Temp\\x.tmp and E:\\Users\\<user>\\Games\n"),
-    ("/home/jörg/Spiele/Longshot/logs/hookshot_log.txt\n", "/home/jörg", "jörg", 0, "~/Spiele/Longshot/logs/hookshot_log.txt\n"),
+    ("/home/jörg/Spiele/Hookshot/logs/hookshot_log.txt\n", "/home/jörg", "jörg", 0, "~/Spiele/Hookshot/logs/hookshot_log.txt\n"),
     ("vk: device 0: NVIDIA GeForce RTX 4090, no path here\n", "/home/al", "al", 0,
      "vk: device 0: NVIDIA GeForce RTX 4090, no path here\n"),
-    ("Games\\Longshot\\cache and ./logs/x relative\n", "C:\\Users\\al", "al", 1, "Games\\Longshot\\cache and ./logs/x relative\n"),
+    ("Games\\Hookshot\\cache and ./logs/x relative\n", "C:\\Users\\al", "al", 1, "Games\\Hookshot\\cache and ./logs/x relative\n"),
     ("max played; C:\\Users\\max\\x\n", "C:\\Users\\max", "max", 1, "max played; %USERPROFILE%\\x\n"),
     ("nothing here\n", "", "", 0, "nothing here\n"),
 ]
@@ -216,8 +216,8 @@ def here_checks(exe, tmp):
             print("  (this drive makes no 8.3 names: the short name's case not checked)")
     else:
         env = env_for("/home/al", "al")
-        got = run(exe, ["line"], "[hos Main] saves in /home/al/.local/share/longshot and /run/media/al/SD\n", env)
-        assert got == "[hos Main] saves in ~/.local/share/longshot and /run/media/<user>/SD\n", got
+        got = run(exe, ["line"], "[hos Main] saves in /home/al/.local/share/hookshot and /run/media/al/SD\n", env)
+        assert got == "[hos Main] saves in ~/.local/share/hookshot and /run/media/<user>/SD\n", got
 
 
 def file_checks(exe, tmp):
@@ -226,7 +226,7 @@ def file_checks(exe, tmp):
     env = env_for(home, user)
     w = "%USERPROFILE%" if os.name == "nt" else "~"
     sep = "\\" if os.name == "nt" else "/"
-    raw = ("longshot v3.0.0\nrun_id: 0123abcd\n"
+    raw = ("hookshot v3.0.0\nrun_id: 0123abcd\n"
            "loader: layer manifest " + home + sep + "AppData" + sep + "x.json\n"
            "a line with no path\n" + home + sep + "y\nno newline at the end " + home)
     want = raw.replace(home, w)

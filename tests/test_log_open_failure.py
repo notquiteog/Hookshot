@@ -107,7 +107,7 @@ def main():
                 (game / "logs").mkdir()
             else:
                 (game / "logs").write_text("a file where the logs folder would be\n", encoding="utf-8")
-            r = subprocess.run([str(exe), str(game / "longshot"), case], stdout=subprocess.PIPE, text=True)
+            r = subprocess.run([str(exe), str(game / "hookshot"), case], stdout=subprocess.PIPE, text=True)
             print(r.stdout.strip())
             failed |= r.returncode != 0
         raise SystemExit(1 if failed else 0)

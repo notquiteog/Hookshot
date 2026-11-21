@@ -96,9 +96,9 @@ static DWORD WINAPI stop_messages(void *unused) {
     WNDCLASSW wc = {0};
     wc.lpfnWndProc = stop_window;
     wc.hInstance = GetModuleHandleW(NULL);
-    wc.lpszClassName = L"LongshotHeadlessStop";
+    wc.lpszClassName = L"HookshotHeadlessStop";
     if (!RegisterClassW(&wc) || !CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, wc.lpszClassName,
-            L"Longshot windowless stop", WS_OVERLAPPED, 0, 0, 0, 0, NULL, NULL, wc.hInstance, NULL)) {
+            L"Hookshot windowless stop", WS_OVERLAPPED, 0, 0, 0, 0, NULL, NULL, wc.hInstance, NULL)) {
         hos_log("stop: hidden window unavailable (error %lu); use the control bridge", (unsigned long)GetLastError());
     }
     /* CREATE_NEW_PROCESS_GROUP can leave Ctrl+C ignored by inheritance. Opt this process back in. */

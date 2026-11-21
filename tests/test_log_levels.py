@@ -88,8 +88,8 @@ int main() {
     want(queued, "[hos host] vk: device 1\n", "host: an info line as it was");
     host_line(HOS_LOG_TRACE, "vk: program %%s", "x");
     want(queued, "[hos host] [trace] vk: program x\n", "host: trace after the thread's tag");
-    host_line(HOS_LOG_INFO, "saves: %%s and /run/media/al/SD", "/home/al/Games/Longshot/user");
-    want(queued, "[hos host] saves: ~/Games/Longshot/user and /run/media/<user>/SD\n", "host: the line without the user name");
+    host_line(HOS_LOG_INFO, "saves: %%s and /run/media/al/SD", "/home/al/Games/Hookshot/user");
+    want(queued, "[hos host] saves: ~/Games/Hookshot/user and /run/media/<user>/SD\n", "host: the line without the user name");
     HosThread main_thread{"Main"};
     cur = &main_thread;
     host_line(HOS_LOG_DEBUG, "codec: y");

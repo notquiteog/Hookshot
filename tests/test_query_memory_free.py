@@ -4,7 +4,7 @@
 The kernel answers the memory block that holds the address, and free blocks are merged, so a free address is answered
 with the whole free range around it, from the end of the mapping before it to the start of the one after it. Past the
 address space it answers one Inaccessible block (state 0x10) from the space's end to 2^64 (Atmosphere's mesosphere,
-KPageTableBase::QueryInfo). Longshot answered a free address with its one page, so a walk over the address space
+KPageTableBase::QueryInfo). The HLE answered a free address with its one page, so a walk over the address space
 region by region (base + size each step, as code that lists the mappings does) needed a step per free page and never
 got far past the system region. query_memory is cut from the source and compiled with stubs for the layout, then:
 
