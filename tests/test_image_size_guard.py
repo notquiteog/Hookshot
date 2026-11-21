@@ -1,7 +1,7 @@
 """A game image past 2 GB fails the build instead of linking silently broken (nx2/build.py image_span, image_too_big).
 
 The game's code reaches its data RIP-relative (a signed 32-bit offset). lld does not range-check those fixups on x86-64
-COFF: lifted code compiled at -O0 linked a 2,262 MB longshot.exe with no error, and the game read the wrong memory
+COFF: lifted code compiled at -O0 linked a 2,262 MB hookshot.exe with no error, and the game read the wrong memory
 (.data started past 2^31; `movq -0x7d457b8e(%rip)` landed 4 GB below .refptr.a64_dirty). Checked here, with
 image_span/image_too_big cut out of build.py:
   - a PE's SizeOfImage and an ELF's PT_LOAD span are read right (made-up headers, both sides of the limit);
@@ -70,7 +70,7 @@ def elf(loads):
 class Case(unittest.TestCase):
     def setUp(self):
         self.ns = guard()
-        tmp = tempfile.TemporaryDirectory(prefix="longshot-image-guard-")
+        tmp = tempfile.TemporaryDirectory(prefix="hookshot-image-guard-")
         self.addCleanup(tmp.cleanup)
         self.dir = tmp.name
 
@@ -95,7 +95,7 @@ class ReadsTheSpan(Case):
 
 class FailsPastTheLimit(Case):
     def test_the_cover_streams_image_fails_and_is_deleted(self):
-        exe = self.file("longshot.exe", pe(2262 * 2**20 + 0x80000))
+        exe = self.file("hookshot.exe", pe(2262 * 2**20 + 0x80000))
         msg = self.ns["image_too_big"](exe)
         self.assertIsNotNone(msg)
         self.assertTrue(msg.startswith("link FAILED"), msg)
@@ -121,7 +121,7 @@ class FailsPastTheLimit(Case):
 
 class EveryGameLinkIsChecked(unittest.TestCase):
     def test_each_link_of_the_lifted_code_is_followed_by_the_check(self):
-        """main() links the lifted code three ways (Linux longshot, Windows longshot.exe, --dll hookshot_game.dll): each
+        """main() links the lifted code three ways (Linux hookshot, Windows hookshot.exe, --dll hookshot_game.dll): each
         image it writes with -o is checked before it is said to be linked"""
         import re
         src = BUILD_SCRIPT.read_text(encoding="utf-8")

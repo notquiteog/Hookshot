@@ -952,7 +952,7 @@ def check_mingw():
         blocked = unlistable_above(cc)
         if blocked:   # (issue 1010: LLVM's tools stop at once there, "<clang.exe>: permission denied", before they compile anything)
             fail("Windows doesn't let programs look inside %s, a folder above the builder's own compiler, so it can't start. Move "
-                 "Longshot's folder out of it (for example to C:\\Longshot) and start Longshot from there." % blocked)
+                 "Hookshot's folder out of it (for example to C:\\Hookshot) and start Hookshot from there." % blocked)
         fail("The builder's own compiler (tools/llvm-mingw) could not build a test program: %s. Unpack the zip again into a folder "
              "your antivirus allows." % compiler_failure(r))
     print("the compiler: %s (no Visual Studio needed)" % os.environ["HOOKSHOT_MINGW"], flush=True)
@@ -1697,7 +1697,7 @@ def check_unpacked_romfs(romfs, source):
     missing = romfs_missing(romfs)
     if missing:
         fail("%s does not hold all of the game's files (no %s): a game built from it could not start. Dump the game again and "
-             "choose the complete dump in Longshot Builder." % (source, missing))
+             "choose the complete dump in Hookshot Builder." % (source, missing))
 
 
 def refuse_dump_links(folder):
@@ -2745,12 +2745,12 @@ def main(a=None):
                 plan[:] = [int(parts[1]), int(parts[2])]
     linking = []   # (build.py's "compiled in Ns, 0 failed": every object made, the link next)
     failed = []   # (build.py's "FAILED <name> (...": a file that did not compile, alone either)
-    game_linked = []   # (build.py's "linked <...>/longshot[.exe]: N MB": the game linked, the renderer's link next)
+    game_linked = []   # (build.py's "linked <...>/hookshot[.exe]: N MB": the game linked, the renderer's link next)
 
     def compile_line(line):
         if re.match(r"compiled in \d+s, 0 failed$", line):
             linking.append(line)
-        if re.match(r"linked .*[\\/]longshot(\.exe)?: \d+ MB \(", line):
+        if re.match(r"linked .*[\\/]hookshot(\.exe)?: \d+ MB \(", line):
             game_linked.append(line)
         m = re.match(r"FAILED (\S+) \(", line)
         if m:

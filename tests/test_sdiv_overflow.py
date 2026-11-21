@@ -153,7 +153,7 @@ def main():
     if not cc or not cxx:
         skip("no C or C++ compiler")
     failures, runs = [], 0
-    with tempfile.TemporaryDirectory(prefix="longshot-sdiv-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="hookshot-sdiv-") as tmp:
         texts = translate(cxx, tmp)
         bodies = "\n".join("static void form%d(Ctx *c) { %s }" % (k, t.strip()) for k, t in enumerate(texts))
         source = PROGRAM % (bodies, ", ".join("form%d" % k for k in range(len(texts))))

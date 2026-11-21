@@ -17,7 +17,7 @@ import disk  # noqa: E402
 @unittest.skipIf(sys.platform == "win32", "Synthetic Linux sysfs graphs require symlinks; checked on Linux")
 class RotationalGraphTests(unittest.TestCase):
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory(prefix="longshot-rotational-")
+        tmp = tempfile.TemporaryDirectory(prefix="hookshot-rotational-")
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name).resolve()
 

@@ -282,7 +282,7 @@ def image_span(path):
     an ELF's PT_LOAD segments from the lowest address to the highest end. None when the file is neither.
 
     The game's code reaches its data (.data, the GOT, .refptr) RIP-relative, a signed 32-bit offset. lld does not range-check
-    those fixups on x86-64 COFF: a lifted build compiled at -O0 linked a 2,262 MB longshot.exe with no error, and its first
+    those fixups on x86-64 COFF: a lifted build compiled at -O0 linked a 2,262 MB hookshot.exe with no error, and its first
     instruction that read a64_dirty read 4 GB below it (bold/cover, 2026-11-13). So the build checks the size itself.
     On ELF this is only a second check: lld does range-check x86-64 PC-relative fixups there and fails the link itself."""
     import struct

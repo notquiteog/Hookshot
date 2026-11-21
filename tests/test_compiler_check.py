@@ -45,7 +45,7 @@ class UnlistableTests(unittest.TestCase):
     def test_the_highest_folder_that_denies_listing(self):
         root = os.path.abspath(os.sep)
         cookies = os.path.join(root, "Users", "me", "Cookies")
-        clang = os.path.join(cookies, "Desktop", "Longshot", "tools", "llvm-mingw", "bin", "clang.exe")
+        clang = os.path.join(cookies, "Desktop", "Hookshot", "tools", "llvm-mingw", "bin", "clang.exe")
         real = os.scandir
 
         def scandir(folder):
@@ -57,7 +57,7 @@ class UnlistableTests(unittest.TestCase):
 
         with mock.patch.object(make_game.os, "name", "nt"), mock.patch.object(make_game.os, "scandir", scandir):
             self.assertEqual(make_game.unlistable_above(clang), cookies)
-            self.assertIsNone(make_game.unlistable_above(os.path.join(root, "Longshot", "bin", "clang.exe")))
+            self.assertIsNone(make_game.unlistable_above(os.path.join(root, "Hookshot", "bin", "clang.exe")))
 
 
 if __name__ == "__main__":
