@@ -2,7 +2,7 @@
 std::bad_alloc that nothing caught, and the game ended with exception 0x20474343 ("An unexpected error"): no wait for memory
 and no out-of-memory notice, where the host's own allocations wait since issue 333. Now mkwvk_init installs a new_handler,
 new_refused (gpu/vk/vk_main.cpp), that waits up to 5 s for memory and then stops the game through the host's out-of-memory
-line and notice (MkwVkHost out_of_memory, version 28).
+line and notice (MkwVkHost out_of_memory, API version 23).
 
 Compiles the real new_refused and its constants, cut out of gpu/vk/vk_main.cpp, with tests/renderer_new_handler_test.cpp's
 clock, log and host, and runs each case in its own process. The refusals are real: 1 PB asked of the C++ library's own
@@ -14,7 +14,7 @@ operator new, which calls the handler each time malloc refuses and tries again w
   wait of its own;
 - nothrow: in a NewNothrow scope (gpu/vk/vk_new.h) a nothrow new, aligned or not, and new (std::nothrow)[] get their null at
   once, with no wait and no stop; nothrow-unscoped: without the scope they wait and stop too, which is why the scope is there;
-- old-host, no-host: a version-27 host (no out_of_memory) or none: std::bad_alloc after the wait, as before;
+- old-host, no-host: a version-22 host (no out_of_memory) or none: std::bad_alloc after the wait, as before;
 - small: an allocation that is given never runs the handler.
 
 And by text: mkwvk_init installs the handler once it has the host; every std::nothrow new in the renderer is in a NewNothrow

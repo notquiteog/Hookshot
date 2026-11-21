@@ -144,7 +144,7 @@ void logf_at(LogLevel level, const char* fmt, ...) {
 // The host's own allocations wait there since issue 333 (host/mkw_glue.c hos_alloc_failed); this is the same for the renderer's.
 // new_refused is the renderer's new_handler (mkwvk_init): operator new calls it each time malloc refuses and tries again when it
 // returns. It returns after 50 ms, for up to 5 s, while the textures give commit back; then the host's out-of-memory line and
-// notice, and the game stops (MkwVkHost out_of_memory, version 28; an older host: thrown, as before). A refusal more than
+// notice, and the game stops (MkwVkHost out_of_memory, API version 23; an older host: thrown, as before). A refusal more than
 // kNewApartMs after this thread's last try is a new one, with a whole wait of its own. In a NewNothrow scope (vk_new.h) it
 // throws at once: that nothrow new's caller has a fallback for its null.
 // HOS_TEST_ALLOC_REFUSE=<text> (host/mkw_glue.c's test) whose text is in kNewWhat: at the 600th present one allocation too large
@@ -171,7 +171,7 @@ void new_refused() {
         return;   // (operator new asks malloc again)
     }
     t_new_tries = 0;
-    if (host && host->version >= 28 && host->out_of_memory) host->out_of_memory(kNewWhat);   // (does not return)
+    if (host && host->version >= 23 && host->out_of_memory) host->out_of_memory(kNewWhat);   // (does not return)
     throw std::bad_alloc();
 }
 void new_refuse_test(int64_t presents) {   // (the replay's present, its count)

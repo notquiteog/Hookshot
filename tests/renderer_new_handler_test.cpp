@@ -51,7 +51,7 @@ static void fake_out_of_memory(const char* what) {
     mkwvk::oom_calls++, mkwvk::oom_what = what;
     throw GaveUp();
 }
-static MkwVkHost host_v28, host_v27;
+static MkwVkHost host_v23, host_v22;
 static volatile size_t big = size_t(1) << 50;   // (1 PB: refused on any PC)
 static void* volatile kept;
 
@@ -77,9 +77,9 @@ static bool gave_up_after_5s() {
 int main(int argc, char** argv) {
     using namespace mkwvk;
     scenario = argc > 1 ? argv[1] : "";
-    host_v28.version = 28, host_v28.out_of_memory = fake_out_of_memory;
-    host_v27.version = 27, host_v27.out_of_memory = fake_out_of_memory;   // (an older host: the slot is not its)
-    host = &host_v28;
+    host_v23.version = MKWVK_API_VERSION, host_v23.out_of_memory = fake_out_of_memory;   // (the host mkwvk_init takes: exactly this one)
+    host_v22.version = MKWVK_API_VERSION - 1, host_v22.out_of_memory = fake_out_of_memory;   // (an older host: the slot is not its)
+    host = &host_v23;
     std::set_new_handler(new_refused);
     if (!std::strcmp(scenario, "limit")) {   // (operator new: 5 s of tries, then the host's out-of-memory stop)
         CHECK(ends([] { kept = ::operator new(big); }) == 1);
@@ -112,8 +112,8 @@ int main(int argc, char** argv) {
     } else if (!std::strcmp(scenario, "nothrow-unscoped")) {   // (why the scope: without it a nothrow new waits and stops too)
         CHECK(::operator new(big, std::align_val_t(64), std::nothrow) == nullptr);
         CHECK(gave_up_after_5s());
-    } else if (!std::strcmp(scenario, "old-host")) {   // (a version-27 host has no out_of_memory: thrown, as before)
-        host = &host_v27;
+    } else if (!std::strcmp(scenario, "old-host")) {   // (a version-22 host has no out_of_memory: thrown, as before)
+        host = &host_v22;
         CHECK(ends([] { kept = ::operator new(big); }) == 2);
         CHECK(sleeps == 100 && oom_calls == 0);
     } else if (!std::strcmp(scenario, "no-host")) {   // (before mkwvk_init: thrown, as before)
