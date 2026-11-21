@@ -121,6 +121,7 @@ bool resolve(HMODULE m, const char* name, T*& fn) {
 /// llvm-mingw's headers do not, and Hookshot builds for Windows with either (third_party/a64-kit).
 /// This uses only what both have. Trust alone is not enough -- it would accept anything signed by
 /// anyone Windows trusts -- so the subject name is read too.
+constexpr const wchar_t* kNvidiaSigner = L"NVIDIA Corporation";   // (the subject of NVIDIA's code-signing certificate)
 bool signed_by_nvidia(const std::wstring& path) {
     WINTRUST_FILE_INFO file{};
     file.cbStruct = sizeof file;
@@ -164,9 +165,12 @@ bool signed_by_nvidia(const std::wstring& path) {
                     store, X509_ASN_ENCODING, 0, CERT_FIND_SUBJECT_CERT, &want, nullptr)) {
                 wchar_t name[256] = {};
                 CertGetNameStringW(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, nullptr, name, 256);
-                nvidia = wcsstr(name, L"NVIDIA") != nullptr;
+                // (exactly NVIDIA's own name: a certificate whose name only contains "NVIDIA" (anyone can be
+                // "Not NVIDIA Ltd" to a CA) is not NVIDIA's)
+                nvidia = wcscmp(name, kNvidiaSigner) == 0;
                 if (!nvidia)
-                    logf("vk: sl.interposer.dll is signed, but not by NVIDIA: not loading it");
+                    logf("vk: sl.interposer.dll is signed by \"%s\", not \"NVIDIA Corporation\": not loading it",
+                         narrow(name).c_str());
                 CertFreeCertificateContext(cert);
             }
         }
@@ -178,10 +182,25 @@ bool signed_by_nvidia(const std::wstring& path) {
 
 bool load(State& s, const std::wstring& path) {
     // We are about to load code from a path a player can write to, so a file that is not NVIDIA's
-    // signed interposer is not loaded at all.
-    if (!signed_by_nvidia(path)) return false;
-    s.module = LoadLibraryW(path.c_str());
+    // signed interposer is not loaded at all. The file is held open from before its signature is
+    // checked until it is loaded, sharing reads only: nothing can write, rename or delete it in
+    // between, so the file checked is the file loaded. Its own imports are looked for only beside it
+    // and in System32, not in the current folder or along PATH.
+    const HANDLE held = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                                    FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (held == INVALID_HANDLE_VALUE) {
+        logf("vk: could not open sl.interposer.dll to check it (error %lu)", GetLastError());
+        return false;
+    }
+    const bool trusted = signed_by_nvidia(path);
+    s.module = trusted ? LoadLibraryExW(path.c_str(), nullptr,
+                                        LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32)
+                       : nullptr;
+    const DWORD load_error = trusted && !s.module ? GetLastError() : 0;
+    CloseHandle(held);
+    if (!trusted) return false;
     if (!s.module) {
+        SetLastError(load_error);
         logf("vk: could not load sl.interposer.dll (error %lu)", GetLastError());
         return false;
     }
