@@ -70,7 +70,6 @@ static uint64_t completed() { uint64_t v = 0; vkGetSemaphoreCounterValue(dev.dev
 enum { FR_VALUE, FR_WAIT };
 static void queue_flush_for(int) {}
 namespace fps_stats { enum { kGpuWait }; }
-static int fps_gpu_wait_kind() { return fps_stats::kGpuWait; }   // (main's #928: the kind of GPU wait, outside the game's fence wait)
 struct FpsWait { explicit FpsWait(int) {} };
 static bool by_recording = true;
 static void wait_rec_seq(uint64_t seq, uint64_t timeout_ns, int* ok);

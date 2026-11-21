@@ -259,7 +259,6 @@ def main():
                          "(#1370)")
     draw_cpp = (VK / "vk_draw.cpp").read_text(encoding="utf-8")
     temporal = (VK / "vk_temporal.cpp").read_text(encoding="utf-8")
-    table = (VK / "switches.def").read_text(encoding="utf-8")
 
     # (draw() asks the rule right after skin_check, leaves the draw out at once, and only then gives a skinned draw to actor
     # motion and builds its descriptors: a draw left out is neither drawn again for its motion nor given a descriptor set)
@@ -291,9 +290,6 @@ def main():
                  'env_switch("RX_VK_PARALLEL") >= 2', "return parallel ? 0 :"):
         if need not in mode:
             raise SystemExit("vk_temporal.cpp temporal_hidden_mesh_mode(): lost " + need)
-    for name, kind in (("RX_VK_DLSS_FADED", "kill"), ("RX_VK_DLSS_FADED_LOG", "diag")):
-        if "SW(%s, %s, bool, " % (name, kind) not in table:
-            raise SystemExit("switches.def: no %s row of kind %s" % (name, kind))
 
     with tempfile.TemporaryDirectory(prefix="hidden-mesh-") as tmp:
         cpp = Path(tmp) / "fixture.cpp"

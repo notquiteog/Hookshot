@@ -93,6 +93,9 @@ struct { bool native_mma = false; } dev;
 @CODE@
 @CODE_KEY@
 Code parse_code(const uint8_t* ctl, const std::vector<uint8_t>& area);
+// (hookshot: the passthrough geometry stub's, vk_shader.cpp; no such program here)
+static bool passthrough_geometry(const uint8_t*) { return false; }
+static std::vector<uint64_t> passthrough_geometry_body() { return {}; }
 @PARSE_CODE@
 
 using Shader::Ampere::Instruction;
