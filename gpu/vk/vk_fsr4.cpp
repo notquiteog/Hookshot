@@ -15,6 +15,7 @@
 #include <atomic>
 #include <cstdlib>
 
+#include "vk_signed.h"   // (AMD's library: only AMD's signed file, or on Linux a safely owned one)
 #include "vk_internal.h"
 #include "vk_temporal.h"
 
@@ -922,14 +923,19 @@ bool load() {
 #ifdef _WIN32
         const std::string path = dir + "\\" + kLoader;
         if (GetFileAttributesA(path.c_str()) == INVALID_FILE_ATTRIBUTES) continue;
-        // (the upscaler DLL the loader picks lies beside it: the loader's folder first in the search)
-        l.lib = LoadLibraryExA(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
-        // (there but not loaded: a DLL it needs missing, a bad signature, or a relative RX_VK_FSR_DIR, which the search
-        // flags refuse)
-        if (!l.lib) logf("vk: AMD FSR 4: %s not loaded (Windows error %lu)", path.c_str(), (unsigned long)GetLastError());
+        // (the upscaler DLL the loader picks lies beside it: the loader's folder first in the search. Only AMD's own file,
+        // held from its signature check to the load: vk_signed.h)
+        l.lib = signed_dll::load(signed_dll::wide(path), signed_dll::kAmd, kLoader,
+                                 LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+        // (there but not loaded: not AMD's signed file (said above), a DLL it needs missing, or a relative RX_VK_FSR_DIR,
+        // which the search flags refuse)
+        if (!l.lib && GetLastError() != ERROR_INVALID_IMAGE_HASH)
+            logf("vk: AMD FSR 4: %s not loaded (Windows error %lu)", path.c_str(), (unsigned long)GetLastError());
 #else
         const std::string path = dir + "/" + kLoader;
         if (access(path.c_str(), R_OK) != 0) continue;
+        // (not signed on Linux: only a library this user or root owns, in a folder no one else may write: vk_signed.h)
+        if (!signed_dll::owned_safely(path, kLoader)) continue;
         l.lib = (HMODULE)dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
         if (!l.lib) logf("vk: AMD FSR 4: %s not loaded: %s", path.c_str(), dlerror());
 #endif

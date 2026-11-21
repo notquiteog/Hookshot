@@ -24,6 +24,7 @@
 #include "../../third_party/ffx-api/framegeneration/include/ffx_framegeneration.h"
 #include "vk_loader.h"
 #include "vk_paths.h"   // (game_module_path: the game folder, where the release puts AMD's files)
+#include "vk_signed.h"  // (AMD's loader: only AMD's signed file)
 #include "vk_work.h"    // (after the others: the commands here go through the recorder, and AMD's own are told to it)
 
 namespace mkwvk::ffx {
@@ -104,9 +105,9 @@ std::string find_loader() {
 // (hookshot) Every call into AMD's DLLs goes through these: a fault inside the runtime (a driver it does not expect, a
 // provider that dereferences what an NVIDIA device does not have) costs FSR 4, not the game. Plain C functions with no
 // objects to unwind, which is what __try needs; noinline so the guard stays around the call.
-__declspec(noinline) HMODULE guarded_load(const char* path) {
+__declspec(noinline) HMODULE guarded_load(const wchar_t* path) {
     __try {
-        return LoadLibraryExA(path, nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+        return LoadLibraryExW(path, nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
     } __except (1) {
         return nullptr;
     }
@@ -157,9 +158,15 @@ bool load() {
     }
     // (the loader looks for the frame generation DLL in its own folder)
     logf("vk: amd fsr 4: loading AMD's runtime for frame generation (%s)", path.c_str());
-    s.module = guarded_load(path.c_str());
+    // (only AMD's own signed file, held from its check until it is loaded: vk_signed.h)
+    const std::wstring wpath = signed_dll::wide(path);
+    const HANDLE held = signed_dll::open_checked(wpath, signed_dll::kAmd, "amd_fidelityfx_loader_vk.dll");
+    if (held == INVALID_HANDLE_VALUE) return false;   // (it said why)
+    s.module = guarded_load(wpath.c_str());
+    const DWORD load_error = s.module ? 0 : GetLastError();
+    CloseHandle(held);
     if (!s.module) {
-        logf("vk: amd fsr 4: amd_fidelityfx_loader_vk.dll did not load (error %lu)", GetLastError());
+        logf("vk: amd fsr 4: amd_fidelityfx_loader_vk.dll did not load (error %lu)", (unsigned long)load_error);
         return false;
     }
     s.create = (PfnFfxCreateContext)(void*)GetProcAddress(s.module, "ffxCreateContext");
