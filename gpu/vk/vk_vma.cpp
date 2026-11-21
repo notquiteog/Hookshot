@@ -25,7 +25,7 @@ VmaAllocator vma;
 static uint64_t device_local_heap_bytes() {
     uint64_t heap = 0;
     for (uint32_t h = 0; h < dev.memory.memoryHeapCount; h++)
-        if (dev.memory.memoryHeaps[h].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) heap = std::max<uint64_t>(heap, test_vram_bytes(dev.memory.memoryHeaps[h].size));   // (RX_VK_TEST_VRAM_MB, #1107)
+        if (dev.memory.memoryHeaps[h].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) heap = std::max<uint64_t>(heap, dev.memory.memoryHeaps[h].size);   // (Longshot's RX_VK_TEST_VRAM_MB, #1107, is not here)
     return heap;
 }
 

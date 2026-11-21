@@ -4801,12 +4801,17 @@ void dead_targets_sweep(uint64_t completed) {
         const uint64_t lo = tex->gpu, hi = tex->gpu + tex->guest_size;
         auto it = std::lower_bound(by_start.begin(), by_start.end(), lo > longest ? lo - longest : 0,
                                    [](const Texture* t, uint64_t g) { return t->gpu < g; });
-        for (; it != by_start.end() && (*it)->gpu < hi; ++it)
-            if (*it != tex && target_overlap::shifted_over(lo, hi, tex->last_frame, (*it)->gpu, (*it)->gpu + (*it)->guest_size,
-                                                           (*it)->last_written)) {
+        // (their parts added up, as the eviction's drawn-over rule: several may each cover less than an eighth of it and together
+        // more: target_overlap::DrawnOver, from Hookshot #2766 as Longshot #943 took it)
+        target_overlap::DrawnOver over;
+        for (; it != by_start.end() && (*it)->gpu < hi; ++it) {
+            if (*it == tex) continue;
+            over.add(lo, hi, tex->last_frame, (*it)->gpu, (*it)->gpu + (*it)->guest_size, (*it)->last_written);
+            if (over.an_eighth(hi - lo)) {
                 gone.insert(tex);
                 break;
             }
+        }
     }
     if (gone.empty()) return;
     for (Texture* tex : gone) {   // (each one's end as the eviction's)
