@@ -68,7 +68,7 @@ def main():
     if not (ROOT / "gpu" / "vk" / "driver_cache_env.h").exists():
         problems.append("gpu/vk/driver_cache_env.h is missing")
     else:
-        with tempfile.TemporaryDirectory(prefix="longshot-driver-env-") as folder:
+        with tempfile.TemporaryDirectory(prefix="hookshot-driver-env-") as folder:
             exe = Path(folder) / "t"
             r = subprocess.run([cxx, "-std=c++17", "-O0", "-Wall", "-Wextra", "-Werror",
                                 str(ROOT / "tests" / "driver_cache_env_test.cpp"), "-o", str(exe)],

@@ -27,7 +27,7 @@ static bool exists(const std::string& p) { return files.count(p) != 0; }
 int main() {
     using namespace driver_cache_env;
     const Vars desktop{{"HOME", "/srv/player"}};
-    const Vars headless{{"HOME", "/srv/player"}, {"XDG_CACHE_HOME", "/srv/player/Games/Longshot/state/cache/"}};
+    const Vars headless{{"HOME", "/srv/player"}, {"XDG_CACHE_HOME", "/srv/player/Games/Hookshot/state/cache/"}};
     const Vars game_mode{{"HOME", "/srv/player"},
                          {"MESA_SHADER_CACHE_DIR", "/srv/player/.local/share/Steam/steamapps/shadercache/1234567890"},
                          {"MESA_DISK_CACHE_SINGLE_FILE", "1"},
@@ -35,7 +35,7 @@ int main() {
 
     // ---- the folders, as Mesa and NVIDIA choose them
     check(mesa_base(env_of(desktop)).path == "/srv/player/.cache", "the default folder is ~/.cache");
-    check(mesa_base(env_of(headless)).path == "/srv/player/Games/Longshot/state/cache", "XDG_CACHE_HOME, without its slash");
+    check(mesa_base(env_of(headless)).path == "/srv/player/Games/Hookshot/state/cache", "XDG_CACHE_HOME, without its slash");
     check(mesa_base(env_of(game_mode)).why == "MESA_SHADER_CACHE_DIR", "MESA_SHADER_CACHE_DIR first");
     check(mesa_base(env_of(Vars{{"HOME", "/h"}, {"MESA_GLSL_CACHE_DIR", "/g"}, {"XDG_CACHE_HOME", "/x"}})).path == "/g",
           "MESA_GLSL_CACHE_DIR before XDG_CACHE_HOME");
@@ -44,10 +44,10 @@ int main() {
     check(mesa_layout_asked(env_of(Vars{{"MESA_DISK_CACHE_SINGLE_FILE", "0"}})).empty(), "=0 asks for nothing");
     // (the old count looked in <XDG_CACHE_HOME or ~/.cache>/mesa_shader_cache_db alone)
     const std::vector<std::string> f = folders(env_of(headless));
-    check(f.size() == 4 && f[0] == "/srv/player/Games/Longshot/state/cache/nvidia/GLCache" &&
-              f[1] == "/srv/player/Games/Longshot/state/cache/mesa_shader_cache" &&
-              f[2] == "/srv/player/Games/Longshot/state/cache/mesa_shader_cache_sf" &&
-              f[3] == "/srv/player/Games/Longshot/state/cache/mesa_shader_cache_db",
+    check(f.size() == 4 && f[0] == "/srv/player/Games/Hookshot/state/cache/nvidia/GLCache" &&
+              f[1] == "/srv/player/Games/Hookshot/state/cache/mesa_shader_cache" &&
+              f[2] == "/srv/player/Games/Hookshot/state/cache/mesa_shader_cache_sf" &&
+              f[3] == "/srv/player/Games/Hookshot/state/cache/mesa_shader_cache_db",
           "NVIDIA's and each of Mesa's layouts");
     check(folders(env_of(game_mode))[2] == "/srv/player/.local/share/Steam/steamapps/shadercache/1234567890/mesa_shader_cache_sf",
           "Mesa's folders inside Steam's, not Steam's whole folder");
@@ -87,19 +87,19 @@ int main() {
     // ---- the log's line
     const std::string gm = describe(env_of(game_mode), true, true, true);
     check(gm.find("MESA_SHADER_CACHE_DIR") != std::string::npos && gm.find("VRS forced") != std::string::npos, "Game Mode's");
-    check(gm.find("set by Longshot") == std::string::npos, "Steam's folder is not Longshot's");
+    check(gm.find("set by Hookshot") == std::string::npos, "Steam's folder is not Hookshot's");
     Vars ours = desktop;
     ours["MESA_SHADER_CACHE_DIR"] = "/g/cache/driver";
     ours["HOOKSHOT_DRIVER_ENV_SET"] = "MESA_SHADER_CACHE_DIR";
-    check(describe(env_of(ours), true, true, false).find("set by Longshot") != std::string::npos,
-          "a Mesa folder the host set is named as Longshot's");
+    check(describe(env_of(ours), true, true, false).find("set by Hookshot") != std::string::npos,
+          "a Mesa folder the host set is named as Hookshot's");
     // (Game Mode with the host's drop, host/hos_main.c driver_env_choose: the variable gone, named in HOOKSHOT_DRIVER_ENV_SET)
     Vars dropped = game_mode;
     dropped.erase("RADV_FORCE_VRS_CONFIG_FILE");
     dropped["HOOKSHOT_DRIVER_ENV_SET"] = "RADV_FORCE_VRS_CONFIG_FILE";
     check(!radv_vrs_forced(env_of(dropped), true, exists), "dropped: not forced");
-    check(describe(env_of(dropped), true, true, false).find("RADV_FORCE_VRS_CONFIG_FILE dropped by Longshot") != std::string::npos,
-          "the drop is named as Longshot's");
+    check(describe(env_of(dropped), true, true, false).find("RADV_FORCE_VRS_CONFIG_FILE dropped by Hookshot") != std::string::npos,
+          "the drop is named as Hookshot's");
     check(fingerprint(env_of(dropped), true, false).keys == d.keys, "dropped: the keys of a start outside Game Mode");
     check(describe(env_of(Vars{{"HOME", "/h"}, {"RADV_FORCE_VRS_CONFIG_FILE", "/gone"}}), true, true, false).find("names no file") !=
               std::string::npos, "a missing file is said");

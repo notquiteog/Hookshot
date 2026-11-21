@@ -37,8 +37,8 @@ inline bool mesa_yes(const Env& env, const char* name) {
     return true;
 }
 /// HOOKSHOT_DRIVER_ENV_SET: the names the host set or dropped before Vulkan loaded (a comma-separated list), so the log does not
-/// take Longshot's choice for the player's or Steam's
-inline bool set_by_longshot(const Env& env, const char* name) {
+/// take Hookshot's choice for the player's or Steam's
+inline bool set_by_hookshot(const Env& env, const char* name) {
     const std::string list = "," + get(env, "HOOKSHOT_DRIVER_ENV_SET") + ",";
     return list.find("," + std::string(name) + ",") != std::string::npos;
 }
@@ -155,15 +155,15 @@ inline std::string describe(const Env& env, bool mesa, bool radv_vrs, bool vrs_f
     }
     const Folder f = mesa_base(env);
     const std::string layout = mesa_layout_asked(env);
-    std::string s = "Mesa's cache in " + f.path + " (" + f.why + (set_by_longshot(env, f.why.c_str()) ? ", set by Longshot" : "") +
+    std::string s = "Mesa's cache in " + f.path + " (" + f.why + (set_by_hookshot(env, f.why.c_str()) ? ", set by Hookshot" : "") +
                     "), layout " + (layout.empty() ? "Mesa's default" : layout);
     if (mesa_yes(env, "MESA_SHADER_CACHE_DISABLE")) s += ", turned off (MESA_SHADER_CACHE_DISABLE)";
     const char* file = env("RADV_FORCE_VRS_CONFIG_FILE");
     if (vrs_forced)
         s += file ? "; RADV's VRS forced by RADV_FORCE_VRS_CONFIG_FILE (the Steam Deck's Game Mode sets it for Half Rate Shading)"
                   : "; RADV's VRS forced by RADV_FORCE_VRS=" + get(env, "RADV_FORCE_VRS");
-    else if (set_by_longshot(env, "RADV_FORCE_VRS_CONFIG_FILE"))
-        s += "; RADV_FORCE_VRS_CONFIG_FILE dropped by Longshot, so RADV's VRS is not forced (RX_VK_HALF_RATE_SHADING=1 keeps it)";
+    else if (set_by_hookshot(env, "RADV_FORCE_VRS_CONFIG_FILE"))
+        s += "; RADV_FORCE_VRS_CONFIG_FILE dropped by Hookshot, so RADV's VRS is not forced (RX_VK_HALF_RATE_SHADING=1 keeps it)";
     else if (file && radv_vrs)
         s += "; RADV_FORCE_VRS_CONFIG_FILE names no file: RADV does not force VRS";
     else if (file || env("RADV_FORCE_VRS"))

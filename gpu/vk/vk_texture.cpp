@@ -5174,7 +5174,7 @@ void texture_frame(uint64_t completed) {
         pending_bytes += tex->bytes + tex->pad;
         if (by_hold && !overwritten) hold_live += tex->bytes + tex->pad;
     }
-    {   // (longshot) nor one whose storage another image was drawn into after its own last drawing (evict_reason.h's
+    {   // (hookshot) nor one whose storage another image was drawn into after its own last drawing (evict_reason.h's
         // write_back_stale): its write-back puts old texels over memory that is the other image's now, and marks those pages
         // written. OoT draws its HUD's labels inside the storage of a 1920 x 1080 target it has stopped using; that target's
         // eviction, ~600 frames later at a 6 GB budget, made the finalized labels upload from memory that never held their

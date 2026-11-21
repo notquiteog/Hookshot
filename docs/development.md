@@ -296,7 +296,7 @@ Each start logs the driver's shader cache twice (`gpu/vk/driver_cache_env.h`):
   else `$XDG_CACHE_HOME`, else `~/.cache`. The count stops after 50,000 files or 250 ms; the size is then "at least".
 - `vk: driver shader cache: Mesa's cache in <folder> (<what chose it>), layout ...; RADV's VRS ...` says which folder this
   start's driver cache is in and whether RADV's VRS is forced. A variable the host set or dropped itself is named in
-  `HOOKSHOT_DRIVER_ENV_SET` (a comma-separated list; not a switch), and this line calls it Longshot's. RADV forces VRS only on
+  `HOOKSHOT_DRIVER_ENV_SET` (a comma-separated list; not a switch), and this line calls it Hookshot's. RADV forces VRS only on
   gfx10.3 and later GPUs, where it has `VK_KHR_fragment_shading_rate`. It does so when `RADV_FORCE_VRS_CONFIG_FILE` names a
   file that exists (the Steam Deck's Game Mode sets it for Half Rate Shading), or, without that variable, when
   `RADV_FORCE_VRS` is other than `1x1`. Forced VRS gives every graphics pipeline another key. Measured on a Steam Deck OLED

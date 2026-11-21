@@ -65,7 +65,7 @@ def main():
     if not (ROOT / "gpu" / "vk" / "bounded_wait.h").exists():
         problems.append("gpu/vk/bounded_wait.h is missing")
     else:
-        with tempfile.TemporaryDirectory(prefix="longshot-bounded-wait-") as folder:
+        with tempfile.TemporaryDirectory(prefix="hookshot-bounded-wait-") as folder:
             exe = Path(folder) / "t"
             r = subprocess.run([cxx, "-std=c++17", "-O0", "-Wall", "-Wextra", "-Werror",
                                 str(ROOT / "tests" / "bounded_wait_test.cpp"), "-o", str(exe)],
