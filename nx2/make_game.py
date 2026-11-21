@@ -53,6 +53,7 @@ import long_paths  # noqa: E402
 long_paths.install()   # (paths past 260 characters on Windows, before anything reads a file: #1115)
 import game_profile   # noqa: E402  (which builds have a game profile, nx2/game_profile.py)
 import game_folders   # noqa: E402  (each game's own folders beside the default game's, nx2/game_folders.py)
+import object_store as _object_store   # noqa: E402  (the object cache's folder and what it forgets, nx2/object_store.py)
 # The default game's build, as the docs quote it (Ocarina's e0f3ccfa: the version its patches, the hot list and the
 # profile were made from). Which builds are accepted is the game profiles' list (supported_build), not this one.
 BUILD_ID = game_profile.GAMES[game_profile.DEFAULT].build_id[:8]
@@ -2490,10 +2491,10 @@ def main(a=None):
         a.out = a.update
     if not a.out or not (a.update or a.nup or (a.romfs and a.exefs)):
         fail("needs --out, and --nup or --romfs with --exefs")
+    if not (a.update or a.nup):
+        check_romfs_folder(a.romfs)   # (before any folder is chosen or made: #534)
     if getattr(a, "out_from_game", False) and not a.update:   # (--prepare, no --out: the game's own folder)
         game_folders_for_dump(a)
-    if not (a.update or a.nup):
-        check_romfs_folder(a.romfs)
     out = os.path.abspath(a.out)
     work = os.path.abspath(a.work)
     lock_work(work)   # (before anything is read or cleared in it: stop_stray_compilers, drop_stale_objects, the lift)

@@ -522,6 +522,8 @@ def main():
     p.add_argument("names", nargs="*")
     p.add_argument("--jobs", type=int, default=os.cpu_count() or 2)
     p.add_argument("--timeout", type=int, default=600, help="seconds per check (default 600)")
+    p.add_argument("--exact", action="store_true",   # (from Longshot, with #1032 and #1495's checks)
+                   help="a name must be a check's whole path, and with names given and none matching, run nothing")
     p.add_argument("--strict", action="store_true", help="a missing tool fails the check instead of skipping it")
     p.add_argument("--no-skip", action="store_true", help="also run the checks on the skip list")
     p.add_argument("--shard", type=shard_arg, metavar="K/N", help="run only the K-th of N parts (split by the times)")
@@ -548,9 +550,12 @@ def main():
         for line in stale:
             print("  " + line, file=sys.stderr)
         return 2
+    def picked(name):
+        return name in a.names if a.exact else any(n in name for n in a.names)
+
     # (only the tests asked for: a bad declaration elsewhere does not stop a run of one named test)
     if a.names:
-        tests = [rel for rel in tests if any(n in rel for n in a.names)]
+        tests = [rel for rel in tests if picked(rel)]
     changed, everything = None, True
     if a.changed is not None:
         changed = changed_files(a.changed)
@@ -575,7 +580,7 @@ def main():
         c = Check(rel, run)
         if decls[rel]["unparsed"]:   # (no skip to read: the same failure on every OS, not run)
             c.run = lambda why=decls[rel]["unparsed"]: Result(1, (why + "\n").encode())
-        elif reason and not a.no_skip and not any(n in rel for n in a.names):
+        elif reason and not a.no_skip and not (a.names and picked(rel)):
             c.why_skip = reason
         elif missing and not a.strict:
             c.why_skip = "not found here: " + ", ".join(missing)
@@ -595,7 +600,10 @@ def main():
         checks.append(c)
     checks.append(Check("(byte-compile every tracked .py)", compile_all))
     if a.names:
-        checks = [c for c in checks if any(n in c.name for n in a.names)]
+        checks = [c for c in checks if picked(c.name)]
+        if a.exact and not checks:
+            print("run_all: --exact: no check matches %s, nothing run" % ", ".join(a.names), file=sys.stderr)
+            return 2
     part = ""
     if a.shard:
         k, n = a.shard
