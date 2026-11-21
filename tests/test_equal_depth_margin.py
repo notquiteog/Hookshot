@@ -23,9 +23,16 @@ def main():
         raise SystemExit("no RX_VK_EQ_BIAS switch")
     if "dev.props.vendorID == 0x8086 ? 64.0f : 0.0f" not in state:
         raise SystemExit("the margin is not on by default on Intel only")
-    cond = "if (eq_bias > 0 && d.dt && !d.dw && d.dop == VK_COMPARE_OP_EQUAL && !blends)"
+    equal = "const bool equal_pass = eq_bias > 0 && d.dt && !d.dw && d.dop == VK_COMPARE_OP_EQUAL;"
+    if equal not in state:
+        raise SystemExit("the margin is not limited to EQUAL tests that do not write depth")
+    cond = "if (equal_pass && !blends)"
     if cond not in state:
         raise SystemExit("the margin is not limited to EQUAL tests that do not write depth and do not blend")
+    # (the targets' blending is looked at only for such a draw: a loop over every target of every draw, on every GPU, for a
+    # margin only Intel takes by default, before the test that leaves every other draw out of it)
+    if "for (int i = 0; equal_pass && i < at.n && !blends; i++) {" not in state or not state.index(equal) < state.index("for (int i = 0; equal_pass"):
+        raise SystemExit("the targets' blending is looked at before the EQUAL test, for every draw")
     before = state[:state.index(cond)]
     if "(s.color.blend_en >> i & 1) && at.color_format[i]" not in before:
         raise SystemExit("the margin does not look at the targets' blending")
@@ -36,7 +43,7 @@ def main():
     for line in ("d.dop = VK_COMPARE_OP_LESS_OR_EQUAL;", "d.bias_en = VK_TRUE;", "d.bias[0] = -eq_bias"):
         if line not in margin:
             raise SystemExit("the margin lacks %r" % line)
-    if not state.index("d.dop = compare_op(s.ds.df);") < state.index(cond):
+    if not state.index("d.dop = compare_op(s.ds.df);") < state.index(equal):
         raise SystemExit("the margin must come after the game's compare op is read")
     print("EQUAL depth margin ok")
 

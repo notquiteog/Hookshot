@@ -5109,13 +5109,16 @@ void dynamic_state(VkCommandBuffer cmd, const NvnState& s, const Targets& at, Vk
         // a flat khaki veil on Intel (Arc 155H). The prepass's colour passes the margin was made for do not blend: some have blending
         // on with ONE, ZERO (the same as off), and those keep the margin (without it, Death Mountain Trail's ground had holes).
         static const float eq_bias = getenv("RX_VK_EQ_BIAS") ? (float)atof(getenv("RX_VK_EQ_BIAS")) : dev.props.vendorID == 0x8086 ? 64.0f : 0.0f;
+        // (the targets' blending only for a draw the margin could be for: an EQUAL test without a depth write where a margin is
+        // set, Intel's alone by default. Every other draw on every GPU skips the loop)
         bool blends = false;
-        for (int i = 0; i < at.n && !blends; i++) {
+        const bool equal_pass = eq_bias > 0 && d.dt && !d.dw && d.dop == VK_COMPARE_OP_EQUAL;
+        for (int i = 0; equal_pass && i < at.n && !blends; i++) {
             const nvn_blend_st& b = s.blend[i];
             blends = (s.color.blend_en >> i & 1) && at.color_format[i] && (!cur_program || target_write_mask(*cur_program, s, i)) &&
                      (blend_factor(b.src_rgb) != VK_BLEND_FACTOR_ONE || blend_factor(b.dst_rgb) != VK_BLEND_FACTOR_ZERO);
         }
-        if (eq_bias > 0 && d.dt && !d.dw && d.dop == VK_COMPARE_OP_EQUAL && !blends) {
+        if (equal_pass && !blends) {
             d.dop = VK_COMPARE_OP_LESS_OR_EQUAL;
             d.bias_en = VK_TRUE;
             d.bias[0] = -eq_bias, d.bias[1] = 0.0f, d.bias[2] = 0.0f;

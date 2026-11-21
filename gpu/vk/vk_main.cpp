@@ -1654,9 +1654,10 @@ MkwVkRenderer table;
 } // namespace
 } // namespace mkwvk
 
-// (hookshot) The window is being closed (host/display.c, host/posix/display_sdl.c, before they end the process): while the
-// shaders are prepared, their workers are stopped and what they made is kept first (10 s at most: a driver can take longer on one
-// pipeline). Looked up by name, so an executable and a back end of different versions still close
+// (hookshot) The window is being closed (host/display.c, host/posix/display_sdl.c, before they end the process). First the files
+// that count the starts that crashed in a step are put back as this start found them (crash_markers.h): a quit is not a crash.
+// Then, while the shaders are prepared, their workers are stopped and what they made is kept (10 s at most: a driver can take
+// longer on one pipeline). Looked up by name, so an executable and a back end of different versions still close
 extern "C"
 #ifdef _WIN32
 __declspec(dllexport)
