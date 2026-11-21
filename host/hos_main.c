@@ -1942,7 +1942,32 @@ static int game_main(int argc, char **argv) {
         }
 #endif
         HANDLE err = GetStdHandle(STD_ERROR_HANDLE);
-        if (!err || err == INVALID_HANDLE_VALUE || GetFileType(err) == FILE_TYPE_UNKNOWN) {
+        const DWORD err_kind = (!err || err == INVALID_HANDLE_VALUE) ? FILE_TYPE_UNKNOWN : GetFileType(err);
+        /* Steam markers say the process came from Steam, not that its stderr is Steam's log pipe: the launcher's build
+           steps (nx2/make_game.py's run: stdout=PIPE, stderr merged into it, its lines read for @@progress and its
+           silence accounted) keep Steam's markers through game_env's filter, and their stderr is a pipe the builder
+           reads. A --prepare-shaders run is that builder subprocess, never a played game: its pipe stays the
+           builder's, the log gate does not fire for it. (An icon start under UNKNOWN still writes its log as always;
+           only the new PIPE arm steps aside for the build step.) */
+        int prepare_only = 0;
+        for (int i = 1; i < argc; i++)
+            if (!strcmp(argv[i], "--prepare-shaders")) prepare_only = 1;
+        /* (Steam's Gaming mode hands the game its own log pipe on stderr — measured on Deck hardware 2026-11-17: fd/2 is an
+           anonymous FIFO shared with Steam, drained into Steam's console-linux.txt. The player cannot see that sink, and a
+           Gaming-mode crash came with no game log (Longshot #1259): the game saw "external stderr" and wrote no file.
+           Steam's own pipe counts as nowhere-to-log-to like /dev/null does: the game writes its own log, exactly as in
+           Desktop mode. Two things say this pipe is STEAM's rather than a
+           pipe the player chose or a developer's live stream: Steam's marker variables (SteamGameId/SteamAppId, set in
+           everything Steam starts, non-Steam games and the launcher's routed Play included), and stdin — Steam gives
+           the programs it starts /dev/null there (measured), while a developer's own terminal session has a tty and
+           keeps its live stream even with Steam's markers in the environment. A player's `game | tee` carries neither
+           marker; a terminal stderr streams; a redirect to a real file (DISK) is honored as it was) */
+        if (err_kind == FILE_TYPE_UNKNOWN
+#ifndef _WIN32
+            || (!prepare_only && err_kind == FILE_TYPE_PIPE &&
+                (getenv("SteamGameId") || getenv("SteamAppId")) && !isatty(STDIN_FILENO))
+#endif
+            ) {
             char path[MAX_PATH + 32];
             DWORD n = hos_game_path_a(path, MAX_PATH);
             while (n && path[n - 1] != 92 && path[n - 1] != 47) n--;
