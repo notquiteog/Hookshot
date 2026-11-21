@@ -1,7 +1,7 @@
 # Play profiles
 
 Profiles the build compiles with, committed so every build of a checkout uses the same ones: the release's builders,
-a player's own build (with DLSS or FSR 4 too), and a developer's. Names of Longshot's own functions, a hash of each
+a player's own build (with DLSS or FSR 4 too), and a developer's. Names of the renderer's own functions, a hash of each
 one's shape and how often its branches ran: no game code or data.
 
 ## hookshot_vk.profdata.xz: the renderer's
@@ -13,6 +13,9 @@ AppImage's renderer with it. A compiler that can't read it builds the renderer w
 
 One profile for every build for now. It ages rather than breaks: a function changed since the recording is compiled as
 if there were no profile, the rest keep theirs. Record it again before a release, and when the renderer has changed much.
+
+The recordings below are Longshot's (its #569 and #599, by HumanBean), made on Longshot's renderer at the commits
+named: a function of ours that differs from Longshot's is built as if there were no profile, until one is recorded here.
 
 Three recordings of an `RX_VK_PGO=gen` renderer, merged with `llvm-profdata merge` (LLVM 23.1.5); 1,744 of the
 renderer's functions ran in at least one of them:
