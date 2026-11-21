@@ -131,8 +131,9 @@ def main():
         src = Path(tmp) / "folders.cpp"
         src.write_text(STUBS + body + MAIN, encoding="utf-8")
         exe = Path(tmp) / ("folders.exe" if os.name == "nt" else "folders")
-        r = subprocess.run([cxx, "-std=c++20", "-O1", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function", str(src), "-o",
-                            str(exe)], capture_output=True, text=True, timeout=120, creationflags=flags)
+        # (_CRT_SECURE_NO_WARNINGS: the Windows C runtime marks the stand-ins' wcscpy deprecated, an error with -Werror)
+        r = subprocess.run([cxx, "-std=c++20", "-O1", "-D_CRT_SECURE_NO_WARNINGS", "-Wall", "-Wextra", "-Werror",
+                            "-Wno-unused-function", str(src), "-o", str(exe)], capture_output=True, text=True, timeout=120, creationflags=flags)
         if r.returncode:
             print(r.stdout + r.stderr)
             return 1
