@@ -9,6 +9,9 @@ the stages' control sections are read from (the stage at +0x56):
   whole       a program bound for every graphics stage (0x1f) is that program as it is (its own serial), whatever was
               bound; compute alone (0x20) as well: as before.
   part        a vertex and fragment program bound for 0x1 only binds its vertex stage.
+  pipelines   a vertex and fragment program bound for 0x3 (Mario Kart World does) over a mesh program (fragment, task,
+              mesh) is that program as it is, its own serial: the mesh stages go, as no pipeline has both; and a mesh
+              program bound for its task and mesh stages over a vertex one drops the vertex stage, keeps fragment.
   unbind      a vertex, geometry and fragment program, the geometry stage unbound: vertex and fragment stay, in order;
               both unbound: no stage is left.
   replays     both replays (gpu/vk/vk_replay.cpp, gpu/render/rx_nvn.cpp) take each bind through it.
@@ -56,8 +59,9 @@ static nvn_prog program(uint64_t serial, int n, const int* stages) {
 }
 static bool same(const nvn_prog& a, const nvn_prog& b) { return std::memcmp(&a, &b, sizeof a) == 0; }
 int main() {
-    const int v[] = {0}, f[] = {1}, vf[] = {0, 1}, vgf[] = {0, 2, 1}, cs[] = {5};
-    const nvn_prog A = program(1, 1, v), B = program(2, 1, f), C = program(3, 2, vf), G = program(4, 3, vgf), D = program(5, 1, cs);
+    const int v[] = {0}, f[] = {1}, vf[] = {0, 1}, vgf[] = {0, 2, 1}, cs[] = {5}, ftm[] = {1, 6, 7};
+    const nvn_prog A = program(1, 1, v), B = program(2, 1, f), C = program(3, 2, vf), G = program(4, 3, vgf), D = program(5, 1, cs),
+                   M = program(6, 3, ftm);
     {   // per stage
         nvn_prog cur{};
         uint64_t serials[8]{};
@@ -81,6 +85,17 @@ int main() {
         // part
         has = nvn_bind_stages(cur, has, &C, 0x1, serials, read);
         CHECK(has && cur.nstage == 1 && cur.sd[0].data == C.sd[0].data && cur.serial >> 63);
+    }
+    {   // pipelines
+        nvn_prog cur{};
+        uint64_t serials[8]{};
+        bool has = nvn_bind_stages(cur, false, &M, 0xff, serials, read);
+        CHECK(has && same(cur, M));
+        has = nvn_bind_stages(cur, has, &C, 0x3, serials, read);
+        CHECK(has && same(cur, C));
+        has = nvn_bind_stages(cur, has, &M, 0xc0, serials, read);
+        CHECK(has && cur.nstage == 3 && cur.sd[0].data == C.sd[1].data && cur.sd[1].data == M.sd[1].data
+              && cur.sd[2].data == M.sd[2].data && cur.serial >> 63);
     }
     {   // unbind
         nvn_prog cur = G;

@@ -303,11 +303,14 @@ inline bool nvn_bind_stages(nvn_prog &cur, bool has, const nvn_prog *prog, uint3
     Entry e[12];
     int n = 0;
     const int compute = stages == 0x20;   /* (a bind of one kind drops the other kind's stages, as the whole binds do) */
+    /* (so do the two graphics pipelines': a vertex, tessellation or geometry stage (0x1d) drops task and mesh (0xc0), and
+       the other way round; fragment is in both. No pipeline has both, and the whole binds replace either) */
+    const uint32_t drop = stages | (stages & 0x1d ? 0xc0u : 0) | (stages & 0xc0 ? 0x1du : 0);
     bool removed = false, all_of_prog = prog != nullptr;
     if (has)
         for (uint32_t i = 0; i < cur.nstage && i < 6; i++) {
             const uint32_t t = nvn_stage_type(cur.sd[i], read);
-            if (t < 32 && ((stages >> t & 1) || (t == 5) != compute)) { removed = true; continue; }
+            if (t < 32 && ((drop >> t & 1) || (t == 5) != compute)) { removed = true; continue; }
             e[n++] = {t, cur.sd[i], t < 8 ? serials[t] : cur.serial};
             all_of_prog = false;
         }
