@@ -83,8 +83,13 @@ std::string narrow(const std::wstring& w) {
 std::vector<std::wstring> search_dirs() {
     std::vector<std::wstring> dirs;
     wchar_t env[1024];
-    if (const DWORD n = GetEnvironmentVariableW(L"RX_VK_STREAMLINE_DIR", env, 1024); n && n < 1024)
-        dirs.emplace_back(env);
+    if (const DWORD n = GetEnvironmentVariableW(L"RX_VK_STREAMLINE_DIR", env, 1024); n && n < 1024) {
+        // (made whole against the current folder: load's LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR takes only a full path, and a
+        // relative one was found and then not loaded)
+        wchar_t full[1024];
+        const DWORD m = GetFullPathNameW(env, 1024, full, nullptr);
+        dirs.emplace_back(m && m < 1024 ? full : env);
+    }
     std::wstring exe(32768, L'\0');   // (GetModuleFileNameW's long form: a game folder deep in a path still resolves)
     if (const DWORD n = GetModuleFileNameW(nullptr, exe.data(), (DWORD)exe.size()); n && n < exe.size()) {
         exe.resize(n);
