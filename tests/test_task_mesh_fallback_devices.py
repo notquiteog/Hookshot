@@ -2,7 +2,7 @@
 https://github.com/NotRexed/Hookshot/issues/996).
 
 On AMD's Windows driver the native task + mesh path timed out the driver on Navi 22
-(https://github.com/NotRexed/Hookshot/pull/1747) and on Navi 21: an RX 6800 XT lost the device within minutes at Hyrule
+(upstream Hookshot #1747) and on Navi 21: an RX 6800 XT lost the device within minutes at Hyrule
 Castle's entrance, and played 25 minutes there with none through the fallback. An RX 6600 (Navi 23) lost the device on the
 session's first task + mesh draws (reported in Mako by sharkiix). Navi 24 is held out: no report, and 4 GB cards where the
 fallback's buffers cost the most. This compiles mesh_rule::task_mesh_fallback_default and checks that it names those chips'
@@ -46,12 +46,13 @@ OTHERS = [0x731F, 0x7340, 0x73A4, 0x73C3, 0x73C4, 0x73CE, 0x73DA, 0x73E4, 0x743F
 
 RULE = r'''#include "mesh_mode.h"
 #include <cstdio>
+#include <cstdlib>
 int main(int argc, char** argv) {
     // argv: vendor device pairs, in hex; prints 1 or 0 for each
     for (int i = 1; i + 1 < argc; i += 2) {
         unsigned vendor = 0, device = 0;
-        std::sscanf(argv[i], "%x", &vendor);
-        std::sscanf(argv[i + 1], "%x", &device);
+        vendor = (unsigned)std::strtoul(argv[i], nullptr, 16);
+        device = (unsigned)std::strtoul(argv[i + 1], nullptr, 16);
         std::printf("%d\n", mesh_rule::task_mesh_fallback_default(vendor, device) ? 1 : 0);
     }
     return 0;
