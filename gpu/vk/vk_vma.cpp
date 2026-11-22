@@ -41,9 +41,9 @@ bool vma_init(PFN_vkGetInstanceProcAddr gipa) {
     ci.instance = dev.instance;
     ci.vulkanApiVersion = VK_API_VERSION_1_3;
     ci.pVulkanFunctions = &f;
-    // (64 MB blocks: Eglantine found 256 MB ones wasted VRAM. #637: 32 MB under 8 GB, vram_compact::under_8gb, half the
+    // (64 MB blocks: Eglantine found 256 MB ones wasted VRAM. #637: 32 MB on a discrete card under 8 GB, vram_under_8gb, half the
     // fragmentation in the default heap's blocks)
-    ci.preferredLargeHeapBlockSize = vram_compact::under_8gb(device_local_heap_bytes()) ? (32ull << 20) : (64ull << 20);
+    ci.preferredLargeHeapBlockSize = vram_under_8gb() ? (32ull << 20) : (64ull << 20);
     return vmaCreateAllocator(&ci, &vma) == VK_SUCCESS;
 }
 
@@ -84,8 +84,8 @@ VmaPool target_images_pool() {
     ai.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     uint32_t type = 0;
     if (vmaFindMemoryTypeIndexForImageInfo(vma, &rep, &ai, &type) != VK_SUCCESS) return VK_NULL_HANDLE;
-    // (#637: 16 MB blocks under 8 GB, vram_compact::under_8gb)
-    const uint64_t block_size = vram_compact::under_8gb(device_local_heap_bytes()) ? std::min<uint64_t>(kImageBlock, 16ull << 20) : kImageBlock;
+    // (#637: 16 MB blocks on a discrete card under 8 GB, vram_under_8gb)
+    const uint64_t block_size = vram_under_8gb() ? std::min<uint64_t>(kImageBlock, 16ull << 20) : kImageBlock;
     VmaPoolCreateInfo pi{};
     pi.memoryTypeIndex = type;
     pi.blockSize = block_size;
@@ -102,7 +102,8 @@ VmaPool target_images_pool() {
 static size_t blocks_at_start(bool holds_textures) {
     if (!holds_textures) return 0;
     if (const char* e = getenv("RX_VK_IMAGE_PREALLOC")) return (size_t)std::max(0, atoi(e));
-    return (size_t)vram_compact::blocks_at_start(device_local_heap_bytes(), kImageBlock, holds_textures);
+    return (size_t)vram_compact::blocks_at_start(device_local_heap_bytes(), kImageBlock, holds_textures,
+                                                 dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU);
 }
 /// The pool with n blocks made now, or empty when there is no room for them (its blocks made as needed); the blocks made
 static size_t make_pool(VmaPoolCreateInfo pi, size_t n, VmaPool& pool) {

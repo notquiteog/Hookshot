@@ -34,6 +34,7 @@
 #include "import_hold.h"
 #include "import_fence.h"
 #include "mirror_budget.h"   // (mirror_budget's rule, by the card)
+#include "vram_compact.h"   // (vram_under_8gb: #637's cards)
 #include "mirror_trim.h"
 #include "wb_learn.h"
 #include "mirror_inherit.h"
@@ -3254,6 +3255,10 @@ uint64_t device_vram_bytes() {
         if (dev.memory.memoryHeaps[h].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) vram = std::max(vram, (uint64_t)dev.memory.memoryHeaps[h].size);
     return vram;
 }
+bool vram_under_8gb() {
+    static const bool v = vram_compact::under_8gb(device_vram_bytes(), dev.props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU);
+    return v;
+}
 // (RX_VK_MSYNC_PASS: defined after memory_end_submission)
 bool msync_pass_add(Pool& p, VkBuffer buf, const std::vector<VkBufferCopy>& rs);
 void msync_pass_flush();
@@ -4653,7 +4658,7 @@ void imports_give_back() {   // (pools_mu held)
 #else
     static const int high = std::clamp(env_int("RX_VK_IMPORT_HIGH", 85), 0, 100);
 #endif
-    static const int low = std::clamp(env_int("RX_VK_IMPORT_LOW", 75), 10, 95);
+    static const int low = std::clamp(env_int("RX_VK_IMPORT_LOW", vram_under_8gb() ? 70 : 75), 10, 95);   // (#637: 70 under 8 GB)
     static uint64_t calls = 0;
     if (high <= 0 || ++calls % 16) return;   // (the driver asked every 16 submissions)
     uint64_t used = 0, budget = 0;

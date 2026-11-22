@@ -18,8 +18,9 @@ namespace vram_compact {
 /// runs' proportional start, the target pool's halving, VMA's smaller blocks): its device-local heap under 7.5 GB. An 8 GB card's
 /// heap reads just under 8 GB (8061 MB on one) and its driver allows less still, so neither a heap under 8 GB nor an allowance
 /// under 8 GB tells it from a 6 GB card; a card of 8 GB or more keeps every rule as it was. vram: the largest device-local heap,
-/// 0 when not known (not under 8 GB)
-inline bool under_8gb(uint64_t vram) { return vram && vram < (7ull << 30) + (512ull << 20); }
+/// 0 when not known (not under 8 GB). Never an integrated GPU (the Steam Deck's heap is small, but its memory is the system's
+/// and its own rules are texture_budget.h's): #637's rules are for a discrete card paging over PCIe
+inline bool under_8gb(uint64_t vram, bool integrated = false) { return !integrated && vram && vram < (7ull << 30) + (512ull << 20); }
 
 /// Whether the textures are compacted, by RX_VK_COMPACT as the environment has it: on when it is not set, off for 0 (or empty).
 /// It was opt-in (RX_VK_COMPACT=1) while its hold could let go of textures in use; that is what hold_keeps and hold_met are for
@@ -44,9 +45,9 @@ inline uint64_t run_from(uint64_t min_free, bool is_pressed) { return is_pressed
 /// the count and the hold cut the texture budget by as much (#2690: an RTX 3070 in Castle Town Market, 31-36 fps against 54-56
 /// without them), and the textures' blocks were made in play as before. In the textures' pool the scene's textures fill them,
 /// and what they hold free is that pool's free space, which the budget takes off the count already
-inline uint64_t blocks_at_start(uint64_t heap, uint64_t block, bool holds_textures) {
+inline uint64_t blocks_at_start(uint64_t heap, uint64_t block, bool holds_textures, bool integrated = false) {
     if (!holds_textures || !block) return 0;
-    if (under_8gb(heap)) return std::clamp<uint64_t>(heap / 100 * 8 / block, 2, 12);   // (#637: under 8 GB)
+    if (under_8gb(heap, integrated)) return std::clamp<uint64_t>(heap / 100 * 8 / block, 2, 12);   // (#637: under 8 GB)
     return std::clamp<uint64_t>(heap / 100 * 15 / block, 2, 24);
 }
 

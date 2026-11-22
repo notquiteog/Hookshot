@@ -36,6 +36,7 @@ int main() {
     CHECK(blocks_at_start(8 * GB, 0, true) == 0);
     CHECK(blocks_at_start(8061 * MB, kBlock, true) == 9);   // (an 8 GB card whose heap reads 8061 MB: the 15% rule)
     CHECK(blocks_at_start(5900 * MB, kBlock, true) == 3);   // (a 6 GB card's: #637's 8%)
+    CHECK(blocks_at_start(5900 * MB, kBlock, true, true) == 6);   // (an integrated GPU's heap of that size: the 15% rule)
     // what a run can give back: not what the blocks made at the start hold free
     CHECK(returnable(1152 * MB, 900 * MB, 1152 * MB) == 0);              // (nine blocks, 252 MB of textures: all nine are kept)
     CHECK(returnable(2560 * MB, 700 * MB, 1152 * MB) == 700 * MB);       // (twenty blocks: eleven can go, 700 MB is free)

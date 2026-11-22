@@ -122,6 +122,7 @@ int main() {
     // 8 GB (8061 MB on one) and its allowance less still, so neither of those under 8 GB tells it from a 6 GB card
     CHECK(under_8gb(6144 * MB) && under_8gb(4096 * MB) && under_8gb(7679 * MB));
     CHECK(!under_8gb(7680 * MB) && !under_8gb(8061 * MB) && !under_8gb(8192 * MB) && !under_8gb(16384 * MB) && !under_8gb(0));
+    CHECK(!under_8gb(1024 * MB, true) && !under_8gb(4096 * MB, true));   // (an integrated GPU, the Steam Deck's: never)
     // a run's start: a sixteenth of the allowance under 8 GB (64 to 512 MB); 512 MB from 8 GB, whatever the allowance
     CHECK(default_min_free(5233 * MB, true) == 5233 * MB / 16 && default_min_free(512 * MB, true) == 64 * MB);
     CHECK(default_min_free(7000 * MB, false) == 512 * MB && default_min_free(14800 * MB, false) == 512 * MB);

@@ -54,7 +54,7 @@ class TargetImagePoolTests(unittest.TestCase):
         pool = block(vma, "VmaPool target_images_pool()")
         self.assertIn('getenv("RX_VK_TARGET_BLOCKS")', pool)
         self.assertIn("pi.blockSize = block_size;", pool)   # (kImageBlock, or 16 MB under 8 GB: #637)
-        self.assertIn("vram_compact::under_8gb(device_local_heap_bytes()) ? std::min<uint64_t>(kImageBlock, 16ull << 20) : kImageBlock", pool)
+        self.assertIn("vram_under_8gb() ? std::min<uint64_t>(kImageBlock, 16ull << 20) : kImageBlock", pool)
         self.assertIn("void vma_log_image_blocks()", vma)
 
     def test_the_dead_targets_are_swept_every_present_after_one_unused(self):
