@@ -3,13 +3,15 @@
 executable, a hookshot_version.txt, a kept main that is only an NSO header naming a profile's build), and no build runs.
 
 Checked here:
-  - nx2/game_folders.py library: every buildable game in profile order, installed or not, "other" for a folder whose kept
-    copy is another game's, the version and Builder the folder was built with, and the update flag by the updaters' rule
-    (nx2/version.py update_due, its release_key held to builder/linux/linux_update.py's);
+  - nx2/game_folders.py library: every buildable game in profile order, installed or not, found in any of the base's
+    folders (its own first, another game's folder too, two folders both named), its own folder and the game sitting in it,
+    the version and Builder the folder was built with, and the update flag by the updaters' rule (nx2/version.py
+    update_due, its release_key held to builder/linux/linux_update.py's);
   - `nx2/game_folders.py --library <base> --json`: a list of objects with exactly the documented fields and types;
-  - nx2/make_game.py --update-all: each built game updated by a make_game --update of its own, in profile order, one that
-    fails not stopping the others, a game at this version skipped unless --force, a folder holding another game refused,
-    the @@game lines, one summary line per game and the exit status;
+  - nx2/make_game.py --update-all: each built folder updated once by a make_game --update of its own, as the game it holds
+    (in another game's folder too), in profile order, one that fails not stopping the others, a game in two folders updated
+    in both, a game at this version skipped unless --force, --dry-run running nothing, the @@game lines, the summary lines
+    and the exit status;
   - --base: the copy's game picks its own folder under the base; not with --out or --update;
   - a copy of one game is refused over a folder that holds another, before the folder is touched, and an empty folder, the
     same game's, one that keeps no copy, and --update are built as before.
@@ -48,6 +50,7 @@ def load(name, path):
 placeholder = load("builder_games_helpers", ROOT / "tests" / "test_builder_games.py").placeholder   # (the "Your games" check's)
 ENGINE = "v2.3.0-rc.39"
 FIELDS = {"key": str, "name": str, "folder": str, "base": str, "state": str, "built": bool, "holds": (str, type(None)),
+          "other_folders": list, "own_folder": str, "own_folder_holds": (str, type(None)),
           "version": (str, type(None)), "builder": (str, type(None)), "kept": bool, "update": (bool, type(None))}
 
 
@@ -82,21 +85,48 @@ class Fixture(unittest.TestCase):
 
 class Library(Fixture):
     def test_every_game_and_its_state(self):
+        second, third = (game_folders.folder(self.base, k) for k in (self.second, self.third))
         built(self.base, self.default, "v2.3.0-rc.38", builder="/opt/HookshotBuilder.exe")
-        built(game_folders.folder(self.base, self.second), self.third, ENGINE)   # (another game's build in its folder)
+        built(second, self.third, ENGINE)   # (the third game built into the second's folder)
         games = game_folders.library(self.base, engine=ENGINE)
         self.assertEqual([g["key"] for g in games], self.ks, "every buildable game, in profile order, installed or not")
         by = {g["key"]: g for g in games}
         d, s, t = by[self.default], by[self.second], by[self.third]
         self.assertEqual((d["state"], d["built"], d["holds"], d["version"], d["builder"], d["kept"], d["update"]),
                          ("built", True, self.default, "v2.3.0-rc.38", "/opt/HookshotBuilder.exe", True, True))
-        self.assertEqual((d["name"], d["folder"], d["base"]), (self.name(self.default), self.base, self.base))
-        self.assertEqual((s["state"], s["built"], s["holds"], s["name"], s["folder"]),
-                         ("other", True, self.third, self.name(self.second), self.base + "-" + self.second))
-        self.assertEqual((t["state"], t["built"], t["holds"], t["version"], t["builder"], t["kept"], t["update"]),
-                         ("missing", False, None, None, None, False, False))
+        self.assertEqual((d["name"], d["folder"], d["base"], d["own_folder"], d["own_folder_holds"], d["other_folders"]),
+                         (self.name(self.default), self.base, self.base, self.base, None, []))
+        self.assertEqual((s["state"], s["built"], s["folder"], s["own_folder"], s["own_folder_holds"], s["version"]),
+                         ("missing", False, second, second, self.third, None), "the second game's folder holds the third")
+        self.assertEqual((t["state"], t["built"], t["holds"], t["folder"], t["own_folder"], t["own_folder_holds"],
+                          t["version"], t["update"]),
+                         ("built", True, self.third, second, third, None, ENGINE, False), "the third game, where it is")
         for g in games:
             self.assertEqual(set(g), set(FIELDS))
+            self.assertIn(g["state"], ("built", "missing"))
+
+    def test_a_game_in_the_default_games_folder(self):
+        built(self.base, self.second, "v2.3.0-rc.1")   # (an older GUI build: the second game into the default game's folder)
+        by = {g["key"]: g for g in game_folders.library(self.base, engine=ENGINE)}
+        self.assertEqual((by[self.default]["state"], by[self.default]["folder"], by[self.default]["own_folder_holds"]),
+                         ("missing", self.base, self.second))
+        self.assertEqual((by[self.second]["state"], by[self.second]["folder"], by[self.second]["update"],
+                          by[self.second]["own_folder"], by[self.second]["other_folders"]),
+                         ("built", self.base, True, game_folders.folder(self.base, self.second), []))
+
+    def test_a_game_in_two_folders_its_own_first(self):
+        second, third = (game_folders.folder(self.base, k) for k in (self.second, self.third))
+        built(third, self.second, "v2.3.0-rc.1")
+        built(second, self.second, ENGINE)
+        g = {g["key"]: g for g in game_folders.library(self.base, engine=ENGINE)}[self.second]
+        self.assertEqual((g["folder"], g["other_folders"], g["version"], g["update"]), (second, [third], ENGINE, False))
+        self.assertEqual({g["key"]: g for g in game_folders.library(self.base, engine=ENGINE)}[self.third]["own_folder_holds"],
+                         self.second)
+
+    def test_a_folder_with_no_copy_is_the_game_whose_folder_it_is(self):
+        built(game_folders.folder(self.base, self.second), None, "v2.0.0", kept=False)
+        g = {g["key"]: g for g in game_folders.library(self.base, engine=ENGINE)}[self.second]
+        self.assertEqual((g["state"], g["holds"], g["kept"]), ("built", None, False))
 
     def test_the_same_list_from_any_games_folder(self):
         built(self.base, self.default, ENGINE)
@@ -121,7 +151,8 @@ class Library(Fixture):
     def test_a_folder_built_before_it_kept_its_copy(self):
         built(self.base, None, "v2.0.0", kept=False, exe="hookshot")   # (no .hookshot_exefs, the executable beside image.bin)
         g = game_folders.library(self.base, engine=ENGINE)[0]
-        self.assertEqual((g["state"], g["built"], g["holds"], g["kept"], g["update"]), ("built", True, None, False, True))
+        self.assertEqual((g["state"], g["built"], g["holds"], g["kept"], g["update"], g["own_folder_holds"]),
+                         ("built", True, None, False, True, None))
 
     def test_the_updaters_rule(self):
         tags = ["v2.0.7", "v2.1.0", "v2.1.0-rc.1", "v2.1.0-rc.12", "v2.1.0-rc.1-3-g1a2b3c4", "v2.0.14-12-gabcdef01",
@@ -227,18 +258,53 @@ class UpdateAll(MakeGame):
         self.assertEqual(lines[-len(self.ks):][:3], ["%s: up to date (%s)" % (self.name(self.default), ENGINE),
                                                      "%s: updated" % self.name(self.second), "%s: not installed" % self.name(self.third)])
         self.assertEqual(sum(1 for l in lines if l.startswith("@@game end ")), len(self.ks), "one end line per game")
+        self.assertEqual(sum(1 for l in lines if l.startswith("@@game start ")), len(self.ks), "each after its start line")
         ran, lines, code = self.run_all("--force")
         self.assertEqual([f for f, _ in ran], [self.base, game_folders.folder(self.base, self.second)])
         self.assertTrue(all("--force" not in cmd for _, cmd in ran))
 
-    def test_a_folder_holding_another_game_is_not_updated_as_this_one(self):
-        built(game_folders.folder(self.base, self.second), self.third, "v2.3.0-rc.1")
+    def test_a_game_in_another_games_folder_is_updated_there(self):
+        built(self.base, self.second, "v2.3.0-rc.1")   # (an older GUI build: the second game in the default game's folder)
         ran, lines, code = self.run_all()
+        self.assertEqual(([f for f, _ in ran], code), ([self.base], 0), "updated as the game it holds, no failure")
+        self.assertIn("@@game start %s %s" % (self.second, self.base), lines)
+        self.assertIn("@@game end %s updated %s" % (self.second, ENGINE), lines)
+        self.assertIn("@@game end %s missing" % self.default, lines)
+        self.assertFalse([l for l in lines if " failed" in l], lines)
+        self.assertIn("%s: updated" % self.name(self.second), lines)
+
+    def test_a_game_in_two_folders_is_updated_in_both(self):
+        second, third = (game_folders.folder(self.base, k) for k in (self.second, self.third))
+        built(second, self.second, "v2.3.0-rc.1")
+        built(third, self.second, "v2.3.0-rc.2")
+        ran, lines, code = self.run_all()
+        self.assertEqual(([f for f, _ in ran], code), ([second, third], 0), "each folder once, its own first")
+        self.assertEqual([l for l in lines if l.startswith("@@game start %s " % self.second)],
+                         ["@@game start %s %s" % (self.second, second), "@@game start %s %s" % (self.second, third)])
+        self.assertIn("%s in %s: updated" % (self.name(self.second), second), lines)
+        self.assertIn("%s in %s: updated" % (self.name(self.second), third), lines)
+        self.assertTrue([l for l in lines if l.startswith("%s is installed in 2 folders" % self.name(self.second))], lines)
+
+    def test_dry_run_changes_nothing(self):
+        second = game_folders.folder(self.base, self.second)
+        built(self.base, self.default, ENGINE)
+        built(second, self.second, "v2.3.0-rc.1")
+        ran, lines, code = self.run_all("--dry-run")
+        self.assertEqual((ran, code), ([], 0), "nothing run")
+        framing = [l for l in lines if l.startswith("@@game ")]
+        self.assertEqual(framing[:6], ["@@game start %s %s" % (self.default, self.base), "@@game end %s current %s" % (self.default, ENGINE),
+                                       "@@game start %s %s" % (self.second, second), "@@game end %s update from v2.3.0-rc.1" % self.second,
+                                       "@@game start %s %s" % (self.third, game_folders.folder(self.base, self.third)),
+                                       "@@game end %s missing" % self.third])
+        self.assertIn("%s: would be updated (from v2.3.0-rc.1)" % self.name(self.second), lines)
+        ran, lines, code = self.run_all("--dry-run", "--force")
         self.assertEqual(ran, [])
-        self.assertEqual(code, 1)
-        end = [l for l in lines if l.startswith("@@game end %s " % self.second)][0]
-        for named in (self.name(self.second), self.name(self.third), game_folders.folder(self.base, self.second)):
-            self.assertIn(named, end)
+        self.assertIn("@@game end %s update from %s" % (self.default, ENGINE), lines)
+        with mock.patch.object(sys, "argv", ["make_game.py", "--update-all", self.base, "--dry-run"]), \
+                mock.patch.dict(os.environ, HOOKSHOT_VERSION=ENGINE), contextlib.redirect_stdout(io.StringIO()):
+            a = self.mg.parse_args()
+            with mock.patch.object(self.mg, "update_one", side_effect=AssertionError("a dry run ran an update")):
+                self.mg.update_all(a)
 
     def test_an_old_folder_with_no_copy_is_updated_as_before(self):
         built(self.base, None, "v2.0.0", kept=False)
@@ -253,6 +319,8 @@ class UpdateAll(MakeGame):
         for extra in (["--out", "o"], ["--update", "o"], ["--nup", self.nup], ["--base", "b"], ["--game-%s=%s" % (self.second, self.nup)]):
             self.assertIn("--update-all updates the games already built", self.refused("--update-all", *extra), extra)
         self.assertIn("--force goes with --update-all", self.refused("--nup", self.nup, "--out", "o", "--force"))
+        self.assertIn("--dry-run goes with --update-all", self.refused("--nup", self.nup, "--out", "o", "--dry-run"))
+        self.assertEqual(self.mg.update_all_args(["--update-all", "--dry-run", "--jobs", "2"]), ["--jobs", "2"])
 
     def test_main_runs_it(self):
         src = (ROOT / "nx2" / "make_game.py").read_text(encoding="utf-8")

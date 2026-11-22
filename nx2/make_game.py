@@ -9,8 +9,9 @@
                                                                     exit 0 when the game is built; with --check, its "check ok|bad" line)
     python -I nx2/make_game.py --nup <file.nup> --base <folder>   (the copy's game into its own folder under that base: <folder> for
                                                                     the default game, <folder>-<key> for another; not with --out)
-    python -I nx2/make_game.py --update-all [<base>] [--force]    (every game built under base, default ~/Games/Hookshot, updated
-                                                                    in turn; one that fails does not stop the others)
+    python -I nx2/make_game.py --update-all [<base>] [--force] [--dry-run]   (every game built under base, default
+                                                                    ~/Games/Hookshot, updated in turn; one that fails does not
+                                                                    stop the others; --dry-run says what it would do)
 
 A copy is never built into a folder that holds another game (its .hookshot_exefs/main names another profile): the build stops
 with both games and the folder named. An empty folder, or one that holds the same game, is built into as before.
@@ -28,16 +29,21 @@ data ever comes with the tools. Lines the app reads, each on its own line of std
     @@done <folder>          finished
     @@error <text>           stopped
 
---update-all runs one make_game --update per game and passes on each one's lines as they come (so the lines above repeat, a
-@@done or @@error for each game), framed by its own lines, one per game, in profile order (nx2/game_folders.py library):
+--update-all runs one make_game --update per built folder and passes on each one's lines as they come (so the lines above
+repeat, a @@done or @@error for each), framed by its own pair of lines for each game, in profile order (nx2/game_folders.py
+library), and for each further folder that holds the same game:
 
-    @@game start <key> <folder>            this game's update begins (its lines follow)
-    @@game end <key> <result> [<text>]     this game's outcome, for every game whether it was run or not. result is one of
-                                           updated, current (already this version: skipped, --force builds it anyway),
-                                           missing (not installed), failed (text: the reason, its @@error's text)
+    @@game start <key> <folder>            this game's folder (for a game not installed: its own folder); its lines follow
+    @@game end <key> <result> [<text>]     the outcome, after every start. result is one of updated (text: the version),
+                                           current (already this version, text: it; skipped, --force builds it anyway),
+                                           missing (not installed), failed (text: the reason, its @@error's text), and
+                                           with --dry-run, which runs nothing, update (text: "from <version>") in place of
+                                           updated
 
-then one plain summary line per game ("Mario Kart World: updated", "...: failed: <reason>"), and exit status 1 when any
-failed. (Under --prepare these framing lines go to stderr, as RecompLauncher reads only progress lines on stdout.)
+A game in another game's folder (an older Builder built where the player chose) is updated there, as the game it is. Then
+one plain summary line per game and folder ("Mario Kart World: updated", "...: failed: <reason>", and the folder named when
+a game is in more than one), and exit status 1 when any failed. (Under --prepare these lines go to stderr, as RecompLauncher
+reads only progress lines on stdout.)
 
 and one plain line the builders also read (older ones only show it): "the shaders were not prepared now (<why>): ..." when the
 build's last step, the shaders' preparation, was skipped or failed and is left to the game's first start (NOT_PREPARED)
@@ -721,7 +727,8 @@ UPDATE_LINE = "@@game"   # (--update-all's framing lines: the module's docstring
 
 
 def update_all_args(argv):
-    """The arguments each game's make_game --update gets: the ones given, without --update-all's own (its base, --force) and
+    """The arguments each game's make_game --update gets: the ones given, without --update-all's own (its base, --force,
+    --dry-run) and
     without --log (this make_game's log holds every game's lines, which it passes on)"""
     rest, skip = [], False
     for i, arg in enumerate(argv):
@@ -729,7 +736,7 @@ def update_all_args(argv):
             skip = False
         elif arg in ("--update-all", "--log"):
             skip = arg == "--log" or (i + 1 < len(argv) and not argv[i + 1].startswith("-"))
-        elif arg.startswith(("--update-all=", "--log=")) or arg == "--force":
+        elif arg.startswith(("--update-all=", "--log=")) or arg in ("--force", "--dry-run"):
             pass
         else:
             rest.append(arg)
@@ -756,41 +763,53 @@ def update_one(cmd):
 def update_all(a, run_one=None):
     """(--update-all) Every game built under the base updated in turn (game_folders.library, in profile order), each by a
     make_game --update of its own with the other arguments as given. Unlike build_each, one that fails does not stop the
-    others. A game built with this version is skipped unless --force; a folder by the rule that holds another game is not
-    updated as this game (refuse_other_game's reason). Then one summary line per game, and exit status 1 when any failed"""
+    others. Each built folder of the base is updated once, as the game it holds: a game in another's folder (an older
+    Builder built into the folder chosen) is updated there, and a game in two folders is updated in both, which the summary
+    says. A folder built with this version is skipped unless --force. --dry-run: the same lines, with what would be done
+    (update, current, missing), and nothing run. Then one summary line per game, and exit status 1 when any failed"""
     import version as _version
     run_one = run_one or update_one
     base = game_folders.base_of(os.path.abspath(os.path.expanduser(a.update_all or default_game_folder())))
     rest = update_all_args(sys.argv[1:])
     stream = sys.stderr if PREPARE else sys.stdout
     engine = _version.release()
-    results = []
+    dry = getattr(a, "dry_run", False)
+    results = []   # (game, folder, result, text)
 
-    def end(g, result, text=None):
-        print("%s end %s %s%s" % (UPDATE_LINE, g["key"], result, " " + text if text else ""), file=stream, flush=True)
-        results.append((g, result, text))
+    def line(*words):
+        print(" ".join([UPDATE_LINE] + [str(w) for w in words if w]), file=stream, flush=True)
 
     for g in game_folders.library(base, engine=engine):
         if not g["built"]:
-            end(g, "missing")
-        elif g["state"] == "other":
-            held = game_profile.GAMES[g["holds"]].game
-            end(g, "failed", "The game folder %s holds %s, not %s: it is not updated as %s. Update it on its own (--update %s), "
-                "or move it to its own folder." % (g["folder"], held, g["name"], g["name"], g["folder"]))
-        elif g["update"] is False and not a.force:
-            end(g, "current", g["version"])
-        else:
-            print("%s start %s %s" % (UPDATE_LINE, g["key"], g["folder"]), file=stream, flush=True)
-            code, reason = run_one(PY + [os.path.abspath(__file__)] + rest + ["--update", g["folder"]])
-            if code:
-                end(g, "failed", reason)
+            line("start", g["key"], g["folder"])
+            line("end", g["key"], "missing")
+            results.append((g, g["folder"], "missing", None))
+            continue
+        for f in [g["folder"]] + g["other_folders"]:
+            have = g["version"] if f == g["folder"] else game_folders.version_file(f)[0]
+            due = g["update"] if f == g["folder"] else _version.update_due(have, engine)
+            line("start", g["key"], f)
+            if due is False and not a.force:
+                result, text = "current", have
+            elif dry:
+                result, text = "update", have and "from %s" % have
             else:
-                end(g, "updated", engine)
-    said = {"updated": "updated", "current": "up to date", "missing": "not installed", "failed": "failed"}
-    for g, result, text in results:
-        print("%s: %s%s" % (g["name"], said[result], ": " + text if result == "failed" else
-                            " (%s)" % text if result == "current" and text else ""), file=stream, flush=True)
-    if any(result == "failed" for _, result, _ in results):
+                code, reason = run_one(PY + [os.path.abspath(__file__)] + rest + ["--update", f])
+                result, text = ("failed", reason) if code else ("updated", engine)
+            line("end", g["key"], result, text)
+            results.append((g, f, result, text))
+    said = {"updated": "updated", "update": "would be updated", "current": "up to date", "missing": "not installed",
+            "failed": "failed"}
+    for g, f, result, text in results:
+        several = [r for r in results if r[0] is g]
+        where = " in %s" % f if len(several) > 1 else ""
+        detail = (": " + text if result == "failed" else " (%s)" % text if result in ("current", "update") and text else "")
+        print("%s%s: %s%s" % (g["name"], where, said[result], detail), file=stream, flush=True)
+        if len(several) > 1 and several[-1][1] == f:
+            print("%s is installed in %d folders under %s, and each was %s." % (
+                g["name"], len(several), base, "looked at, nothing changed" if dry else "updated on its own"),
+                file=stream, flush=True)
+    if any(result == "failed" for _, _, result, _ in results):
         sys.exit(1)
     return 0
 
@@ -2547,6 +2566,9 @@ def parse_args():
                    help="every game built under BASE (default: ~/Games/Hookshot, as --prepare's), updated in turn, each by a make_game "
                         "--update of its own; one that fails does not stop the others. A game built with this version is skipped")
     p.add_argument("--force", action="store_true", help="with --update-all: update the games already at this version too")
+    p.add_argument("--dry-run", action="store_true",
+                   help="with --update-all: say what it would do for each game (its @@game lines: update, current, missing), "
+                        "and change nothing")
     p.add_argument("--base", help="the games' base folder instead of --out: the copy's game decides its own folder in it (the base "
                                   "for the default game, <base>-<key> for another: nx2/game_folders.py)")
     p.add_argument("--no-prepare-shaders", action="store_true",
@@ -2579,8 +2601,8 @@ def parse_args():
                                      any(getattr(a, "game_" + prof.key, None) for prof, _ in game_profile.known_builds())):
         fail("--update-all updates the games already built, from the game files each keeps: give no copy, --out, --base, --update "
              "or --check with it.")
-    if a.force and a.update_all is None:
-        fail("--force goes with --update-all.")
+    if (a.force or a.dry_run) and a.update_all is None:
+        fail("%s goes with --update-all." % ("--force" if a.force else "--dry-run"))
     # (--prepare with no --out: the default game's folder below, and main makes it the copy's game's: game_folders_for_dump)
     a.out_from_game = bool(a.prepare and not a.out)
     if a.base is not None:   # (--base: the same choice, from the base given)

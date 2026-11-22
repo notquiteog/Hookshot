@@ -90,8 +90,9 @@ With Ocarina's dump, a build with the seam must lift the same code and run the s
    (`<base>`, `<base>-<key>`), and the repository: the entry, `nx2/version.py` and the update checks all name
    `notquiteog/Hookshot`. Then, in three pull requests, one program that installs, updates and manages every game:
    - **The shared core** (this step's first): `nx2/game_folders.py --library <base> --json` lists every game,
-     installed or not, with its version and whether an update is due; `nx2/make_game.py --update-all` updates
-     every built game, one failure not stopping the others; `--base` builds a copy into its own game's folder; and
+     installed or not and wherever under the base it is, with its version and whether an update is due;
+     `nx2/make_game.py --update-all` updates every built game where it is, one failure not stopping the others
+     (`--dry-run` only says what it would do); `--base` builds a copy into its own game's folder; and
      a copy is refused over a folder that holds another game ([development guide](development.md#every-game-under-one-base)).
    - **A game library in the three Builders** (the WPF Builder, the Qt Builder and the Linux Tk Builder), built on
      those calls: every game with its state, install, update all, play.

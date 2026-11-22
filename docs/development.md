@@ -446,40 +446,51 @@ manages every game makes; the Builders' library (to come) runs them:
 
 | Call | What it does |
 |---|---|
-| `python -I nx2/game_folders.py --library <base> [--json]` | Every game that builds, in profile order, installed or not: its folder, whether it is built there, the version it was built with, and whether this engine would update it |
-| `python -I nx2/make_game.py --update-all [<base>] [--force]` | Every built game under the base (default `~/Games/Hookshot`) updated in turn, each by a `make_game.py --update` of its own; one that fails does not stop the others. A game already at this version is skipped unless `--force`. Exit status 1 when any failed |
+| `python -I nx2/game_folders.py --library <base> [--json]` | Every game that builds, in profile order, installed or not: where it is installed, the version it was built with, and whether this engine would update it |
+| `python -I nx2/make_game.py --update-all [<base>] [--force] [--dry-run]` | Every built folder under the base (default `~/Games/Hookshot`) updated in turn as the game it holds, each by a `make_game.py --update` of its own; one that fails does not stop the others. A folder already at this version is skipped unless `--force`. `--dry-run` says what it would do and changes nothing. Exit status 1 when any failed |
 | `python -I nx2/make_game.py --nup <copy> --base <base>` | The copy's game (by main's build id) into its own folder under the base, with its own work folder as `--prepare` gives it. Not with `--out` or `--update` |
 
-A copy is never built into a folder that holds another game (its kept `.hookshot_exefs/main` names another profile):
-the build stops before the folder is touched, naming both games and the folder. An empty folder, one of the same game
-and one built before folders kept their copy are built into as before, and `--update <folder>` always builds the
-folder's own copy.
+A game is looked for in all of the base's folders (`<base>` and every `<base>-<key>`), its own folder first. The Builders
+used to build into the folder the player chose (`--out`), so a player may have Mario Kart World in `~/Games/Hookshot`:
+that is Mario Kart World, listed, played and updated where it is. A folder is the game its kept copy
+(`.hookshot_exefs/main`) names; a folder that keeps none (built before updates came in) is the game whose folder it is
+by the rule.
+
+A copy is never built into a folder that holds another game (its kept copy names another profile), with `--out`,
+`--base` or `--prepare` alike: the build stops before the folder is touched, naming both games and the folder. An empty
+folder, one of the same game and one built before folders kept their copy are built into as before, and `--update
+<folder>` always builds the folder's own copy. In the library this shows as `own_folder_holds`: installing that game
+under this base needs its own folder freed, or another base.
 
 `--library --json` prints a list, one object per game. The fields keep their names and types (new ones may be added):
 
 | Field | Type | What it is |
 |---|---|---|
-| `key` | string | The profile key (`oot`, `dkb`, `mkw`); Play is `--play <base> --game <key>` |
+| `key` | string | The profile key (`oot`, `dkb`, `mkw`) |
 | `name` | string | The game, from its profile |
-| `folder` | string | The game's own folder by the rule |
+| `folder` | string | Where the game is installed: its own folder when it is there or not installed, else the base's folder that holds it. Play starts this folder |
 | `base` | string | The base the folders are named from (another game's folder given as the base gives its base) |
-| `state` | string | `missing` (not installed), `built`, or `other`: the folder holds another game's copy (see `holds`), and building this game there is refused |
-| `built` | bool | The folder holds a built game (`image.bin` and the executable), whichever game it is |
-| `holds` | string or null | The key of the game the folder's kept copy is; null when it keeps none, or no profile knows the build |
-| `version` | string or null | `hookshot_version.txt`'s `version=`, when built |
+| `state` | string | `built` (installed in `folder`) or `missing` (in none of the base's folders) |
+| `built` | bool | `state` is `built` |
+| `holds` | string or null | The key of the game whose copy `folder` keeps; null when it keeps none, or no profile knows the build |
+| `other_folders` | list of strings | The base's other folders that hold this game too (mostly empty); `--update-all` updates each |
+| `own_folder` | string | The game's own folder by the rule: where an install of it goes |
+| `own_folder_holds` | string or null | The key of another game whose copy sits in `own_folder`, or null |
+| `version` | string or null | `hookshot_version.txt`'s `version=` in `folder`, when built |
 | `builder` | string or null | `hookshot_version.txt`'s `builder=`: the Builder executable that built it |
-| `kept` | bool | The folder keeps the game files an update builds from (`.hookshot_exefs/` and `romfs/`) |
+| `kept` | bool | `folder` keeps the game files an update builds from (`.hookshot_exefs/` and `romfs/`) |
 | `update` | bool or null | True when this engine would update it (the updaters' rule, `nx2/version.py` `update_due`: another version, unless that one is newer), false when current, null when it can't be told (no version in the folder: a checkout build writes none). False when not built |
 
-`--update-all` passes each game's own lines on as they come (each game's `@@done` or `@@error` among them) and frames
-them, one line per game in profile order:
+`--update-all` updates each built folder once, as the game it holds, in profile order (a game in two folders: both, its
+own first). It passes each update's own lines on as they come (its `@@done` or `@@error` among them) and frames them:
 
-    @@game start <key> <folder>          this game's update begins
-    @@game end <key> <result> [<text>]   result: updated, current, missing (not installed) or failed (text: the reason)
+    @@game start <key> <folder>          a game's folder (a game not installed: its own folder); its lines follow
+    @@game end <key> <result> [<text>]   after every start. result: updated (text: the version), current (text: the
+                                         version), missing (not installed) or failed (text: the reason); with --dry-run,
+                                         update (text: "from <version>") in place of updated, and nothing run
 
-then one summary line per game (`Mario Kart World: updated`). A folder by the rule that holds another game ends
-`failed`, with both games named: it is not updated as this game (`--update <folder>` on its own still updates it).
-Under `--prepare` these lines go to stderr.
+then one summary line per game (`Mario Kart World: updated`; with the folder, `... in <folder>: updated`, and a line
+saying so, when the game is in more than one). Under `--prepare` these lines go to stderr.
 
 ## Draw statistics
 
