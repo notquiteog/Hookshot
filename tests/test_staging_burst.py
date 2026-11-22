@@ -33,13 +33,13 @@ def main():
     p.add_argument("--cxx", default="g++")
     a = p.parse_args()
     tex = (ROOT / "gpu/vk/vk_texture.cpp").read_text(encoding="utf-8")
-    arena = "constexpr uint64_t kArena = 64ull << 20;"
+    arena = "constexpr uint64_t kArena = 16ull << 20;   // (#637: 16 MB arenas)"
     if tex.count(arena) != 1:
-        raise SystemExit("vk_texture.cpp's arenas are no longer 64 MB: update this test")
+        raise SystemExit("vk_texture.cpp's arenas are no longer 16 MB (#637): update this test")
     frame = block(tex, "void texture_frame(")
     loop = block(frame, "for (auto it = arenas.begin(); it != arenas.end();) {")
-    for needle in ("const bool idle = it->value <= completed && it->value != rec_value;", "destroy_buffer(it->buffer, it->allocation);",
-                   "kept += it->size;", "const bool recent = burst_s && !pool_pressed && "):
+    for needle in ("const bool idle = it->value <= completed && it->value != rec_value;", "if (!spare_give_back(*it)) destroy_buffer(it->buffer, it->allocation);",
+                   "kept += it->size;", "const bool recent = burst_s && !pool_pressure && "):
         if needle not in loop:
             raise SystemExit("texture_frame's give-back loop no longer has: " + needle)
     if "st_arena_makes.load()" not in frame:
@@ -47,6 +47,7 @@ def main():
     if frame.index("completed_value = completed;") > frame.index(loop):
         raise SystemExit("texture_frame gives arenas back before it notes what the GPU completed: update this test's frame()")
     actual = block(tex, "struct Arena {") + ";\nstd::vector<Arena> arenas;\n" + arena + "\n"
+    actual += block(tex, "bool arena_make(Arena& a, uint64_t size) {") + "\n"   # (this tree's: staging makes its arenas through it)
     actual += block(tex, "struct Staging {") + ";\n" + block(tex, "Staging staging(")
     actual += "\nuint64_t give_back(uint64_t completed, uint64_t keep) {\n    uint64_t kept = 0;\n    " + loop + "\n    return kept;\n}\n"
     actual = actual.replace("std::chrono::steady_clock", "Clock")
@@ -57,7 +58,8 @@ def main():
         subprocess.run([a.cxx, "-std=c++20", "-O1", "-Wall", "-Wextra", "-Werror", "-Wno-missing-field-initializers",
                         "-I" + str(a.headers), str(cpp), "-o", str(exe)], check=True)
         env = {k: v for k, v in os.environ.items() if not k.startswith("RX_VK_STAGING_")}
-        for case in ("consecutive", "settles", "cap", "big", "keep256", "pressure", "short"):
+        # ("pressure", Linux memory pressure, comes back with Longshot #223's linux_pressure.h, not in this tree yet)
+        for case in ("consecutive", "settles", "cap", "big", "keep256", "short"):
             subprocess.run([str(exe), case], check=True, timeout=15, env=env)
         for case in ("consecutive", "cap", "big"):   # (the switch back)
             subprocess.run([str(exe), case], check=True, timeout=15, env={**env, "RX_VK_STAGING_BURST_S": "0"})
