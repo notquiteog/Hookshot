@@ -3107,6 +3107,9 @@ void memory_pool_created(uint64_t gpu, uint64_t size) {
     bg_cv.notify_one();
 }
 
+struct DeadImport { VkBuffer buffer; VkDeviceMemory memory; uint64_t value; uint64_t lo, bytes; std::vector<VkDeviceMemory> pieces; };
+std::deque<DeadImport> dead_imports;   // (#468: retired imports whose memory is freed once the GPU is past them)
+
 // (hookshot) Whether one imported pool holds all of [lo, hi): a lookup there imports nothing (vk_texture.cpp
 // upload_unswizzle_gpu asks before it reaches for one)
 int memory_guest_contained(uint64_t lo, uint64_t hi) {
@@ -3127,6 +3130,8 @@ int memory_guest_imported(uint64_t lo, uint64_t hi) {
     }
     for (const auto& nh : retired_pools)
         if (nh.mapped().memory && nh.mapped().lo < hi && lo < nh.mapped().hi) return 1;
+    for (const auto& pending : dead_imports)
+        if (pending.lo < hi && lo < pending.lo + pending.bytes) return 1;
     // The worker imports outside pools_mu. It moves a range from inflight to ready under bg_mu;
     // bg_drain moves it from ready to the active map while holding pools_mu.
     std::lock_guard bg_lock(bg_mu);
