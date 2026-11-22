@@ -438,6 +438,49 @@ what you test.
 **Never use it for numbers:** no fps or frame-time measurements, build timings, hitch or stutter checks, profiles,
 and no release or player build. Build those with the defaults.
 
+#### Every game under one base
+
+Each game has its own folder under one base: the default game (Ocarina) keeps `<base>`, another game gets
+`<base>-<key>` (`nx2/game_folders.py`, [one engine, four games](one-engine.md)). These are the calls a program that
+manages every game makes; the Builders' library (to come) runs them:
+
+| Call | What it does |
+|---|---|
+| `python -I nx2/game_folders.py --library <base> [--json]` | Every game that builds, in profile order, installed or not: its folder, whether it is built there, the version it was built with, and whether this engine would update it |
+| `python -I nx2/make_game.py --update-all [<base>] [--force]` | Every built game under the base (default `~/Games/Hookshot`) updated in turn, each by a `make_game.py --update` of its own; one that fails does not stop the others. A game already at this version is skipped unless `--force`. Exit status 1 when any failed |
+| `python -I nx2/make_game.py --nup <copy> --base <base>` | The copy's game (by main's build id) into its own folder under the base, with its own work folder as `--prepare` gives it. Not with `--out` or `--update` |
+
+A copy is never built into a folder that holds another game (its kept `.hookshot_exefs/main` names another profile):
+the build stops before the folder is touched, naming both games and the folder. An empty folder, one of the same game
+and one built before folders kept their copy are built into as before, and `--update <folder>` always builds the
+folder's own copy.
+
+`--library --json` prints a list, one object per game. The fields keep their names and types (new ones may be added):
+
+| Field | Type | What it is |
+|---|---|---|
+| `key` | string | The profile key (`oot`, `dkb`, `mkw`); Play is `--play <base> --game <key>` |
+| `name` | string | The game, from its profile |
+| `folder` | string | The game's own folder by the rule |
+| `base` | string | The base the folders are named from (another game's folder given as the base gives its base) |
+| `state` | string | `missing` (not installed), `built`, or `other`: the folder holds another game's copy (see `holds`), and building this game there is refused |
+| `built` | bool | The folder holds a built game (`image.bin` and the executable), whichever game it is |
+| `holds` | string or null | The key of the game the folder's kept copy is; null when it keeps none, or no profile knows the build |
+| `version` | string or null | `hookshot_version.txt`'s `version=`, when built |
+| `builder` | string or null | `hookshot_version.txt`'s `builder=`: the Builder executable that built it |
+| `kept` | bool | The folder keeps the game files an update builds from (`.hookshot_exefs/` and `romfs/`) |
+| `update` | bool or null | True when this engine would update it (the updaters' rule, `nx2/version.py` `update_due`: another version, unless that one is newer), false when current, null when it can't be told (no version in the folder: a checkout build writes none). False when not built |
+
+`--update-all` passes each game's own lines on as they come (each game's `@@done` or `@@error` among them) and frames
+them, one line per game in profile order:
+
+    @@game start <key> <folder>          this game's update begins
+    @@game end <key> <result> [<text>]   result: updated, current, missing (not installed) or failed (text: the reason)
+
+then one summary line per game (`Mario Kart World: updated`). A folder by the rule that holds another game ends
+`failed`, with both games named: it is not updated as this game (`--update <folder>` on its own still updates it).
+Under `--prepare` these lines go to stderr.
+
 ## Draw statistics
 
 Set `RX_VK_DRAW_STATS=<directory>` and create `<directory>/draw_stats.now` during play to measure one future frame.

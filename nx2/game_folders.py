@@ -28,6 +28,28 @@ The places that apply it:
     python -I nx2/game_folders.py --folder ~/Games/Hookshot --key mkw   # ~/Games/Hookshot-mkw
     python -I nx2/game_folders.py --launcher-games                     # the games[] the released profiles give
     python -I nx2/game_folders.py --write-launcher recomplauncher.json  # the entry with every released game in it
+    python -I nx2/game_folders.py --library ~/Games/Hookshot [--json]   # every game: installed, its version, an update due
+
+The library (library below) is what one program that manages every game reads: each buildable() game in profile order,
+whether its folder holds it, the version it was built with and whether this engine would update it. It is what
+`nx2/make_game.py --update-all` loops over, and `--json` is the form the Builders read. --json prints a list, one object
+per game, with these fields (stable: a field is added, never renamed or retyped):
+
+    key       the profile key (oot, mkw, dkb): Play is `--play <base> --game <key>`
+    name      the game (the profile's name, "The Legend of Zelda: Ocarina of Time")
+    folder    the game's own folder by the rule (<base>, or <base>-<key>)
+    base      the base the folders are named from (base_of: a game folder of another game gives its base)
+    state     "missing" (the game is not installed there), "built" (the folder holds this game, built), or "other" (the
+              folder holds another game's copy: building this game there is refused, see holds)
+    built     true when the folder holds a built game (image.bin and the game's executable), whichever game it is
+    holds     the key of the game the folder's kept copy is (.hookshot_exefs/main's build id), or null: no copy kept (a
+              folder built before updates came in), or a build no profile knows
+    version   the Hookshot version the folder was built with (hookshot_version.txt version=), or null; only when built
+    builder   the Builder that built it (hookshot_version.txt builder=, the Builder's executable), or null
+    kept      true when the folder keeps the game files an update builds from (.hookshot_exefs and romfs)
+    update    true when this engine is to update the game (its version is older: version.py update_due, the updaters'
+              rule), false when it is current (or newer), null when it can't be told (no version in the folder, or this
+              engine names none). Always false when not built
 """
 import argparse
 import json
@@ -109,6 +131,56 @@ def built_games(out, game_exe):
             continue
         held = folder_game(f)
         games.append({"key": p.key, "name": (held or p).game, "folder": f, "base": base})
+    return games
+
+
+def game_exe(folder):
+    """The game's executable in a folder, either platform's (a Linux build for Windows has hookshot.exe): bin/ under the
+    launcher, else the folder itself (a folder built before the launcher). None when there is none. The Builders pass
+    their own check to built_games and library; this is the default"""
+    for rel in (("bin", "hookshot"), ("bin", "hookshot.exe"), ("hookshot",), ("hookshot.exe",)):
+        path = os.path.join(folder, *rel)
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def version_file(game_folder):
+    """hookshot_version.txt's version= and builder= (the build writes them: nx2/make_game.py), each None when absent"""
+    found = {}
+    try:
+        with open(os.path.join(game_folder, "hookshot_version.txt"), encoding="utf-8", errors="replace") as f:
+            for line in f:
+                k, sep, v = line.strip().partition("=")
+                if sep and k in ("version", "builder") and k not in found:
+                    found[k] = v.strip() or None
+    except OSError:
+        pass
+    return found.get("version"), found.get("builder")
+
+
+def library(base, game_exe=game_exe, engine=None):
+    """Every game that builds (buildable(), in profile order), installed or not, under base: a dict for each with the fields
+    the module's docstring lists (key, name, folder, base, state, built, holds, version, builder, kept, update). base is
+    the default game's folder, or another game's folder of it (base_of). engine is the version the update flags compare
+    against: default this engine's (version.py release()). Nothing for an empty base"""
+    if not base:
+        return []
+    import version   # (nx2/version.py; release() may ask git, so only when no engine is given)
+    if engine is None:
+        engine = version.release()
+    base = base_of(base)
+    games = []
+    for p in buildable():
+        f = folder(base, p.key)
+        built = os.path.isfile(os.path.join(f, "image.bin")) and bool(game_exe(f))
+        held = folder_game(f)
+        state = "other" if held and held.key != p.key else "built" if built else "missing"
+        have, builder = version_file(f) if built else (None, None)
+        kept = os.path.isdir(os.path.join(f, ".hookshot_exefs")) and os.path.isdir(os.path.join(f, "romfs"))
+        games.append({"key": p.key, "name": p.game, "folder": f, "base": base, "state": state, "built": built,
+                      "holds": held.key if held else None, "version": have, "builder": builder, "kept": kept,
+                      "update": version.update_due(have, engine) if built else False})
     return games
 
 
@@ -215,7 +287,25 @@ def main(argv=None):
     ap.add_argument("--key", help="a game profile key")
     ap.add_argument("--launcher-games", action="store_true", help="print the games[] the released profiles give")
     ap.add_argument("--write-launcher", metavar="JSON", help="rewrite this recomplauncher.json with the released games in it")
+    ap.add_argument("--library", metavar="BASE", help="every game under this base: installed or not, its version, an update due")
+    ap.add_argument("--json", action="store_true", help="with --library: as JSON (the fields in this file's docstring)")
     a = ap.parse_args(argv)
+    if a.library is not None:
+        games = library(os.path.abspath(os.path.expanduser(a.library)))
+        if a.json:   # (ASCII, a folder's other letters as \u escapes: the same bytes whatever the console's code page)
+            print(json.dumps(games, indent=2))
+            return 0
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # (-I ignores PYTHONIOENCODING: a folder's letters)
+        except (AttributeError, ValueError):
+            pass
+        for g in games:
+            state = {"missing": "not installed", "built": "installed",
+                     "other": "holds %s" % (game_profile.GAMES[g["holds"]].game if g["holds"] else "another game")}[g["state"]]
+            if g["state"] == "built":
+                state += " (%s%s)" % (g["version"] or "no version", {True: ", update due", False: "", None: ", can't tell"}[g["update"]])
+            print("%-4s %-40s %-34s %s" % (g["key"], g["name"], state, g["folder"]))
+        return 0
     if a.write_launcher:
         with open(a.write_launcher, encoding="utf-8") as f:
             entry = json.load(f)
@@ -226,7 +316,7 @@ def main(argv=None):
         print(json.dumps(launcher_games(), indent=2))
         return 0
     if a.folder is None or not a.key:
-        ap.error("--folder and --key, or --launcher-games")
+        ap.error("--folder and --key, --launcher-games or --library")
     print(folder(os.path.expanduser(a.folder), a.key))
     return 0
 
