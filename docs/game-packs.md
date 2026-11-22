@@ -1,6 +1,7 @@
 # Game packs: one engine in NX2PC, each game in its own repository
 
-**Status: a design, for the user's review. No code has moved.** Written 2026-11-22 on `main` 0826b396 (rc.40 + #130).
+**Status: a design; its open questions were decided on 2026-11-22 (section 6), except two checks. No code has moved.**
+Written 2026-11-22 on `main` 0826b396 (rc.40 + #130).
 
 The decision this design serves:
 
@@ -74,13 +75,13 @@ patches.
 | Path | What | Verdict |
 |---|---|---|
 | `recomplauncher.json` `inputs[0]`, `games[0]`, the top-level `saves` (`{local}/hookshot`, `{home}/Games/Hookshot/user`) | written by `nx2/game_folders.py --write-launcher` from the released profiles | generated from packs |
-| `recomplauncher.json` `settings` `ultrawide`, `speed`, `text`, `mousecam` | release-wide settings only OoT implements | mis-named (the schema has no per-game settings; open question 6) |
+| `recomplauncher.json` `settings` `ultrawide`, `speed`, `text`, `mousecam` | release-wide settings only OoT implements | mis-named. Decided (2026-11-22): the settings stay release-wide; the engine hides or ignores what a game does not implement (`features`, 2.4) |
 | `builder/HookshotBuilder/Games.cs` `Profiles` | key, name, build id of oot, dkb, mkw, hard-coded (tests/test_builder_games.py holds it to the profiles) | duplicate of pack data; PR 2 should read `--library --json` instead |
 | `builder/setup/setup.c` 1060 `HOOKSHOT_DEFAULT_GAME "oot"` | the default game's folder | release policy (the lock's `default`) |
 | `builder/*/Strings.cs`, `strings.py` (12 languages), `hookshot_builder.py` 332, 1219, `core.py` 572, `Finder.cs` 105, `window.py` 843 | "Turns your own copy of Ocarina of Time...", "Hookshot requires build e0f3ccfa", shortcut descriptions | mis-named; PR 2's library replaces these headings with the game list |
 | `readme.md` (1,234 lines) | the player guide is mostly OoT's (controls, debug tools, known issues), the rest engine | split: NX2PC readme, pack readme |
 | `docs/control.md` (41 OoT mentions), `docs/saves.md`, `docs/longshot.md` | teleport/age verbs, OoT saves, the Longshot (OoT upstream) pull process | split per verb; `saves.md` and `longshot.md`'s OoT half to the pack |
-| `docs/tested-configurations.md` | ~266 rows, no Game column: ~13 MKW, ~18 DKB, ~3 KAR (Dragoon), the rest OoT | one table in NX2PC with a Game column (open question 7) |
+| `docs/tested-configurations.md` | ~266 rows, no Game column: ~13 MKW, ~18 DKB, ~3 KAR (Dragoon), the rest OoT | Decided (2026-11-22): one table in NX2PC with a Game column |
 | `tests/` | 70 of 855 files touch OoT code: `test_oot_*` (7 files, 1,696 lines), `test_ocarina_notes.py`, `test_opening_skip.py`, `test_teleport_minimap_flag.py`, `test_wide_cover.py`, `test_debug_tools_linux.py`, `test_text_size.py`, `test_auto_run.py`, ...; 17 checks cut functions out of `vk_menu.cpp` | the pure-OoT ones move with the pack; mixed ones split |
 
 ### Mario Kart World (`mkw`)
@@ -178,7 +179,6 @@ JSON, so the Builders, the launcher writer and `--library` read a pack without r
                "skip_opening", "auto_run", "microphone", "ultrawide", "prompts", "damage_taken", "debug_tools"],
   "build_steps": ["prompts", "pipeline_states"],
   "saves_dir": "hookshot",
-  "issues": "https://github.com/notquiteog/Hookshot/issues",
   "license": "GPL-3.0-or-later"
 }
 ```
@@ -192,6 +192,8 @@ JSON, so the Builders, the launcher writer and `--library` read a pack without r
   of the running game lists is hidden.
 - `build_steps` names the optional steps of `make_game.py` the pack takes part in, each run from the pack's `tools/`
   or `assets/` (the prompts, the shipped pipeline list). A game without them skips the step, as MKW and DKB already do.
+- There is no per-pack issues link. Decided (2026-11-22): the in-game bug report points to NX2PC's issues, and the
+  report names the game (the pack's `key`, `name`, version and build id).
 - `saves_dir` exists for Ocarina's legacy `hookshot` folder; without it the saves folder is `hookshot-<key>` (and
   the rename PR's `nx2pc-<key>`). The rename's migration keys on the same field.
 
@@ -244,6 +246,9 @@ Three channels exist today. The design keeps two and adds one C table:
    runtime; `host/hos_main.c` passes `nx2_game_menu()` into the host table, and a game without one links
    `host/game_none.c`, which answers NULL.
 
+Decided (2026-11-22): the menu content is this C table, compiled into each game's runtime and handed to the shared
+renderer through the versioned interface (`MKWVK_API_VERSION`, `NX2GameMenu.version`). The renderer hides or ignores
+every general row, and every RecompLauncher setting's effect, that the table's `features` does not list.
 Why a C table and not a data file in the game folder: the runtime is rebuilt with every pack change anyway, so a data
 file gains nothing and adds a parser, a file to lose, and a second copy of the teleport list (the runtime needs the
 destinations too: today `oot_destinations[]` in `hos_main.c` and `teleport_names[]` in `vk_menu.cpp` are two copies of
@@ -324,7 +329,8 @@ NX2PC's release workflow syncs and verifies the lock, checks each pack release's
 - **Rollback**: the Builders keep earlier versions (`versions/<tag>`); each carries its own `packs` part, so going
   back to a Builder version goes back to the packs it was released with. A pack can never be newer than its engine.
 - **A pack-only update** (OoT's patches fixed, engine unchanged) is a pin PR in NX2PC and a patch release:
-  `fix(packs): oot 1.0.1 (...)`. There is no channel that changes a pin without an NX2PC release (open question 3).
+  `fix(packs): oot 1.0.1 (...)`. Decided (2026-11-22): pins change only with an NX2PC release, never between releases. Pack releases and
+  pin changes are covered by the standing OK to merge and release.
 
 What each command does with packs (all of them resolve the game's pack with `nx2/packs.py path <key>`, from the
 installed `packs` part, or the source checkout's cache):
@@ -422,9 +428,9 @@ design and is checked by menu screenshots instead.
 |---|---|---|
 | a1 | `nx2/packs.py` (load only: `packs/*/pack.json` in the tree), `packs/{oot,dkb,mkw}/pack.json`, `nx2/game_profile.py` builds `GAMES` from them; `emit_header` unchanged; `game/game_profile.h` unchanged; `Games.cs` and `setup.c` defaults tested against the packs | — |
 | a2 | OoT's Python into `packs/oot/lift/` and `packs/oot/tools/` (`oot_*.py`, `prompt_*`, `prompt_faces/`, `scripts/oot_saves.py`); `load_module` looks in the active pack's `lift/`; `lift_sources` hashes pack files under their old `nx2/` names; `OOT_` env prefix from `lift.env_prefixes`; the prompts step and `ship_state_list` run only as the pack's `build_steps`; `assets/pipeline_states/` → `packs/oot/assets/` (MKW and DKB stop getting OoT's list: a fix) | a1 |
-| a3 | OoT's runtime C into `packs/oot/host/`: the `host/oot_*` files, `hos_main.c` 666–1836 split into `oot_cheats.c`, `oot_teleport.c`, `oot_opening.c`, `oot_wide_cover.c`; the control bridge's OoT members registered by the pack; `host/nx2_pack.h`; `host/game_none.c`; `nx2/build.py` compiles a pack's `host` list into that game's runtime only. Also rule 3's MKW 1.8.0 literals (`hos_game_is_mkw`, `0x806bce28`, `0x825c6844`, `0x837de940`, `HOS_MKW_INTERVAL`): removed, or into `packs/mkw/host/` keyed to 1.8.0 if the Lakitu session wants 1.8.0 (its call) | a2 |
+| a3 | OoT's runtime C into `packs/oot/host/`: the `host/oot_*` files, `hos_main.c` 666–1836 split into `oot_cheats.c`, `oot_teleport.c`, `oot_opening.c`, `oot_wide_cover.c`; the control bridge's OoT members registered by the pack; `host/nx2_pack.h`; `host/game_none.c`; `nx2/build.py` compiles a pack's `host` list into that game's runtime only. Also rule 3's MKW 1.8.0 literals (`hos_game_is_mkw`, `0x806bce28`, `0x825c6844`, `0x837de940`, `HOS_MKW_INTERVAL`): decided (2026-11-22), moved into `packs/mkw/host/` behind the mkw profile's build check, kept for a later 1.8.0 profile; shared code then holds none | a2 |
 | a4 | The renderer's menu reads `NX2GameMenu`: `oot_cheat_items.h`, the teleport list, the Debug tab's tools, the OoT texts and their translations into `packs/oot/menu/`; general rows hidden unless the game lists their feature; option ids into the pack range; `MKWVK_API_VERSION` +1; the renderer compiled with the empty profile's header. The 17 checks that cut `vk_menu.cpp` move to the pack's tests or follow the new functions in the same PR | a3 |
-| a5 | Tests and docs follow: the pure-OoT tests into `packs/oot/tests/`, `run_all.py --pack`; `docs/mario-kart-world.md`, `donkey-kong-bananza.md` into their packs; readme, `control.md`, `saves.md` split; `tests/fixtures/packs/example/` | a4 |
+| a5 | Tests and docs follow: the pure-OoT tests into `packs/oot/tests/`, `run_all.py --pack`; `docs/mario-kart-world.md`, `donkey-kong-bananza.md` into their packs; readme, `control.md`, `saves.md` split; a Game column in `docs/tested-configurations.md` (existing rows filled from their text); the bug report names the game; `tests/fixtures/packs/example/` | a4 |
 
 After a4, Ocarina's menu must look and act the same (each tab and page captured with `RX_VK_MENU_SCRIPT` before and
 after, OoT in the game), and MKW's and DKB's must lose exactly the Debug tab and the rows their game does not
@@ -446,16 +452,16 @@ after a1, and its multi-pad layer as separate engine PRs.
 | Step | What | Needs, and the user's OK |
 |---|---|---|
 | c0 | Engine changes still only in forks go to `main` first: `git diff <main>...fork/mario-kart-world -- . ':!packs' ':!docs/mario-kart-world.md'` and the same for Dragoon list them; each becomes an engine PR or is dropped. Open engine PRs (#123) merged or moved (5f) | a5 |
-| c1 | **NX2PC becomes the trunk.** One PR in NX2PC: the default repository `notquiteog/NX2PC` in `nx2/version.py`, `builder/setup/setup.c` `HOOKSHOT_REPOSITORY`, `Repository.cs`, `builder/py/hookshot_builder/__init__.py`, `linux_update.py`, `scripts/linux/appimage.sh`, the MSI, `tests/test_repository_default.py`; release-please moved to NX2PC; the bridge job (5d). Hookshot `main` frozen (branch protection) | b3; **OK**: freezing Hookshot `main`, a token in NX2PC that can write Hookshot's releases, NX2PC's first release tag (open question 1) |
+| c1 | **NX2PC becomes the trunk.** One PR in NX2PC: the default repository `notquiteog/NX2PC` in `nx2/version.py`, `builder/setup/setup.c` `HOOKSHOT_REPOSITORY`, `Repository.cs`, `builder/py/hookshot_builder/__init__.py`, `linux_update.py`, `scripts/linux/appimage.sh`, the MSI, `tests/test_repository_default.py`; release-please moved to NX2PC; the bridge job (5d). Hookshot `main` frozen (branch protection) | b3; **OK**: freezing Hookshot `main`, a token in NX2PC that can write Hookshot's releases. The first tag is decided: NX2PC `v3.0.0` |
 | c2 | NX2PC's first release and the Hookshot bridge release (5d), tested from rc.40 clients on Windows and Linux before it is marked latest | c1 |
 | c3 | **DKB → `notquiteog/Bananza`** (empty, so the simplest; it proves the flow): `git clone NX2PC`, `git filter-repo --subdirectory-filter packs/dkb` (keeps the history of those files), push as `main`; CI and release-please; release `dkb-v1.0.0`; pin PR in NX2PC that removes `packs/dkb/` and pins the release; the lift key and the lifted C the same as from the tree | c2; **OK**: Bananza's settings (issues, default branch `main`) |
-| c4 | **MKW → `notquiteog/Lakitu`**, keeping its history: on a new branch `pack` from `fork/mario-kart-world`, merge NX2PC `main` (which has `packs/mkw/`), then one commit that removes everything but `packs/mkw/` and moves it to the root ("Lakitu becomes Mario Kart World's game pack"). Then `git merge -s ours origin/main` on `pack`, so `main` fast-forwards to it: `git push origin pack:main`. No force-push, no default-branch change; `fork/mario-kart-world` and the old `main` stay in the history and as a tag `engine-fork-final`. Release `mkw-v1.0.0`, pin PR | c2; **OK**: replacing Lakitu `main`'s tree (history kept), deleting or archiving its `fork/*` branch later |
-| c5 | **KAR → `notquiteog/Dragoon`**, the same as c4 from `fork/kirby-air-riders` | c2; **OK** as c4 |
-| c6 | **OoT → `notquiteog/Hookshot`**, last, because Hookshot is the repository old clients read. Hookshot `main` is NX2PC `main` up to c1, so one commit on Hookshot `main` removes everything but `packs/oot/`, moves it to the root, and keeps `recomplauncher.json` at the root (5d) and a readme that says where NX2PC is. History, blame and old links stay. Release `oot-v1.0.0` with `--latest=false`; pin PR in NX2PC | c2; **OK**: that commit on Hookshot `main` |
+| c4 | **MKW → `notquiteog/Lakitu`**, keeping its history: on a new branch `pack` from `fork/mario-kart-world`, merge NX2PC `main` (which has `packs/mkw/`), then one commit that removes everything but `packs/mkw/` and moves it to the root ("Lakitu becomes Mario Kart World's game pack"). Then `git merge -s ours origin/main` on `pack`, so `main` fast-forwards to it: `git push origin pack:main`. No force-push, no default-branch change; `fork/mario-kart-world` and the old `main` stay in the history and as a tag `engine-fork-final`. Release `mkw-v1.0.0`, pin PR | c2; decided: the removal commit on `main` (history kept, no force-push); **the user is told before it lands**; deleting or archiving its `fork/*` branch later is asked separately |
+| c5 | **KAR → `notquiteog/Dragoon`**, the same as c4 from `fork/kirby-air-riders` | c2; as c4: **the user is told before it lands** |
+| c6 | **OoT → `notquiteog/Hookshot`**, last, because Hookshot is the repository old clients read. Hookshot `main` is NX2PC `main` up to c1, so one commit on Hookshot `main` removes everything but `packs/oot/`, moves it to the root, and keeps `recomplauncher.json` at the root (5d) and a readme that says where NX2PC is. History, blame and old links stay. Release `oot-v1.0.0` with `--latest=false`; pin PR in NX2PC | c2; as c4: **the user is told before it lands** |
 
-The alternative to the removal commit is a new orphan default branch in each repository (a small clone, no engine
-history). It needs a default-branch change per repository and leaves old links to `main` pointing at the engine. The
-removal commit is recommended; either is the user's choice.
+Decided (2026-11-22): Hookshot, Lakitu and Dragoon each get a removal commit on `main`, history kept, no force-push,
+no default-branch change, and the user is told before each one lands. (Rejected: a new orphan default branch per
+repository, which would change default branches and leave old links to `main` pointing at the engine.)
 
 After c6, a fork's own branches are history. Issues: game bugs stay where they are (Hookshot's issues are mostly
 Ocarina's); engine issues are transferred to NX2PC with `gh issue transfer` (with the user's OK, one batch).
@@ -477,8 +483,8 @@ The bridge is **NX2PC's first release's files under their old names, published o
 (c1). Because the setup lists and Linux lists name each part by its full URL, the bridge files point at NX2PC's
 `builder-parts` and `linux-parts` releases and copy nothing large:
 
-- A release **`v<first NX2PC version>`** on Hookshot (for example `v3.0.0`: newer in semver than every v2.3.0-rc.N and
-  v2.2.0, so every track offers it), marked **latest**, not a prerelease, with: `HookshotBuilder.exe` (NX2PC's setup,
+- A release **`v3.0.0`** on Hookshot (decided 2026-11-22: NX2PC's first tag; newer in semver than every v2.3.0-rc.N
+  and v2.2.0, so every track offers it), marked **latest**, not a prerelease, with: `HookshotBuilder.exe` (NX2PC's setup,
   built with `HOOKSHOT_REPOSITORY "notquiteog/NX2PC"`), `hookshot-setup.txt` and `hookshot-linux.txt` (NX2PC's own
   lists, whose parts are on NX2PC), `Hookshot-v<ver>-x86_64.AppImage.zsync` whose URL is NX2PC's AppImage,
   `Hookshot-v<ver>-Windows-x64.zip` (for RecompLauncher), `SHA256SUMS`, and notes that say "Hookshot is now NX2PC;
@@ -488,11 +494,11 @@ The bridge is **NX2PC's first release's files under their old names, published o
 - Once installed, the new Builder's `repository.txt` names NX2PC and it never asks Hookshot again. The bridge is
   refreshed only if NX2PC ever prunes a part it names (a check in `release_files.sh`), and later by the rename PR
   (5e). It is not a mirror of every release.
-- **To verify before c2**: that AppImageUpdate follows a `.zsync` whose URL is on another repository (else the bridge
+- **Open check 2, before c2**: that AppImageUpdate follows a `.zsync` whose URL is on another repository (else the bridge
   also carries the 250 MB AppImage, once); and the whole matrix by installing from rc.40 and updating: the Windows
   Builder on each track, a kept setup, the AppImage's own updater, AppImageUpdate, Gear Lever, RecompLauncher.
 
-**RecompLauncher**: how it keys an install (the catalog's repository, the entry's `name`, or an id) is not known: the
+**RecompLauncher (open check 1, before c2)**: how it keys an install (the catalog's repository, the entry's `name`, or an id) is not known: the
 rename plan already lists it as "to check in its source before starting", and no note on this PC answers it. Until it
 is known:
 
@@ -540,7 +546,7 @@ is known:
   `docs/one-engine.md` and `docs/workflow.md` are rewritten for NX2PC in c1, and each pack repository gets a short
   `AGENTS.md` that points at NX2PC's.
 
-## 6. Risks and open questions for the user
+## 6. Risks, decisions and open checks
 
 Risks:
 
@@ -556,16 +562,24 @@ Risks:
 - A pack move that changed the lift key would cost every player a full relift (about 45 minutes); 3.3's name mapping
   avoids it, and a1–a5 check it.
 
-Open questions:
+Decided (2026-11-22):
 
-1. NX2PC's first release tag, and so the bridge's: `v3.0.0` (proposed), or `v2.3.0`.
-2. On Hookshot, Lakitu and Dragoon: the removal commit on `main` (proposed: history kept, no force-push, no
-   default-branch change) or a new orphan default branch. Each needs your OK when it happens.
-3. Pins change only with an NX2PC release (proposed), or should a Builder pick up a newer pin between releases?
-4. Menu content as a C table in the game's runtime (proposed) or as a data file in the game folder.
-5. The in-game bug report: engine issues to NX2PC, or to the game's repository (`pack.json` `issues`), or ask.
-6. RecompLauncher's settings are release-wide (`ultrawide`, `speed`, `text`, `mousecam` are OoT-only today): leave
-   them, or ask RecompLauncher for per-game settings.
-7. Tested configurations: one table in NX2PC with a Game column (proposed), or each pack its own.
-8. MKW 1.8.0's dead literals (a3): delete, or keep in the mkw pack for a later 1.8.0 profile (the Lakitu session).
-9. Who may cut a pack release and pin it: the same merge-and-release standing OK as for NX2PC, or ask each time.
+1. **The first tag** is NX2PC `v3.0.0`, and so the Hookshot bridge's (5d).
+2. **History:** a removal commit on `main` for Hookshot, Lakitu and Dragoon, history kept, no force-push, no
+   default-branch change. The user is told before each one lands (c4, c5, c6).
+3. **Menu content:** a C table compiled into each game's runtime, handed to the shared renderer through the versioned
+   interface (2.4).
+4. **Pack releases and pin changes** are covered by the standing OK to merge and release. Pins change only with an
+   NX2PC release, never between releases (3.3).
+5. **The bug report** points to NX2PC's issues, with the game named in the report (2.2).
+6. **RecompLauncher's release-wide settings** stay. The engine hides or ignores the rows a game does not implement,
+   from the menu table's implemented-rows list (`features`, 2.4).
+7. **Tested configurations:** one table in NX2PC with a Game column (a5 adds the column).
+8. **The dead MKW 1.8.0 code** moves to the mkw pack, behind its profile, for a later 1.8.0 profile (a3).
+
+Open checks (both before c2, the bridge release):
+
+1. **RecompLauncher's install key**: whether it keys an install by the catalog's repository, the entry's `name`, or an
+   id. Until it is known, RecompLauncher keeps reading `notquiteog/Hookshot` (5d).
+2. **AppImageUpdate and the `.zsync`**: whether AppImageUpdate (and Gear Lever) follow a `.zsync` whose URL is on
+   another repository, and what file name they save. If not, the bridge also carries the AppImage, once (5d).
