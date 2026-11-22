@@ -56,6 +56,7 @@
 #include "dlss_actor.h"
 #include "dlss_checks.h"
 #include "dlss_math.h"
+#include "hidden_mesh.h"
 #include "temporal_jitter.h"
 #include "upscaler_rows.h"
 #include "vk_dlss.h"
@@ -134,7 +135,7 @@ struct Camera {
     float near_z = 0, far_z = 0, fov_y = 0;   // (its projection's, 0 when it is not a plain perspective one)
     uint32_t width = 0, height = 0;
     Texture* depth = nullptr;
-    uint64_t depth_gen = 0;   // (texture_destroy_generation when taken: a depth texture destroyed since is not used)
+    uint64_t depth_gen = 0;   // (texture_depth_destroy_generation when taken: a depth image gone or moved since is not used)
     uint64_t frame = 0;       // (texture_frame_no when taken)
     VkFormat scene_format = VK_FORMAT_UNDEFINED;
     bool valid = false;
@@ -419,8 +420,8 @@ bool make_rgba_output() {
 /// A view of a depth texture's depth alone, for sampling (made once per image)
 VkImageView depth_view(Texture* t) {
     State& s = st();
-    const uint64_t gen = texture_destroy_generation();
-    if (gen != s.depth_views_gen) {   // (a texture was destroyed: its image's view may be stale)
+    const uint64_t gen = texture_depth_destroy_generation();
+    if (gen != s.depth_views_gen) {   // (a depth image went or moved: its view may be stale)
         auto old = std::move(s.depth_views);
         s.depth_views.clear();
         later([old] {
@@ -820,7 +821,7 @@ void temporal_note_scene_draw(const Texture* color0, uint32_t width, uint32_t he
     const bool plain = std::isfinite(n) && n > 0.0f && p11 > 0.0f && (!std::isfinite(f) || f > n);
     k.near_z = plain ? n : 0.0f, k.far_z = plain ? (std::isfinite(f) ? f : 1e9f) : 0.0f;
     k.fov_y = plain ? 2.0f * std::atan(1.0f / p11) : 0.0f;
-    k.width = width, k.height = height, k.depth = depth, k.depth_gen = texture_destroy_generation(), k.frame = now;
+    k.width = width, k.height = height, k.depth = depth, k.depth_gen = texture_depth_destroy_generation(), k.frame = now;
     k.scene_format = color0->format;
     k.valid = true;
 }
@@ -914,6 +915,36 @@ void temporal_idle() {
     s.last_frame = 0;   // (a new history when it comes back)
     free_dead(false);
     s.holding = !s.dead.empty();
+}
+
+// ---- (hookshot, #1370) the depth draws of hidden meshes (vk_draw.cpp hidden_depth_draw has the why) ----
+int replay_par_threads();   // (vk_replay.cpp par_threads: RX_VK_PARALLEL, else the game profile's HOOKSHOT_PROFILE_VK_PARALLEL)
+int temporal_hidden_mesh_mode() {
+    static const int mode = [] {
+        const bool rule = env_switch("RX_VK_DLSS_FADED") != 0;          // (unset: on)
+        const bool detail = env_switch("RX_VK_DLSS_FADED_LOG") == 1;   // (unset: off)
+        // (the parallel replay on 2 threads or more (vk_replay.cpp par_threads: RX_VK_PARALLEL, or the game profile's
+        // vk_parallel, as Mario Kart World's 4) draws a frame's segments on several threads at once, where the one table is
+        // drawn from by one thread at a time: nothing here runs then)
+        const bool parallel = replay_par_threads() >= 2;
+        if (parallel)
+            logf("vk: upscaler: faded: the parallel replay is on (%d threads, RX_VK_PARALLEL or the game profile): hidden meshes' "
+                 "depth draws are drawn", replay_par_threads());
+        else if (rule)
+            logf("vk: upscaler: faded: while a temporal upscaler or frame generation draws, the depth draws of a skinned mesh "
+                 "that had colour and has had none for %u frames are left out until its colour is back (RX_VK_DLSS_FADED=0 "
+                 "draws them)", hidden_mesh::kHiddenAfter);
+        else
+            logf("vk: upscaler: faded: RX_VK_DLSS_FADED=0: hidden meshes' depth draws are drawn");
+        return parallel ? 0 : (rule ? 1 : 0) | (detail ? 2 : 0);
+    }();
+    return mode;
+}
+
+bool temporal_scene_depth_is(const Texture* depth) {
+    State& s = st();
+    std::lock_guard lk(s.mu);
+    return depth && s.cam.valid && s.cam.depth == depth && s.cam.frame == texture_frame_no();
 }
 
 void temporal_note_skinned_draw(const SkinnedDraw& k) {
@@ -1048,7 +1079,7 @@ bool temporal_upscale(VkCommandBuffer cmd, uint64_t key, bool known, Texture* in
         return fail("unexpected scene colour format");
     const bool psycho = scene_tonemap_on() && ur::takes_psychov35(mode) &&
                         temporal_scene_format(VK_FORMAT_R16G16B16A16_SFLOAT);
-    if (cam.depth_gen != texture_destroy_generation()) return fail("the scene depth may be gone");
+    if (cam.depth_gen != texture_depth_destroy_generation()) return fail("the scene depth may be gone");
     const uint32_t rw = in->width, rh = in->height;
     const uint32_t ow = std::max(1u, out->width >> out_level), oh = std::max(1u, out->height >> out_level);
     if (rw != cam.width || rh != cam.height) return fail("the input is not the scene's size");
