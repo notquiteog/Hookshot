@@ -10002,6 +10002,9 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
     std::vector<std::unique_ptr<PipeNote>> notes = pipe_notes_read();
     if (notes.empty() || env_on("RX_VK_NO_PREDICT")) {
         remove(predict_pending_path().c_str());
+        // (no notes: nothing to predict, and that is recorded, so a start on All does not try again (predicted_complete, vk_main.cpp).
+        // RX_VK_NO_PREDICT is not: a start without it predicts)
+        if (notes.empty()) predicted_keys_write({});
         return;
     }
     // (the marker counts the starts that began it: two that did not get through it (a driver that hangs or ends the process on one
@@ -10017,6 +10020,8 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
     }
     if (began >= 2) {
         remove(predict_pending_path().c_str());
+        // (given up, and recorded as done: without the record a start on All would predict again, and crash again, every other start)
+        predicted_keys_write({});
         logf("vk: the last two starts did not get through the predicted pipelines: the rest are built in play");
         return;
     }
@@ -10160,8 +10165,18 @@ void predict_run(void (*progress)(size_t done, size_t total)) {
          : prepare_stopped() ? " (stopped: the window was closed; the driver keeps what was built)" : "");
     if (!prepare_stopped() && !out_of_time.load() && !gone_on) {
         predicted_sample_write(pre->predicted);
-        predicted_keys_write(pre->made_keys);
         driver_env_note();   // (they are in the driver's cache alone: found only in this folder)
+    }
+    // (recorded as done unless the window was closed (the marker brings that one back): finished, out of its time, or gone on
+    // without what is stuck, whose rest is built in play. Without the record a start on All would run it again (predicted_complete,
+    // vk_main.cpp), and a stall would stall every start. The keys are those made so far: a stuck worker may still add one)
+    if (!prepare_stopped()) {
+        std::vector<uint64_t> keys;
+        {
+            std::lock_guard lk(pre->keys_mu);
+            keys = pre->made_keys;
+        }
+        predicted_keys_write(std::move(keys));
     }
     // (gone on: what is stuck is left to play, as the stall guard says; a start that does it again would only stall again)
     if (!prepare_stopped()) crash_markers::end(predict_pending_path());   // (closed: the close writes `began` back, not counted)
