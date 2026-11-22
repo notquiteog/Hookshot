@@ -96,12 +96,17 @@ def wiring():
         need('env_on("RX_VK_NO_EVICT")' in body and "dead_targets_on()" in body, "the sweep is off with RX_VK_NO_EVICT or RX_VK_DEAD_TARGETS=0")
         need(frame.index("pool_trim();") < gate, "the pool is trimmed before the gate, every present")
     sweep = block(tex, "void dead_targets_sweep(uint64_t completed)")
-    for part in ("dead_min_unused_presents()", "dead_targets::candidate(frame_no, tex->last_frame, need, tex->last_value, completed,",
-                 "tex->levels == 1 && tex->layers == 1 && tex->depth <= 1", "over.add(lo, hi, tex->last_frame, (*it)->gpu, (*it)->gpu + (*it)->guest_size, (*it)->last_written);", "over.an_eighth(hi - lo)",
+    for part in ("dead_min_unused_presents()", "dead_targets::candidate(frame_no, t->last_frame, need, t->last_value, completed,",
+                 "t->levels == 1 && t->layers == 1 && t->depth <= 1", "for (Texture* tex : candidates) {", "over.add(lo, hi, tex->last_frame, (*it)->gpu, (*it)->gpu + (*it)->guest_size, (*it)->last_written);", "over.an_eighth(hi - lo)",
                  "(*it)->last_written", "destroy_later(*tex);", "forget_gpu(tex);", "remade.erase(tex);", "textures.erase(it)"):
         need(part in sweep, "the sweep: " + part)
     for part in ("flush_textures", "flush_texture(", "readback"):
         need(part not in sweep, "the sweep writes nothing back (%s)" % part)
+    # (one walk of the textures, and the render targets ordered only when one of them is a candidate: it walked them twice and
+    # ordered them at every present but each tenth, whatever the candidates)
+    need(sweep.count("for (auto& kv : textures)") == 1, "the sweep walks the textures once")
+    need("if (candidates.empty()) return;" in sweep and sweep.index("if (candidates.empty()) return;") < sweep.index("std::sort("),
+         "the sweep orders the render targets only when there is a candidate")
     every = block(tex, "uint64_t dead_every_presents()")
     need('getenv("RX_VK_DEAD_EVERY")' in every and ": 1;" in every, "RX_VK_DEAD_EVERY defaults to 1")
     trim = block(tex, "size_t pool_trim()")

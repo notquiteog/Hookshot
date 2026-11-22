@@ -4783,22 +4783,23 @@ uint64_t st_dead_swept, st_dead_swept_bytes;   // (let go by dead_targets_sweep 
 /// pass lets them go: nothing written back (their storage is another target's now), their images to the target pool
 void dead_targets_sweep(uint64_t completed) {
     const uint64_t need = dead_min_unused_presents();
-    std::vector<const Texture*> by_start;
+    // (one walk of the textures, at every present but each tenth: the render targets, and among them the candidates; none, and
+    // the render targets are not ordered at all. It walked them twice and ordered them whatever the candidates)
+    static std::vector<const Texture*> by_start;
+    static std::vector<Texture*> candidates;
+    by_start.clear(), candidates.clear();
     uint64_t longest = 0;
     for (auto& kv : textures) {
-        const Texture* t = kv.second.get();
+        Texture* t = kv.second.get();
         if (!t->gpu_written || !t->first_render_frame || !t->guest_size) continue;
         by_start.push_back(t), longest = std::max(longest, t->guest_size);
+        if (dead_targets::candidate(frame_no, t->last_frame, need, t->last_value, completed, t->levels == 1 && t->layers == 1 && t->depth <= 1))
+            candidates.push_back(t);
     }
-    if (by_start.empty()) return;
+    if (candidates.empty()) return;
     std::sort(by_start.begin(), by_start.end(), [](const Texture* a, const Texture* b) { return a->gpu < b->gpu; });
     std::unordered_set<Texture*> gone;
-    for (auto& kv : textures) {
-        Texture* tex = kv.second.get();
-        if (!tex->gpu_written || !tex->first_render_frame || !tex->guest_size ||
-            !dead_targets::candidate(frame_no, tex->last_frame, need, tex->last_value, completed,
-                                     tex->levels == 1 && tex->layers == 1 && tex->depth <= 1))
-            continue;
+    for (Texture* tex : candidates) {
         const uint64_t lo = tex->gpu, hi = tex->gpu + tex->guest_size;
         auto it = std::lower_bound(by_start.begin(), by_start.end(), lo > longest ? lo - longest : 0,
                                    [](const Texture* t, uint64_t g) { return t->gpu < g; });
