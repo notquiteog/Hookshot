@@ -65,6 +65,38 @@ def check_windows(fail):
     i, j = ffx.find("signed_dll::open_checked(wpath"), ffx.find("guarded_load(wpath.c_str())")
     if i < 0 or j < 0 or i > j or ffx.find("CloseHandle(held)", j) < 0:
         fail("vk_ffx.cpp must hold AMD's loader from its check until guarded_load has loaded it")
+    # AMD's loader loads its providers from its own folder unchecked: each is loaded first, checked, by its full path
+    k = fsr4.find("signed_dll::preload_amd_providers(dir, search)")
+    if k < 0 or k > fsr4.find("signed_dll::load(signed_dll::wide(path), signed_dll::kAmd"):
+        fail("vk_fsr4.cpp must check and load AMD's upscaler and frame generation DLLs before the loader, which loads them "
+             "unchecked")
+    k = ffx.find("signed_dll::preload_amd_providers(")
+    if k < 0 or k > i or "guarded_load)" not in ffx[k:i]:
+        fail("vk_ffx.cpp must check and load AMD's providers (through guarded_load) before the loader")
+    signed = (ROOT / "gpu/vk/vk_signed.cpp").read_text(encoding="utf-8")
+    pre = body(signed, "bool preload_amd_providers(")
+    for name in ("amd_fidelityfx_upscaler_vk.dll", "amd_fidelityfx_framegeneration_vk.dll"):
+        if '"%s"' % name not in pre:
+            fail("preload_amd_providers no longer checks %s" % name)
+    if "open_checked(path, kAmd, name)" not in pre or "GetFullPathNameW(" not in pre:
+        fail("preload_amd_providers must check each provider as AMD's by its full path")
+    # every refusal in the signer check says why (one that did not read as "no such file" further on)
+    sig = body(signed, "bool signed_by(const std::wstring& path, const wchar_t* signer, const char* what) {")
+    if sig.count("not loading it") < 5:
+        fail("signed_by refuses a file somewhere without a line saying why (%d reasons logged, 5 wanted)"
+             % sig.count("not loading it"))
+    if "refused or not loaded in" not in fsr4:
+        fail("vk_fsr4.cpp says there is no AMD loader when one was there and was refused")
+    # AMD's DLLs' signatures (WinVerifyTrust, which may fetch certificates) are not checked where the device is made
+    main_cpp = (ROOT / "gpu/vk/vk_main.cpp").read_text(encoding="utf-8")
+    menu = (ROOT / "gpu/vk/vk_menu.cpp").read_text(encoding="utf-8")
+    if re.search(r"\bffx::probe\(\)", main_cpp):
+        fail("vk_main.cpp asks AMD's FSR 4 runtime while the device is made again: its signature check can wait on the "
+             "network")
+    if "ffx::probe();" not in body(menu, "static void probe_upscalers_soon() {"):
+        fail("AMD's FSR 4 frame generation is no longer asked on the start-up probes' thread (probe_upscalers_soon)")
+    if "std::lock_guard lk(probe_mu);" not in body(ffx, "void probe() {"):
+        fail("vk_ffx.cpp probe runs on the start-up probes' thread: it must hold probe_mu")
 
 
 MAIN = r"""
@@ -85,6 +117,10 @@ int main(int argc, char** argv) {
 """
 
 
+def linux_src(src):
+    return src[src.index("#else\nnamespace {"):src.rindex("#endif")]
+
+
 def check_linux(cxx, fail):
     src = (ROOT / "gpu/vk/vk_signed.cpp").read_text(encoding="utf-8")
     fsr4 = (ROOT / "gpu/vk/vk_fsr4.cpp").read_text(encoding="utf-8")
@@ -96,8 +132,20 @@ def check_linux(cxx, fail):
     lin = dirs[dirs.index("#else"):]
     if "signed_dll::folder_owned_safely(" not in lin or "dirs.swap(safe);" not in lin:
         fail("Linux's NGX runtime folders are no longer checked: NGX loads unsigned runtimes from a folder others may write")
-    linux = src[src.index("#else\nnamespace {"):src.rindex("#endif")]
-    code = ("#include <string>\n#include <sys/stat.h>\n#include <unistd.h>\nnamespace mkwvk { void logf(const char*, ...); }\n"
+    linux = linux_src(src)
+    # (what the filesystem cannot say is logged, not refused: the drives that keep no Unix permissions, by their f_type)
+    for magic, name in (("0x7366746eUL", "ntfs3"), ("0x5346544eUL", "ntfs"), ("0x65735546UL", "FUSE, ntfs-3g's"),
+                        ("0x2011bab0UL", "exFAT"), ("0x4d44UL", "FAT")):
+        if "case %s:" % magic not in linux_src(src):
+            fail("the Linux check no longer knows %s keeps no Unix permissions: a Steam NTFS drive mounted umask=000 (every "
+                 "file 0777) loses FSR 4 and DLSS's runtime folder" % name)
+    owner = linux_src(src)[linux_src(src).index("if (st.st_uid != geteuid() && st.st_uid != 0) {"):]
+    owner = owner[:owner.index("    return true;\n}")]
+    if "return false;" not in owner or owner.index("level >= 2") > owner.index("return false;"):
+        fail("a library another account owns must be refused only under RX_VK_LIBRARY_CHECK=2 (a drive from another "
+             "install has another uid)")
+    code = ("#include <cstdlib>\n#include <grp.h>\n#include <pwd.h>\n#include <string>\n#include <sys/stat.h>\n"
+            "#include <sys/vfs.h>\n#include <unistd.h>\nnamespace mkwvk { void logf(const char*, ...); }\n"
             "namespace mkwvk::signed_dll {\nbool owned_safely(const std::string& path, const char* what);\n" +
             linux[len("#else\n"):] + "\n}\n" + MAIN)
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
@@ -133,6 +181,13 @@ def check_linux(cxx, fail):
         print(r.stdout.strip())
         if r.returncode:
             fail("owned_safely took a library other accounts could have written, or refused a safe one")
+        # RX_VK_LIBRARY_CHECK=0: what would be refused is loaded (said); a missing file still is not
+        cases = [(good / "world.so", "1"), (open_dir / "lib.so", "1"), (good / "missing.so", "0")]
+        r = subprocess.run([str(t / "c")] + [a for p, w in cases for a in (str(p), w)], capture_output=True, text=True,
+                           timeout=30, creationflags=flags, env=dict(os.environ, RX_VK_LIBRARY_CHECK="0"))
+        print(r.stdout.strip())
+        if r.returncode:
+            fail("RX_VK_LIBRARY_CHECK=0 does not load what the check would refuse")
 
 
 def check_windows_includes(fail):
