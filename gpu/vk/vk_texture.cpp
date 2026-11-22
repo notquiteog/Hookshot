@@ -560,13 +560,14 @@ struct Staging {
     uint8_t* data = nullptr;
     VmaAllocation allocation = nullptr;
 };
-/// The staging arenas kept when idle (texture_frame): 64 MB on a card of 6.5 GB or less, 256 MB above.
+/// The staging arenas kept when idle (texture_frame): 64 MB where the driver allows 6.5 GB or less, 128 MB there on a discrete
+/// card under 8 GB (#637; not an integrated GPU such as the Steam Deck's, which keeps 64 MB and no spare), 256 MB above.
 /// RX_VK_STAGING_KEEP_MB=<n>: that many
 uint64_t staging_keep() {
     static const uint64_t keep = []() -> uint64_t {
         if (const char* e = getenv("RX_VK_STAGING_KEEP_MB")) return (uint64_t)atoi(e) << 20;
         uint64_t used = 0, allowed = 0;
-        return (vram_usage(&used, &allowed) && allowed <= (6ull << 30) + (512ull << 20) ? 128ull : 256ull) << 20;   // (#637: 128 MB under 6.5 GB, not 64)
+        return (vram_usage(&used, &allowed) && allowed <= (6ull << 30) + (512ull << 20) ? (vram_under_8gb() ? 128ull : 64ull) : 256ull) << 20;
     }();
     return keep;
 }
