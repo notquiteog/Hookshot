@@ -56,7 +56,7 @@ def main():
         cpp, exe = Path(temp) / "fixture.cpp", Path(temp) / "fixture.exe"
         cpp.write_text(fixture, encoding="utf-8")
         subprocess.run([a.cxx, "-std=c++20", "-O1", "-Wall", "-Wextra", "-Werror", "-Wno-missing-field-initializers",
-                        "-I" + str(a.headers), str(cpp), "-o", str(exe)], check=True)
+                        "-D_CRT_SECURE_NO_WARNINGS", "-I" + str(a.headers), str(cpp), "-o", str(exe)], check=True)
         env = {k: v for k, v in os.environ.items() if not k.startswith("RX_VK_STAGING_")}
         # ("pressure", Linux memory pressure, comes back with Longshot #223's linux_pressure.h, not in this tree yet)
         for case in ("consecutive", "settles", "cap", "big", "keep256", "short"):

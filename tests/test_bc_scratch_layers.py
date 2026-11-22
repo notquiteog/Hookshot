@@ -73,7 +73,8 @@ def main():
         src = Path(temp) / "bc_layers.cpp"
         exe = Path(temp) / "bc_layers.exe"   # (the name llvm-mingw writes on Windows; any name runs on Linux)
         src.write_text(FIXTURE, encoding="utf-8")
-        subprocess.run([a_cxx, "-std=c++20", "-O1", "-Wall", "-Wextra", "-Werror", "-I", temp, str(src), "-o", str(exe)], check=True)
+        subprocess.run([a_cxx, "-std=c++20", "-O1", "-Wall", "-Wextra", "-Werror", "-D_CRT_SECURE_NO_WARNINGS",
+                        "-I", temp, str(src), "-o", str(exe)], check=True)
         for value, want in ((None, "1 20"), ("1", "1 20"), ("4", "4 80"), ("8", "8 160"), ("99", "8 160"), ("0", "1 20")):
             env = {k: v for k, v in os.environ.items() if k != "RX_VK_BC_LAYERS"}
             if value is not None:
@@ -89,7 +90,8 @@ def main():
         src = Path(temp) / "bc_scratch_batches.cpp"
         exe = Path(temp) / "bc_scratch_batches.exe"
         src.write_text(fixture, encoding="utf-8")
-        subprocess.run([a_cxx, "-std=c++20", "-O1", "-Wall", "-Wextra", "-Werror", str(src), "-o", str(exe)], check=True)
+        subprocess.run([a_cxx, "-std=c++20", "-O1", "-Wall", "-Wextra", "-Werror", "-D_CRT_SECURE_NO_WARNINGS",
+                        str(src), "-o", str(exe)], check=True)
         r = subprocess.run([str(exe)], text=True, capture_output=True, timeout=20)
         print(r.stdout, end="")
         need(r.returncode == 0, "a run into the BC3 scratch is larger than it, or a larger request does not come out whole: " + r.stderr.strip())
