@@ -7,9 +7,10 @@ readme said were never found. Now the game folder's streamline\\, its ngx\\ (whe
 and where a player's Windows log showed all of DLSS 5's files) and the game folder are looked in too, after the exe's;
 and NGX direct finds nvngx_dlssnr.dll in that streamline\\ folder, so one copy serves both back ends.
 
-This cuts search_dirs out of the source and compiles it with stand-ins for the five Win32 calls it makes (an exe path, the
-files that exist, the environment), then runs it for an installed game, a folder without image.bin, an exe not in bin\\
-and RX_VK_STREAMLINE_DIR set. runtime_dirs is checked in the source.
+This cuts search_dirs out of the source and compiles it with stand-ins for the six Win32 calls it makes (an exe path, the
+files that exist, the environment, the current folder), then runs it for an installed game, a folder without image.bin,
+an exe not in bin\\ and RX_VK_STREAMLINE_DIR set, whole or relative (made whole: the interposer is loaded with
+LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR, which takes only a full path). runtime_dirs is checked in the source.
 
 python -I -B tests/test_dlss5_folders.py [--cxx clang++]
 """
@@ -46,6 +47,14 @@ static DWORD GetModuleFileNameW(HMODULE, wchar_t* out, DWORD cap) {
     if (g_exe.size() + 1 > cap) return cap;
     wcscpy(out, g_exe.c_str());
     return (DWORD)g_exe.size();
+}
+// (the current folder is C:\\cwd: a drive-rooted path is whole already, a relative one is made whole against it)
+static DWORD GetFullPathNameW(const wchar_t* in, DWORD cap, wchar_t* out, wchar_t**) {
+    const std::wstring p(in);
+    const std::wstring full = p.size() > 2 && p[1] == L':' ? p : L"C:\\cwd\\" + p;
+    if (full.size() + 1 > cap) return (DWORD)full.size() + 1;
+    wcscpy(out, full.c_str());
+    return (DWORD)full.size();
 }
 static DWORD GetFileAttributesW(const wchar_t* path) { return g_files.count(path) ? 0x80 : INVALID_FILE_ATTRIBUTES; }
 static int _wcsicmp(const wchar_t* a, const wchar_t* b) {
@@ -95,6 +104,10 @@ int main() {
     g_env = L"D:\\sl";
     expect("RX_VK_STREAMLINE_DIR first",
            {L"D:\\sl", L"C:\\Games\\OoT\\bin\\streamline", L"C:\\Games\\OoT\\bin", L"C:\\Games\\OoT\\streamline",
+            L"C:\\Games\\OoT\\ngx", L"C:\\Games\\OoT"});
+    g_env = L"sl";
+    expect("a relative RX_VK_STREAMLINE_DIR, made whole (LoadLibraryExW's LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR takes no other)",
+           {L"C:\\cwd\\sl", L"C:\\Games\\OoT\\bin\\streamline", L"C:\\Games\\OoT\\bin", L"C:\\Games\\OoT\\streamline",
             L"C:\\Games\\OoT\\ngx", L"C:\\Games\\OoT"});
     return failed ? 1 : 0;
 }

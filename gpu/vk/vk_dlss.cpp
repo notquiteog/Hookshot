@@ -68,6 +68,9 @@ int env_switch(const char* name) {   // (-1: unset)
 
 // (what is known of DLSS on this device: -1 not yet, else a DlssWhy. Set once the device is made and when NGX answers)
 std::atomic<int> g_why{-1};
+// (hookshot: whether the device has NVIDIA's NVX extensions, which NGX needs: set as it is made. g_why cannot say, being
+// super resolution's: NGX may run with it not DLSS_OK, for DLSS 5 or frame generation when DLSS's own runtime is missing)
+std::atomic<bool> g_ngx_device{false};
 
 DlssWhy dlss_why() {
     if (!dlss_built()) return DLSS_NOT_BUILT;
@@ -124,6 +127,17 @@ void NVSDK_CONV ngx_log(const char* message, NVSDK_NGX_Logging_Level, NVSDK_NGX_
 }
 
 namespace fs = std::filesystem;
+
+/// A folder's entries, without a throw: range-for over a directory_iterator calls its throwing operator++, and a read error
+/// part way through (a folder removed or remounted while it is read) would end the game, here from the start-up block's
+/// detached thread too (dlss_status_log). A folder that is missing or cannot be read has no entries; one that fails part way,
+/// those read before it did
+std::vector<fs::path> entries(const fs::path& d) {
+    std::vector<fs::path> out;
+    std::error_code ec;
+    for (fs::directory_iterator it(d, ec), end; !ec && it != end; it.increment(ec)) out.push_back(it->path());
+    return out;
+}
 #ifdef _WIN32
 /// The game folder (game_module_path's rule: bin\hookshot.exe beside image.bin is the folder above bin), from
 /// GetModuleFileNameW: a folder with characters outside the ANSI code page is still the right one
@@ -306,16 +320,15 @@ bool ngx_init() {
         // (Linux: NGX loads the runtime by its real path, ASCII only (wide()): one only in folders named otherwise is not
         // loaded, FeatureInitResult 0xbad00004, though the GPU runs DLSS)
         bool runtime = false, loadable = false;
-        std::error_code ec;
         for (const auto& d : dirs)
-            for (const auto& f : fs::directory_iterator(d, ec))
-                if (f.path().filename().native().rfind(kRuntimeName, 0) == 0) {
+            for (const fs::path& f : entries(d))
+                if (f.filename().native().rfind(kRuntimeName, 0) == 0) {
                     runtime = true;
 #ifdef _WIN32
                     loadable = true;
 #else
                     std::error_code real;
-                    loadable |= dlss_checks::ascii(fs::canonical(f.path(), real).native()) && !real;
+                    loadable |= dlss_checks::ascii(fs::canonical(f, real).native()) && !real;
 #endif
                 }
         if (needs_driver) logf("vk: NVIDIA DLSS: needs NVIDIA's driver %u.%u or newer", major, minor);
@@ -563,10 +576,13 @@ void dlss_device_extensions(std::vector<const char*>& want, const std::vector<Vk
     // (NVIDIA's own extensions: without them this is not an NVIDIA GPU, or not one NGX runs on. With them, NGX says, in
     // dlss_probe or at the first upscale: a GTX has them too)
     if (!both) g_why = DLSS_NEEDS_RTX;
+    g_ngx_device = both;
 }
 
 bool dlss_ngx_session() {
-    if (!dlss_built() || dlss_why() == DLSS_ENV_OFF || !dev.device) return false;
+    // (not on a device without NVIDIA's extensions: an AMD or Intel GPU, or a laptop's Intel GPU with NVIDIA's driver
+    // installed. ngx_init would hand NGX that device, and make an empty ngx folder in the game folder at every start)
+    if (!dlss_built() || dlss_why() == DLSS_ENV_OFF || !dev.device || !g_ngx_device) return false;
     ngx_init();   // (it takes the lock itself, and does nothing the second time)
     State& s = st();
     std::lock_guard lk(s.mu);
@@ -577,7 +593,6 @@ bool dlss_ngx_runtime(const char* name, std::string* where, std::string* found) 
     if (where) where->clear();
     if (found) found->clear();
     bool have = false;
-    std::error_code ec;
     // (and the game folder itself, after them: NGX looks there too, which its own log shows with RX_VK_DLSS_LOG=1, and
     // it is where the DLSS SDK's runtimes are usually put)
     const fs::path game = game_dir();
@@ -587,11 +602,11 @@ bool dlss_ngx_runtime(const char* name, std::string* where, std::string* found) 
     for (const fs::path& d : dirs) {
         if (where) *where += (where->empty() ? "" : ", ") + shown(d);
         if (have) continue;
-        for (const auto& f : fs::directory_iterator(d, ec)) {
-            const std::string file = shown(f.path().filename());
+        for (const fs::path& f : entries(d)) {
+            const std::string file = shown(f.filename());
             if (file.rfind(name, 0) != 0) continue;
             have = true;
-            if (found) *found = shown(f.path());
+            if (found) *found = shown(f);
             break;
         }
     }
@@ -775,17 +790,16 @@ bool fg_start(Fg& g) {
     // (Linux: NGX loads it by its real path, ASCII only, as DLSS's runtime: one only in folders named otherwise is not used)
     std::string where;
     bool here = false, loadable = false;
-    std::error_code ec;
     for (const auto& d : runtime_dirs(game_dir())) {
         where += (where.empty() ? "" : ", ") + shown(d);
-        for (const auto& f : fs::directory_iterator(d, ec))
-            if (f.path().filename().native().rfind(kFgRuntimeName, 0) == 0) {
+        for (const fs::path& f : entries(d))
+            if (f.filename().native().rfind(kFgRuntimeName, 0) == 0) {
                 here = true;
 #ifdef _WIN32
                 loadable = true;
 #else
                 std::error_code real;
-                loadable |= dlss_checks::ascii(fs::canonical(f.path(), real).native()) && !real;
+                loadable |= dlss_checks::ascii(fs::canonical(f, real).native()) && !real;
 #endif
             }
     }
@@ -925,17 +939,16 @@ std::string runtime_version(const fs::path& p) {
 /// folder (NGX takes the newest): "nvngx_dlss.dll 310.9.16.0 in C:\Games\OoT\ngx", or "none in <the folders>"
 std::string runtime_copies(const fs::path::value_type* name) {
     std::string out, where;
-    std::error_code ec;
     const fs::path game = game_dir();
     if (game.empty()) return "the game's folder is not known";
     std::vector<fs::path> dirs = runtime_dirs(game);
     dirs.push_back(game);
     for (const fs::path& d : dirs) {
         where += (where.empty() ? "" : ", ") + shown(d);
-        for (const auto& f : fs::directory_iterator(d, ec)) {
-            if (f.path().filename().native().rfind(name, 0) != 0) continue;
-            const std::string v = runtime_version(f.path());
-            out += (out.empty() ? "" : "; ") + shown(f.path().filename()) + (v.empty() ? "" : " " + v) + " in " + shown(d);
+        for (const fs::path& f : entries(d)) {
+            if (f.filename().native().rfind(name, 0) != 0) continue;
+            const std::string v = runtime_version(f);
+            out += (out.empty() ? "" : "; ") + shown(f.filename()) + (v.empty() ? "" : " " + v) + " in " + shown(d);
         }
     }
     return out.empty() ? "none in " + where : out;
@@ -1379,7 +1392,8 @@ void dlss_status_log() {
     if (env_switch("RX_VK_DLSS_NR") == 0) nr = "off: turned off for this run (RX_VK_DLSS_NR=0)";
     else if (streamline::nr_available()) nr = "on through Streamline";
     else {
-        const bool ngx_ok = dlssnr_ngx::built_with_sdk() && dlss_why() == DLSS_OK && dlssnr_ngx::capable();
+        // (as running_backend chooses: NGX direct needs NGX's session and its own runtime, not super resolution's)
+        const bool ngx_ok = dlssnr_ngx::built_with_sdk() && dlssnr_ngx::capable();
         if (ngx_ok) nr = "on through NGX direct";
         else {
             // (each reason as one sentence: theirs end in a full stop, and one is added only where it has none)

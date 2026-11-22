@@ -168,3 +168,63 @@ are taken without their crash-record parts, and #1459 without its crash window.
 in one file, which this tree keeps in `nx2/build.py`) comes with the perf batch. Not taken: #602 and #1267 (Longshot's
 play profiles, not here), #1602 (no `.def` or `.inl` files here), and the setup and Builder fixes (#151, #465, #540,
 #641, #690, #1453), which go to the Builders with their rename.
+
+### Renderer fixes (A2)
+
+| Longshot | Author | What |
+|---|---|---|
+| [#50](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/50) | mooki | test(vk): execute startup pool placement and fallback checks |
+| [#189](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/189) | Guep | fix(vk): on Intel iGPUs a split submission's uniform updates are written by its last part |
+| [#191](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/191) | Guep | fix(vk): Intel's Windows driver no longer loses the device on float adds to storage buffers: they are the GPU's own atomic |
+| [#219](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/219) | TrashPanda | fix(vk): task + mesh compute fallback by default for Navi 23 on Windows, one rule for the IDs |
+| [#252](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/252) | Yeetbot90 | fix(vk): a slow movie shows its pictures, and a fault in Intel's Windows compiler leaves that shader out |
+| [#307](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/307) | Amateurwizrd | fix(vk): a picture larger than the window is filtered over all its pixels, not sampled |
+| [#329](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/329) | klimovich008 | fix(vk): order overlapping inline buffer updates |
+| [#346](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/346) | jarynclouatre | fix(vk): the page files' room to grow counts before the commit rule cuts the textures |
+| [#350](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/350) | mooki | test(vk): restore the framegen resource and module identifier checks |
+| [#403](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/403) | jcabarca | fix(vk): give image descriptors a dummy view when nullDescriptor is off |
+| [#440](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/440) | mooki | fix(vk): the replay's own buffer writes stay in command order when unaligned or split |
+| [#443](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/443) | nyannoying | fix(vk): Arc B580 no longer draws white shards while moving: a part ends only right before a plain draw |
+| [#444](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/444) | nyannoying | fix(vk): Arc B-series no longer loses the device in Kokiri Forest: float adds are the GPU's own atomic |
+| [#450](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/450) | mooki | fix(vk): image, image-buffer and texture-buffer arrays are arrays in the SPIR-V |
+| [#468](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/468) | Zelda Ootr | fix(vk): retain guest pages during import handoff and retirement |
+| [#469](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/469) | Zelda Ootr | fix(vk): release pages ending at a GPU import boundary |
+| [#489](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/489) | Yeetbot90 | fix(vk): the graphics in AMD's desktop CPUs decode ASTC on the CPU, so Kokiri Forest no longer resets the GPU |
+| [#499](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/499) | jarynclouatre | fix(vk): on Linux the texture helpers started inside a replay run on every core again |
+| [#502](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/502) | mooki | fix(vk): storage image and texel buffer arrays are indexed nonuniformly where the GPU can |
+| [#551](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/551) | Zelda Ootr | fix(vk): a mesh fallback program with bigger payloads reuses the record arena |
+| [#553](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/553) | Zelda Ootr | fix(vk): a read-back after a timed-out one waits for the GPU, and its textures are kept |
+| [#554](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/554) | Zelda Ootr | fix(vk): a timed-out read-back's source images are kept until the GPU is past the copy |
+| [#556](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/556) | Zelda Ootr | fix(vk): FSR 3.1 frees its images once the chain lets it go, not at its next upscale |
+| [#559](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/559) | Zelda Ootr | fix(vk): Auto settings take SteamDeck=1 as a handheld only on an integrated GPU |
+| [#621](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/621) | jcabarca | fix(vk): read and publish a compute program's pipeline atomically |
+| [#661](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/661) | jcabarca | fix(vk): read RX_VK_SHADOW_BIAS once, safely across recording threads |
+| [#672](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/672) | jcabarca | fix(vk): keep a copy into BC3 to whole blocks or the level's edge |
+| [#713](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/713) | klimovich008 | fix(pipelines): run All prediction after preparing on Most |
+| [#721](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/721) | HumanBean | fix(vk): the start-up screen counts the compute pipelines and says when it writes the pipeline cache |
+
+Fitted to this tree: #252's Intel compiler gate goes on this tree's `guarded_graphics` and `guarded_compute`, without Longshot's fetch lock (#190, below); #307's filter reads through this tree's `pixel()` and `bilinear()`, its SPIR-V regenerated; #553's poll of a timed-out read-back replaces this tree's own wait, and also notes a lost device; #554 keeps a timed-out read-back's textures, while a render target's image goes to the pool at once here (upstream Hookshot #2766), ordered on the one queue after the copy; #721's saving flag sits beside this tree's own count of the compute pipelines (Hookshot #73). Already here: #60 (upstream Hookshot #2897, which it ported) and #101 (this tree's #32). Moved: #190, #404 and #415 to the pipeline cache batch with #416; #223 and the evicted pools' check of #324 to the memory batch; #59 to frame generation; #769 and #928 to the render-thread series; #342 and #526 to B2, with #162 and #248. #500 (B) and #781 come after this batch, on #252's gate.
+
+### Renderer performance (B1)
+
+| Longshot | Author | What |
+|---|---|---|
+| [#162](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/162) | klimovich008 | perf(vk): the recorder thread's slot resets without the wait and an idle that waits on its ring (RX_VK_RECORDER_OWN, RX_VK_RECORDER_IDLE=wait; opt-in) |
+| [#231](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/231) | dukenheimer | perf(vk): flat per-draw caches, inline op payload copies and a flat c1 map in the replay |
+| [#237](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/237) | i12bp8 | perf(vk): a 6 GB card mirrors a quarter of its VRAM, not an eighth or 512 MB |
+| [#238](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/238) | Hugo Claria | perf(vk): RX_VK_READBACK_LATE, the readbacks a rule names are read without their wait (opt-in) |
+| [#248](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/248) | SadTransGirl | perf(vk): fix the late pages on the GPU, word by word, instead of waiting for their write-back |
+| [#250](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/250) | SadTransGirl | perf(vk): sparse VRAM mirrors, memory only where a game pool is (on by default) |
+| [#370](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/370) | HumanBean | perf(vk): the shader caches' stamp leaves out vk_api.h, so a menu, input or audio change keeps every player's translated programs |
+| [#563](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/563) | SadTransGirl | perf(pipelines): 22,987 more pipelines prepared before the title, from a tour of every map, actor and cutscene |
+| [#569](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/569) | HumanBean | perf(vk): the renderer is built with a committed play profile, about 3-5 % less frame time |
+| [#590](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/590) | Hugo Claria | perf(vk): three small costs of the replay thread removed: unread bookkeeping without mirrors, 16 vertex bindings a change, a lock a sampled texture |
+| [#599](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/599) | HumanBean | perf(vk): the renderer's play profile covers the compute fallback, the overworld and the dungeons |
+| [#625](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/625) | Zelda Ootr | docs(profiles): the renderer profile's note has its Recorded line again |
+| [#735](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/735) | HumanBean | perf(vk): the VRAM budgets set by the card, not a menu row or a preset; 8 GB cards' mirrors 2 GB |
+| [#761](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/761) | nyannoying | perf(vk): Arc cards read the occlusion counts from a GPU copy: Castle Town's market from 34.8 to 45.8 fps on a B580 |
+| [#766](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/766) | HumanBean | perf(nvn): recording threads wait less on the recordings' copy lock |
+| [#775](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/775) | Yeetbot90 | perf(vk): integrated GPUs keep every large ASTC texture as BC3, whatever the driver allows them |
+| [#1689](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1689) | Jeff Aigner | fix(build): the translator stamp hashes a C or C++ file's tokens, so a comment edit no longer re-prepares every shader |
+
+#569's play profile is Longshot's recording of its own renderer (#599 adds to it, #625 its note), and is off by default here (`RX_VK_PGO=1` turns it on): in Ocarina it measured nothing outside the spread, and it is one game's recording of a renderer the four games share. #735's rule replaces the VRAM budget row; this tree's Auto still sets the Output resolution and keeps the player's. #1689 comes here with #370's `nx2/translator_files.py`. Not taken: #771 with #873 (#873 reverts #771 line for line). Moved: #500 opens Longshot's Intel compiler gate, which comes here with #252 (A2), so it follows A2. Adapted: #231 keeps this tree's direct-mapped view front, #248 folds into `cap_buf_usage()`, #766's allocations wait at the commit limit as C1's do, and #735 reads the system's RAM through Longshot #404's `system_ram_bytes()`.
