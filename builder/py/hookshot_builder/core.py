@@ -83,8 +83,33 @@ def build_env(tools, workers=None, ngx_sdk=None):
     return env
 
 
-def build_command(tools, args):
-    return [tools.python, *tools.python_args, "-I", os.path.join(tools.root, "nx2", "make_game.py"), *args]
+def build_command(tools, args, script="make_game.py"):
+    return [tools.python, *tools.python_args, "-I", os.path.join(tools.root, "nx2", script), *args]
+
+
+def script_output(tools, script, args):
+    """One of the tools' scripts (nx2/<script>) run to its end (Runner.cs Output): its exit code, its lines on stdout and its last
+    line on stderr (what it said when it stopped); -1 when it could not start"""
+    try:
+        p = subprocess.run(build_command(tools, args, script), cwd=tools.root, env=build_env(tools), capture_output=True,
+                           stdin=subprocess.DEVNULL, creationflags=CREATE_NO_WINDOW)
+    except OSError as e:
+        return -1, [], OWN_PYTHON_MISSING if own_python_missing(tools) else str(e)
+    errs = [l for l in p.stderr.decode("utf-8", "replace").splitlines() if l.strip()]
+    return p.returncode, p.stdout.decode("utf-8", "replace").splitlines(), errs[-1].strip() if errs else None
+
+
+def library(tools, base):
+    """The game library under a base: nx2/game_folders.py --library <base> --json, run by the tools' Python as make_game.py is
+    (Runner.cs Library), the one core the three Builders read. None when the tools could not say"""
+    code, lines, _ = script_output(tools, "game_folders.py", ["--library", base, "--json"])
+    if code != 0:
+        return None
+    try:
+        games = json.loads("\n".join(lines))
+    except ValueError:
+        return None
+    return games if isinstance(games, list) else None
 
 
 class Runner:
@@ -470,17 +495,51 @@ def built_games(out):
     """"Your games": each game that builds, in its own folder by nx2/game_folders.py's rule from the game folder (out), when that
     folder holds a built game (image.bin and the game): the tools' game_folders.built_games, as the Linux builder's; the WPF
     builder's Games.cs keeps the same. Each a dict: key, name, folder, base. Nothing without the tools"""
-    tools = Tools.find()
-    if not tools or not out:
+    game_folders = tools_game_folders()
+    if game_folders is None or not out:
         return []
+    return game_folders.built_games(out, lambda f: game_exe(f) if os.path.isfile(game_exe(f)) else None)
+
+
+def tools_game_folders():
+    """The tools' nx2/game_folders.py (the folder rule, a folder's game, its shortcut's name), or None without the tools"""
+    tools = Tools.find()
+    if not tools:
+        return None
     nx2 = os.path.join(tools.root, "nx2")
     if nx2 not in sys.path:
         sys.path.insert(0, nx2)
     try:
         import game_folders
     except ImportError:
+        return None
+    return game_folders
+
+
+def library_fallback(base):
+    """The library without the tools' answer: the games built_games finds, the others not installed, no states (Games.cs
+    Fallback)"""
+    game_folders = tools_game_folders()
+    if game_folders is None or not base:
         return []
-    return game_folders.built_games(out, lambda f: game_exe(f) if os.path.isfile(game_exe(f)) else None)
+    b = game_folders.base_of(base)
+    built = {g["key"]: g for g in built_games(b)}
+    return [{"key": p.key, "name": built[p.key]["name"] if p.key in built else p.game,
+             "folder": built[p.key]["folder"] if p.key in built else game_folders.folder(b, p.key), "base": b,
+             "built": p.key in built, "other_folders": [], "own_folder": game_folders.folder(b, p.key), "own_folder_holds": None,
+             "version": None, "kept": False, "update": None} for p in game_folders.buildable()]
+
+
+def folder_key(folder):
+    """The game a folder is (game_folders.folder_key); None (the default game's shortcuts) without the tools"""
+    game_folders = tools_game_folders()
+    return game_folders.folder_key(folder) if game_folders else None
+
+
+def game_name(key):
+    """A profile's game, or the key itself"""
+    game_folders = tools_game_folders()
+    return game_folders.game_profile.GAMES[key].game if game_folders and key in game_folders.game_profile.GAMES else key or "Hookshot"
 
 
 def play_folder(base, key):
@@ -502,12 +561,19 @@ def open_folder(folder):
 
 # ---------------- shortcuts (Finder.cs: IShellLinkW + IPersistFile, Windows' own shell object writes the .lnk) ----------------
 
-def desktop_link():
-    return os.path.join(_known_folder(FOLDER_DESKTOP) or os.path.join(os.path.expanduser("~"), "Desktop"), "Hookshot.lnk")
+def shortcut_name(key):
+    """A game's shortcut name (game_folders.shortcut_name, Games.cs ShortcutName): Hookshot for the default game, the name its
+    shortcut always had (and for None), "<game> (Hookshot)" for another"""
+    game_folders = tools_game_folders()
+    return game_folders.shortcut_name(key) if game_folders and key in game_folders.game_profile.GAMES else "Hookshot"
 
 
-def start_link():
-    return os.path.join(_known_folder(FOLDER_PROGRAMS) or "", "Hookshot.lnk")
+def desktop_link(key=None):
+    return os.path.join(_known_folder(FOLDER_DESKTOP) or os.path.join(os.path.expanduser("~"), "Desktop"), shortcut_name(key) + ".lnk")
+
+
+def start_link(key=None):
+    return os.path.join(_known_folder(FOLDER_PROGRAMS) or "", shortcut_name(key) + ".lnk")
 
 
 def folder_link(game_folder):
@@ -554,14 +620,15 @@ def make_link(link, target, args, workdir, icon, description):
 
 def shortcuts(game_folder, desktop, start, folder=True):
     """Made or removed as the ticks say: each starts this app's launcher for the folder (Play, and Update when a newer release is
-    out), with the game's own icon"""
+    out), with the game's own icon, named and described by the game the folder holds (folder_key)"""
     global shortcut_error
     exe, args = paths.launcher_command()
     args = subprocess.list2cmdline(args + ["--launch", game_folder])
     icon = os.path.join(game_folder, "bin", "hookshot.exe")
     if not os.path.isfile(icon):
         icon = os.path.join(game_folder, "hookshot.exe")
-    for link, want in ((desktop_link(), desktop), (start_link(), start), (folder_link(game_folder), folder)):
+    key = folder_key(game_folder)
+    for link, want in ((desktop_link(key), desktop), (start_link(key), start), (folder_link(game_folder), folder)):
         try:
             if not want:
                 if os.path.isfile(link):
@@ -569,13 +636,14 @@ def shortcuts(game_folder, desktop, start, folder=True):
                 continue
             if not os.path.isfile(icon):
                 continue
-            make_link(link, exe, args, game_folder, icon, "The Legend of Zelda: Ocarina of Time, built by Hookshot")
+            make_link(link, exe, args, game_folder, icon, "%s, built by Hookshot" % game_name(key))
         except OSError as e:
             shortcut_error = "%s: %s" % (os.path.basename(link), e)
 
 
 def refresh_shortcuts(game_folder):
-    shortcuts(game_folder, os.path.isfile(desktop_link()), os.path.isfile(start_link()))
+    key = folder_key(game_folder)
+    shortcuts(game_folder, os.path.isfile(desktop_link(key)), os.path.isfile(start_link(key)))
 
 
 # ---------------- what the player chose last time (builder-settings.json, the WPF builder's) ----------------

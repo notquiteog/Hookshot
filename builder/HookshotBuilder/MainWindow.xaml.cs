@@ -85,8 +85,9 @@ public partial class MainWindow : Window
         if (Environment.GetEnvironmentVariable("HOOKSHOT_TEST_SHORTCUTS") is { Length: > 0 } testFolder)
         {
             Finder.Shortcuts(testFolder, true, true);
+            var testKey = Games.FolderKey(testFolder);   // (the folder's game names its shortcuts)
             File.WriteAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "shortcut-test.txt"),
-                              $"desktop {File.Exists(Finder.DesktopLink)} start {File.Exists(Finder.StartLink)} error {Finder.ShortcutError}");
+                              $"desktop {File.Exists(Finder.DesktopLinkFor(testKey))} start {File.Exists(Finder.StartLinkFor(testKey))} error {Finder.ShortcutError}");
             Application.Current.Shutdown();
             return;
         }
@@ -240,6 +241,11 @@ public partial class MainWindow : Window
         launchFolder = folder;
         OutPath.Text = folder;
         StepPill.Visibility = Visibility.Collapsed;
+        // (the game the folder holds, not always Ocarina: its kept copy, else its folder by the rule)
+        var (series, title) = Games.TitleParts(Games.NameOf(Games.FolderKey(folder)));
+        LaunchSeries.Text = series;
+        LaunchSeries.Visibility = series.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        LaunchTitle.Text = title;
         var game = GameVersion(folder) ?? ReadVersion(folder);
         LaunchVersion.Text = (game != null ? $"Hookshot {game}" : "Hookshot") + " · " + folder;
         LaunchPlay.IsEnabled = File.Exists(GameExe(folder));
@@ -643,56 +649,249 @@ public partial class MainWindow : Window
         }
     }
 
-    // ================= "Your games" (Games.cs): the games built beside the game folder, each with Open folder and Play =================
+    // ================= the game library (Runner.Library: nx2/game_folders.py --library, the one core the three Builders read) =================
+    // (every game that builds, installed or not, under the base of the game folder in the form: its state, Install, Update, Play,
+    // Open folder, and Update all. The Qt Builder's fill_games and the Linux Builder's games_list are the same)
 
-    /// The list, from the game folder in the form: filled again when that folder changes and when a build ends, so a game just built
-    /// is in it when the form comes back. Hidden while there is none
-    void FillGames()
+    List<Games.LibraryGame> library = new();
+    string? libraryBase;   // (the base the library is read for)
+    DispatcherTimer? libraryTimer;
+
+    /// The library, for the base of the game folder in the form: read again, off the window's thread and a moment after the
+    /// folder stops changing, when that base changes and when a build or an update ends (reload), so a game just built is in it
+    /// when the form comes back. Hidden without the tools
+    void FillGames(bool reload = false)
+    {
+        if (GameList == null) return;
+        var b = OutPath.Text.Length > 2 ? Games.BaseOf(OutPath.Text) : null;
+        if (reload || !string.Equals(b, libraryBase, StringComparison.OrdinalIgnoreCase))
+        {
+            libraryBase = b;
+            if (libraryTimer == null)
+            {
+                libraryTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+                libraryTimer.Tick += (_, _) => LoadLibrary();
+            }
+            libraryTimer.Stop();
+            libraryTimer.Start();
+        }
+        ShowLibrary();
+    }
+
+    async void LoadLibrary()
+    {
+        libraryTimer?.Stop();
+        var b = libraryBase;
+        var tools = Tools.Find();
+        var got = b == null ? new List<Games.LibraryGame>()
+                : tools == null ? Games.Fallback(b)
+                : await Task.Run(() => Runner.Library(tools, b)) ?? Games.Fallback(b);
+        if (!string.Equals(b, libraryBase, StringComparison.OrdinalIgnoreCase)) return;   // (the folder changed meanwhile)
+        library = got;
+        ShowLibrary();
+    }
+
+    /// A row's state: not installed, built before updates came in (its files to choose once), an update due, up to date, or
+    /// installed (its version not known: a build from a checkout)
+    string LibraryState(Games.LibraryGame g) =>
+        !g.Built ? T(S.LibMissing)
+        : !g.Kept ? T(S.LibRebuild)
+        : g.Update == true ? string.Format(T(S.LibUpdate), g.Version ?? "?")
+        : g.Update == false ? string.Format(T(S.LibCurrent), g.Version ?? "?")
+        : T(S.LibInstalled) + (g.Version != null ? " · " + g.Version : "");
+
+    void ShowLibrary()
     {
         if (GameList == null) return;
         GameList.Children.Clear();
-        var games = Games.Built(OutPath.Text.Length > 2 ? OutPath.Text : null);
-        GamesBox.Visibility = games.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        for (var i = 0; i < games.Count; i++)
+        GamesLabel.Text = T(S.LibTitle).ToUpper(System.Globalization.CultureInfo.CurrentCulture);
+        GamesBox.Visibility = library.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateAllButton.Content = T(S.LibUpdateAll);
+        UpdateAllButton.Visibility = library.Any(g => g.Built) ? Visibility.Visible : Visibility.Collapsed;
+        UpdateAllButton.IsEnabled = runner == null && library.Any(g => g.Update == true);
+        for (var i = 0; i < library.Count; i++)
         {
-            var g = games[i];
+            var g = library[i];
             if (i > 0) GameList.Children.Add(new Border { Height = 1, Background = (Brush)FindResource("GlassLine") });
-            var name = new TextBlock { Text = g.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
-            var where = new TextBlock { Text = g.Folder, Style = (Style)FindResource("Faint"), TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = g.Folder };
-            var texts = new StackPanel { Children = { name, where }, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
-            var open = new Button { Style = (Style)FindResource("Quiet"), Height = 36, Content = T(S.OpenFolder), Margin = new Thickness(0, 0, 10, 0) };
-            open.Click += (_, _) => Process.Start(new ProcessStartInfo("explorer.exe", $"\"{g.Folder}\"") { UseShellExecute = true });
-            var play = new Button
+            var texts = new StackPanel { Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+            texts.Children.Add(new TextBlock { Text = g.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+            texts.Children.Add(new TextBlock { Text = LibraryState(g), Style = (Style)FindResource("Faint"), TextWrapping = TextWrapping.Wrap,
+                                               Foreground = (Brush)FindResource(g.Update == true ? "Brand" : "InkSoft") });
+            if (g.Built)
+                texts.Children.Add(new TextBlock { Text = g.Folder, Style = (Style)FindResource("Faint"), TextTrimming = TextTrimming.CharacterEllipsis,
+                                                   ToolTip = g.Folder });
+            if (g.OtherFolders.Length > 0)
+                texts.Children.Add(new TextBlock { Text = string.Format(T(S.LibAlsoIn), string.Join(", ", g.OtherFolders)),
+                                                   Style = (Style)FindResource("Faint"), TextWrapping = TextWrapping.Wrap });
+            // (its own folder holds another game: an install there would replace that game, and make_game.py refuses it)
+            var taken = !g.Built && g.OwnFolderHolds != null ? string.Format(T(S.LibTaken), g.OwnFolder, Games.NameOf(g.OwnFolderHolds)) : null;
+            if (taken != null)
+                texts.Children.Add(new TextBlock { Text = taken, Style = (Style)FindResource("Faint"), TextWrapping = TextWrapping.Wrap,
+                                                   Foreground = (Brush)FindResource("Bad"), Margin = new Thickness(0, 4, 0, 0) });
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            if (!g.Built || !g.Kept) actions.Children.Add(InstallButton(g, taken));   // (a folder with no game files kept: built again from them)
+            if (g.Built && g.Update == true)
             {
-                Style = (Style)FindResource("GoButton"), Height = 36, Padding = new Thickness(20, 0, 20, 0),
-                Content = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Children =
-                    {
-                        new Path { Data = Geometry.Parse("M0,0 L9,6 L0,12 Z"), Fill = (Brush)FindResource("GoInk"), VerticalAlignment = VerticalAlignment.Center,
-                                   Margin = new Thickness(0, 0, 8, 0) },
-                        new TextBlock { Text = T(S.Play), FontSize = 14, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("GoInk") },
-                    },
-                },
-            };
-            System.Windows.Automation.AutomationProperties.SetName(play, $"{T(S.Play)} {g.Name}");
-            // (as `--play <base> --game <key>` starts it, builder/setup/setup.c play_target: the folder by the rule, its game, no
-            // update question; the launcher's tiles take the same path)
-            play.Click += (_, _) =>
+                var update = new Button { Style = (Style)FindResource("Quiet"), Height = 36, Content = T(S.LibUpdateOne), Margin = new Thickness(0, 0, 10, 0),
+                                          IsEnabled = runner == null };
+                update.Click += (_, _) => UpdateGameRow(g);
+                actions.Children.Add(update);
+            }
+            if (g.Built)
             {
-                StartGame(Games.Folder(g.Base, g.Key));
-                WindowState = WindowState.Minimized;
-            };
+                var open = new Button { Style = (Style)FindResource("Quiet"), Height = 36, Content = T(S.OpenFolder), Margin = new Thickness(0, 0, 10, 0) };
+                open.Click += (_, _) => Process.Start(new ProcessStartInfo("explorer.exe", $"\"{g.Folder}\"") { UseShellExecute = true });
+                actions.Children.Add(open);
+                actions.Children.Add(RowPlayButton(g));
+            }
             var row = new Grid { Margin = new Thickness(16, 10, 12, 10),
-                                 ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto }, new ColumnDefinition { Width = GridLength.Auto } } };
-            Grid.SetColumn(open, 1);
-            Grid.SetColumn(play, 2);
+                                 ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } } };
+            Grid.SetColumn(actions, 1);
             row.Children.Add(texts);
-            row.Children.Add(open);
-            row.Children.Add(play);
+            row.Children.Add(actions);
             GameList.Children.Add(row);
         }
+    }
+
+    Button RowPlayButton(Games.LibraryGame g)
+    {
+        var play = new Button
+        {
+            Style = (Style)FindResource("GoButton"), Height = 36, Padding = new Thickness(20, 0, 20, 0),
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    new Path { Data = Geometry.Parse("M0,0 L9,6 L0,12 Z"), Fill = (Brush)FindResource("GoInk"), VerticalAlignment = VerticalAlignment.Center,
+                               Margin = new Thickness(0, 0, 8, 0) },
+                    new TextBlock { Text = T(S.Play), FontSize = 14, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("GoInk") },
+                },
+            },
+        };
+        System.Windows.Automation.AutomationProperties.SetName(play, $"{T(S.Play)} {g.Name}");
+        // (the row's own folder, where the game is: a game an older Builder built into another game's folder plays there)
+        play.Click += (_, _) =>
+        {
+            StartGame(g.Folder);
+            WindowState = WindowState.Minimized;
+        };
+        return play;
+    }
+
+    /// Install: the game's copy chosen, a .nup or the folder with its romfs and exefs, then built (InstallGame). Refused, and
+    /// said, when its own folder holds another game
+    Button InstallButton(Games.LibraryGame g, string? taken)
+    {
+        var install = new Button { Style = (Style)FindResource("Quiet"), Height = 36, Content = T(S.LibInstall), Margin = new Thickness(0, 0, 10, 0) };
+        if (taken != null || runner != null)
+        {
+            install.IsEnabled = false;
+            ToolTipService.SetShowOnDisabled(install, true);
+            install.ToolTip = taken;
+            return install;
+        }
+        var menu = new ContextMenu();
+        var nup = new MenuItem { Header = T(S.Nup) };
+        nup.Click += (_, _) =>
+        {
+            var d = new OpenFileDialog { Filter = "Game file (*.nup)|*.nup", Title = string.Format(T(S.LibPickFile), g.Name) };
+            if (d.ShowDialog(this) == true) InstallGame(g, d.FileName);
+        };
+        var folders = new MenuItem { Header = T(S.Folders) };
+        folders.Click += (_, _) =>
+        {
+            if (PickFolder(string.Format(T(S.LibPickFolder), g.Name)) is not { } f) return;
+            if (Directory.Exists(System.IO.Path.Combine(f, "romfs")) && Directory.Exists(System.IO.Path.Combine(f, "exefs"))) InstallGame(g, f);
+            else MessageBox.Show(this, T(S.LibNoFolders), "Hookshot");
+        };
+        menu.Items.Add(nup);
+        menu.Items.Add(folders);
+        install.Click += (_, _) =>
+        {
+            menu.PlacementTarget = install;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
+        };
+        return install;
+    }
+
+    /// One game's copy built: checked to be that game (--game-<key>), into its own folder under the base (--base), or, for a game
+    /// installed before folders kept their game files, built again where it is
+    void InstallGame(Games.LibraryGame g, string copy)
+    {
+        if (runner != null) return;
+        var tools = Tools.Find();
+        if (tools == null)
+        {
+            ShowProblem("The build tools are not in Hookshot's folder.", tools: true);
+            return;
+        }
+        SaveSettings();
+        var args = new List<string> { "--game-" + g.Key, copy };
+        args.AddRange(g.Built ? new[] { "--out", g.Folder } : new[] { "--base", g.Base });
+        args.AddRange(new[] { "--language", lang.Code });
+        if (FsrTick.IsChecked == true) args.Add("--fsr");
+        prepareNow = PrepareTick.IsChecked == true;
+        Run(tools, ShaderStep.Args(args, prepareNow, ChosenLevel()), dlss: DlssTick.IsChecked == true,
+            fsr: FsrTick.IsChecked == true && fsrLicense);
+    }
+
+    /// A row's Update: that game's folder, as the form's Update does (Updater.UpdateFolder: a newer Builder first when one is out,
+    /// and then, the new Builder installed, every installed game)
+    void UpdateGameRow(Games.LibraryGame g)
+    {
+        if (runner != null || !OlderOk(g.Version)) return;
+        SaveSettings();
+        Updater.UpdateFolder(this, g.Folder, updateTarget ?? Tools.Find()?.Version, fetched: false, named: Switching);
+    }
+
+    /// Update all: what it would do first (make_game.py --update-all <base> --dry-run, nothing run), then, asked, every game under
+    /// the base updated in turn with this Builder's engine (StartUpdateAll)
+    async void UpdateAllClick(object sender, RoutedEventArgs e)
+    {
+        var tools = Tools.Find();
+        var b = libraryBase;
+        if (tools == null || b == null || runner != null) return;
+        UpdateAllButton.IsEnabled = false;
+        var (_, lines, error) = await Task.Run(() => Runner.Output(tools, "make_game.py", new[] { "--update-all", b, "--dry-run" }));
+        UpdateAllButton.IsEnabled = true;
+        var plan = Games.Results(lines);
+        if (plan.Count == 0)
+        {
+            MessageBox.Show(this, error ?? T(S.LibSomeFailed), "Hookshot");
+            return;
+        }
+        var said = string.Join("\n", plan.Where(p => p.Result != "missing").Select(p => ResultText(p, plan)));
+        if (!plan.Any(p => p.Result == "update"))
+        {
+            MessageBox.Show(this, said + "\n\n" + T(S.LibNothing), T(S.LibUpdateAll));
+            return;
+        }
+        if (MessageBox.Show(this, said + "\n\n" + T(S.LibAsk), T(S.LibUpdateAll), MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+            MessageBoxResult.Yes)
+            return;
+        SaveSettings();
+        BeginUpdate(OutPath.Text, tools.Version);
+        StartUpdateAll(tools, b, Games.InstalledFolders(library));
+    }
+
+    /// One game's outcome in Update all (or what it would be, its dry run), in the player's words; the folder named when the game
+    /// is in more than one
+    string ResultText(Games.GameLine p, IReadOnlyCollection<Games.GameLine> all)
+    {
+        var name = Games.NameOf(p.Key);
+        var text = p.Result switch
+        {
+            "updated" => string.Format(T(S.ResUpdated), name, p.Text ?? ""),
+            "current" => string.Format(T(S.ResCurrent), name, p.Text ?? ""),
+            "update" when p.Text is { } t => string.Format(T(S.ResWould), name, t.StartsWith("from ", StringComparison.Ordinal) ? t[5..] : t),
+            "update" => string.Format(T(S.ResWouldPlain), name),
+            "missing" => string.Format(T(S.ResMissing), name),
+            "rebuild" => string.Format(T(S.ResRebuild), name),
+            _ => string.Format(T(S.ResFailed), name, p.Text ?? ""),
+        };
+        return all.Count(x => x.Key == p.Key) > 1 && p.Folder.Length > 0 ? $"{text} · {p.Folder}" : text;
     }
 
     Border Chip(string path)
@@ -907,6 +1106,7 @@ public partial class MainWindow : Window
         OpenButton.Content = T(S.OpenFolder);
         PlayText.Text = T(S.Play);
         ShowLog.Content = T(ShowLog.IsChecked == true ? S.HideDetails : S.ShowDetails);
+        ShowLibrary();
     }
 
     // ================= 2: the build =================
@@ -949,11 +1149,35 @@ public partial class MainWindow : Window
         if (romfs != null && exefs != null) args.AddRange(new[] { "--romfs", romfs, "--exefs", exefs });
         else if (chosenNup != null) args.AddRange(new[] { "--nup", chosenNup });
         else return;
-        args.AddRange(new[] { "--out", OutPath.Text, "--language", lang.Code });
+        args.AddRange(new[] { BuildWhere(), OutPath.Text, "--language", lang.Code });
         if (FsrTick.IsChecked == true) args.Add("--fsr");   // (an --update of the folder keeps it: make_game.py's mark)
         prepareNow = PrepareTick.IsChecked == true;
         Run(tools, ShaderStep.Args(args, prepareNow, ChosenLevel()), dlss: DlssTick.IsChecked == true,
             fsr: FsrTick.IsChecked == true && fsrLicense);
+    }
+
+    /// Build's place for the copy: --out, the game folder in the form, when the copy is that folder's game (or its game is not
+    /// known here: romfs and exefs folders are not checked, and make_game.py refuses them over another game's folder); --base when
+    /// the checked copy is another game, which then goes to its own folder beside the others (where it is installed under that
+    /// base already, or its own folder by the rule), never into the folder of the game the form shows
+    string BuildWhere()
+    {
+        var key = romfs == null && chosenNup != null && checks.TryGetValue(chosenNup, out var c) && c is { Ok: true } ? Games.CopyKey(c.Value.Text) : null;
+        if (key == null || Games.FolderGameKey(OutPath.Text) == key) return "--out";
+        var b = Games.BaseOf(OutPath.Text);
+        var g = library.FirstOrDefault(x => x.Key == key && string.Equals(x.Base, b, StringComparison.OrdinalIgnoreCase));
+        var target = g == null ? Games.Folder(b, key) : g.Built ? g.Folder : g.OwnFolder;
+        return SamePath(target, OutPath.Text) ? "--out" : "--base";
+    }
+
+    static bool SamePath(string a, string b)
+    {
+        try
+        {
+            return string.Equals(System.IO.Path.GetFullPath(a).TrimEnd('\\', '/'), System.IO.Path.GetFullPath(b).TrimEnd('\\', '/'),
+                                 StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception) { return string.Equals(a, b, StringComparison.OrdinalIgnoreCase); }
     }
 
     const string DlssLicense =
@@ -1103,7 +1327,8 @@ public partial class MainWindow : Window
         compileClock.Reset();
         clock.Start();
         Tick();
-        if (Storage.WorkChosen && !args.Contains("--work")) args.AddRange(new[] { "--work", Storage.Work });   // (the build files where the player chose)
+        // (the build files where the player chose. Not for Update all: make_game.py gives each game its own work folder there)
+        if (Storage.WorkChosen && !args.Contains("--work") && !args.Contains("--update-all")) args.AddRange(new[] { "--work", Storage.Work });
         if (dlss && !args.Contains("--fetch-ngx-sdk")) args.AddRange(new[] { "--fetch-ngx-sdk", "--accept-nvidia-license" });
         // (the tick off here takes out the runtimes it placed; RecompLauncher's prepare (--cli) passes neither, and keeps them)
         if (!dlss && !args.Contains("--no-dlss")) args.Add("--no-dlss");
@@ -1119,6 +1344,12 @@ public partial class MainWindow : Window
 
     void Line(string line)
     {
+        if (updateAll != null && Games.ReadGameLine(line) is { } framed)   // (Update all: one game's update begins or ends)
+        {
+            GameFramed(framed);
+            AddLog(line);
+            return;
+        }
         if (line.StartsWith("@@stage "))
         {
             var id = line.Split(' ')[1];
@@ -1248,6 +1479,11 @@ public partial class MainWindow : Window
         clock.Stop();
         elapsed.Stop();
         runner = null;
+        if (updateAll != null)   // (Update all: every game's outcome, a failed one beside the others)
+        {
+            EndUpdateAll(failure);
+            return;
+        }
         if (finished.Length > 0)
         {
             foreach (var (id, r) in rows)
@@ -1300,12 +1536,13 @@ public partial class MainWindow : Window
             Finder.Shortcuts(finished, DesktopTick.IsChecked == true, StartTick.IsChecked == true);
         else if (updating && Environment.GetEnvironmentVariable("HOOKSHOT_UI_PREVIEW") == null)
         {   // (the ones the player has, onto the folder's launcher; the boxes say which there are, and ticking one makes it)
-            DesktopTick.IsChecked = File.Exists(Finder.DesktopLink);
-            StartTick.IsChecked = File.Exists(Finder.StartLink);
+            var key = Games.FolderKey(finished);   // (the folder's game's own shortcuts)
+            DesktopTick.IsChecked = File.Exists(Finder.DesktopLinkFor(key));
+            StartTick.IsChecked = File.Exists(Finder.StartLinkFor(key));
             Finder.RefreshShortcuts(finished);
         }
         if (Finder.ShortcutError != null) AddLog("shortcut not made: " + Finder.ShortcutError);
-        FillGames();   // (the game just built is in "Your games" when the form comes back)
+        FillGames(reload: true);   // (the game just built is in the library when the form comes back)
         ShowPage(ReadyPage);
         _ = FreeAfterBuild();
     }
@@ -1501,6 +1738,118 @@ public partial class MainWindow : Window
         rows.GetValueOrDefault("download")?.Stopped();
         ShowProblem(why, tools: false);
         ProblemTitle.Text = "The update could not be downloaded";
+    }
+
+    // ---- Update all: make_game.py --update-all <base>, every installed game in turn, framed by its @@game lines ----
+    List<Games.GameLine>? updateAll;   // (its outcomes so far, while it runs; null otherwise)
+    List<string> updateAllFolders = new();
+    int updateAllAt;
+    string updateAllFolder = "";
+
+    /// Every game under the base updated with these tools, on the update's page (BeginUpdate first). The DLSS and FSR 4 choices
+    /// are UpdateBuild's, for any of the folders. No --work: make_game.py gives each game its own work folder
+    void StartUpdateAll(Tools tools, string baseFolder, List<string> folders)
+    {
+        download = null;
+        updateAll = new();
+        updateAllFolders = folders;
+        updateAllAt = 0;
+        updateAllFolder = "";
+        if (rows.TryGetValue("download", out var d)) { d.Done(); d.Small("Build tools checked"); }
+        BuildTitle.Text = T(S.LibUpdating);
+        VersionChipText.Text = tools.Version ?? VersionChipText.Text;
+        var saved = BuilderSettings.Load(SettingsPath);
+        var dlss = saved?.Dlss == true ||
+                   folders.Any(f => File.Exists(System.IO.Path.Combine(f, "ngx", "nvngx_dlss.dll")) &&
+                                    (saved?.DlssLicense == true || File.Exists(System.IO.Path.Combine(Storage.NgxSdk, "LICENSE.txt"))));
+        var fsr = (saved?.Fsr == true && saved.FsrLicense) ||
+                  folders.Any(f => File.Exists(System.IO.Path.Combine(f, ".hookshot_fsr")) &&
+                                   File.Exists(System.IO.Path.Combine(f, "amd_fidelityfx_upscaler_vk.dll")) &&
+                                   File.Exists(System.IO.Path.Combine(f, "LICENSE-AMD-FSR-SDK.md")));
+        var args = new List<string> { "--update-all", baseFolder };
+        if (saved?.Fsr == true) args.Add("--fsr");
+        Run(tools, ShaderStep.Args(args, prepareNow), keepRows: true, dlss: dlss, fsr: fsr);
+    }
+
+    /// An @@game line of Update all: a game's update begins (its steps afresh, "Updating Mario Kart World (2 of 3)") or ends (its
+    /// outcome kept for the summary)
+    void GameFramed(Games.GameLine g)
+    {
+        if (g.Kind == "start")
+        {
+            updateAllFolder = g.Folder;
+            if (!updateAllFolders.Contains(g.Folder, StringComparer.OrdinalIgnoreCase)) return;   // (a game not installed)
+            updateAllAt++;
+            MakeRows(update: true, shaders: prepareNow);
+            if (rows.TryGetValue("download", out var d)) { d.Done(); d.Small("Build tools checked"); }
+            BuildTitle.Text = string.Format(T(S.LibUpdatingOne), Games.NameOf(g.Key), updateAllAt, Math.Max(updateAllAt, updateAllFolders.Count));
+            current = null;
+            compiled = 0;
+            filesDone = filesOf = 0;
+            filesChanged = -1;
+            filesCompiled = 0;
+            compileEta = -1;
+            shadersBegan = false;
+            shadersLater = null;
+            SetProgress(Weight["read"].From);
+            return;
+        }
+        updateAll!.Add(g with { Folder = updateAllFolder });
+        if (g.Result == "failed" && current != null && rows.TryGetValue(current, out var row)) row.Stopped();
+        else if (g.Result == "updated") foreach (var r in rows.Values) r.Done();
+    }
+
+    /// Update all ended: one line per game, a failed one with the others' outcomes, on the problem page when any failed
+    void EndUpdateAll(string? failure)
+    {
+        var results = updateAll!;
+        updateAll = null;
+        if (failure == "cancelled")
+        {
+            ToFiles();
+            return;
+        }
+        var said = string.Join("\n", results.Where(r => r.Result != "missing").Select(r => ResultText(r, results)));
+        if (Environment.GetEnvironmentVariable("HOOKSHOT_UI_PREVIEW") == null)
+            foreach (var r in results.Where(r => r.Result == "updated")) Finder.RefreshShortcuts(r.Folder);
+        if (results.Count == 0 || results.Any(r => r.Result == "failed"))
+        {
+            ShowProblem(said.Length > 0 ? said : failure ?? "The build tools stopped without saying why.", tools: false);
+            ProblemTitle.Text = T(S.LibSomeFailed);
+            FillGames(reload: true);
+            return;
+        }
+        SetStep(2);
+        SetProgress(1);
+        ReadyTitle.Text = T(S.LibAllUpdated);
+        ReadyNote.Text = said;
+        finished = results.FirstOrDefault(r => r.Result == "updated")?.Folder ?? results[0].Folder;
+        var key = Games.FolderKey(finished);
+        DesktopTick.IsChecked = File.Exists(Finder.DesktopLinkFor(key));
+        StartTick.IsChecked = File.Exists(Finder.StartLinkFor(key));
+        FillGames(reload: true);
+        ShowPage(ReadyPage);
+    }
+
+    /// The new tools are here (Updater.UpdateFolder). After a self-update (all: the new Builder just installed) every installed
+    /// game under the folder's base is updated (--update-all) when there is more than one and this folder's version is not the
+    /// new one; a game installed alone, or a folder built again only for an upscaler, is built as before (UpdateBuild)
+    internal async void UpdateBuildOrAll(Tools tools, string folder, bool all)
+    {
+        if (all && tools.Version is { } v && ReadVersion(folder) is { } have && have != v)
+        {
+            var b = Games.BaseOf(folder);
+            var lib = await Task.Run(() => Runner.Library(tools, b));
+            var folders = lib == null ? new List<string>() : Games.InstalledFolders(lib);
+            if (lib != null && folders.Count > 1)
+            {
+                library = lib;
+                libraryBase = b;
+                StartUpdateAll(tools, b, folders);
+                return;
+            }
+        }
+        UpdateBuild(tools, folder);
     }
 
     /// The new tools are here: the folder built again with them (only what changed is compiled)

@@ -442,7 +442,8 @@ and no release or player build. Build those with the defaults.
 
 Each game has its own folder under one base: the default game (Ocarina) keeps `<base>`, another game gets
 `<base>-<key>` (`nx2/game_folders.py`, [one engine, four games](one-engine.md)). These are the calls a program that
-manages every game makes; the Builders' library (to come) runs them:
+manages every game makes; the three Builders' game library runs them (Your games, Install, Update all, and the update
+after a new Builder):
 
 | Call | What it does |
 |---|---|

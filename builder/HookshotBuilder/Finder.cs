@@ -73,20 +73,33 @@ static class Finder
 
     // ---- shortcuts to the built game ----
 
-    public static string DesktopLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Hookshot.lnk");
-    public static string StartLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Hookshot.lnk");
+    /// Each game's own shortcuts, named by the game (Games.ShortcutName): Hookshot.lnk for the default game, the name it always
+    /// had, so a player's shortcut is the one made again; "Mario Kart World (Hookshot).lnk" for another
+    public static string DesktopLinkFor(string key) =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), Games.ShortcutName(key) + ".lnk");
+    public static string StartLinkFor(string key) =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), Games.ShortcutName(key) + ".lnk");
+    public static string DesktopLink => DesktopLinkFor(Games.DefaultKey);
+    public static string StartLink => StartLinkFor(Games.DefaultKey);
 
     /// Made or removed as the two ticks say (Windows' own shell object writes the .lnk)
     /// The shortcuts the player has, made again (onto the folder's launcher now that it has one); none made where there was none
-    public static void RefreshShortcuts(string gameFolder) => Shortcuts(gameFolder, File.Exists(DesktopLink), File.Exists(StartLink));
+    public static void RefreshShortcuts(string gameFolder)
+    {
+        var key = Games.FolderKey(gameFolder);
+        Shortcuts(gameFolder, File.Exists(DesktopLinkFor(key)), File.Exists(StartLinkFor(key)));
+    }
 
+    /// The game folder's shortcuts, named and described by the game it holds (Games.FolderKey: its kept copy, else its folder
+    /// by the rule), so each game built has its own
     public static void Shortcuts(string gameFolder, bool desktop, bool start)
     {
         // (hookshot.exe: the game's launcher in a folder built since it came (Play, and Update when a newer release is out), else the
         // game. The icon is the game's own: bin\hookshot.exe when it is there)
         var exe = Path.Combine(gameFolder, "hookshot.exe");
         var icon = File.Exists(Path.Combine(gameFolder, "bin", "hookshot.exe")) ? Path.Combine(gameFolder, "bin", "hookshot.exe") : exe;
-        foreach (var (link, want) in new[] { (DesktopLink, desktop), (StartLink, start) })
+        var key = Games.FolderKey(gameFolder);
+        foreach (var (link, want) in new[] { (DesktopLinkFor(key), desktop), (StartLinkFor(key), start) })
         {
             try
             {
@@ -102,7 +115,7 @@ static class Finder
                 sl.SetPath(exe);
                 sl.SetWorkingDirectory(gameFolder);
                 sl.SetIconLocation(icon, 0);
-                sl.SetDescription("The Legend of Zelda: Ocarina of Time, built by Hookshot");
+                sl.SetDescription(Games.NameOf(key) + ", built by Hookshot");
                 Directory.CreateDirectory(Path.GetDirectoryName(link)!);
                 ((System.Runtime.InteropServices.ComTypes.IPersistFile)sl).Save(link, true);
             }

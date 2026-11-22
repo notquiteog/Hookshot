@@ -59,10 +59,10 @@ static class Games
         return File.Exists(flat) ? flat : null;
     }
 
-    /// The name of the game a folder holds, from the copy of the game files it keeps for updates (.hookshot_exefs\main: an
+    /// The profile key of the game a folder holds, from the copy of the game files it keeps for updates (.hookshot_exefs\main: an
     /// NSO whose module id is main's build id), or null. The Builder builds into the folder the player chose, so a game can
     /// sit in another's folder by the rule: it is named by what it is
-    public static string? FolderGame(string folder)
+    public static string? FolderGameKey(string folder)
     {
         try
         {
@@ -73,11 +73,136 @@ static class Games
             var id = Convert.ToHexString(head, 0x40, 0x20).ToLowerInvariant();
             foreach (var p in Profiles)
                 if (p.BuildId.StartsWith(id, StringComparison.Ordinal) || id.StartsWith(p.BuildId, StringComparison.Ordinal))
-                    return p.Name;
+                    return p.Key;
         }
         catch (Exception) { }
         return null;
     }
+
+    /// The name of the game a folder holds (FolderGameKey's), or null
+    public static string? FolderGame(string folder) => FolderGameKey(folder) is { } key ? NameOf(key) : null;
+
+    /// A profile's game (its name), or the key itself for one no profile has
+    public static string NameOf(string key)
+    {
+        foreach (var p in Profiles)
+            if (p.Key == key) return p.Name;
+        return key;
+    }
+
+    /// The game a folder is: its kept copy's (FolderGameKey), else the game whose folder it is by the rule (base-key is that
+    /// key's, any other folder the default game's). The launcher page and the shortcuts are named by it (game_folders.py
+    /// folder_key)
+    public static string FolderKey(string folder)
+    {
+        if (FolderGameKey(folder) is { } held) return held;
+        var f = folder.TrimEnd('\\', '/');
+        if (f.Length == 0) f = folder;
+        var b = BaseOf(f);
+        foreach (var p in Profiles)
+            if (string.Equals(Folder(b, p.Key), f, StringComparison.Ordinal)) return p.Key;
+        return DefaultKey;
+    }
+
+    /// A game's shortcut name (its .lnk): "Hookshot" for the default game, the name its shortcut always had, so a player's
+    /// Hookshot.lnk is the one made again; "<game> (Hookshot)" for another, without the letters a file name cannot hold
+    /// (game_folders.py shortcut_name)
+    public static string ShortcutName(string key) =>
+        key == DefaultKey ? "Hookshot" : System.Text.RegularExpressions.Regex.Replace(NameOf(key), "[\\\\/:*?\"<>|]", "").Trim() + " (Hookshot)";
+
+    /// The launcher page's two lines for a game: the series above, in capitals, and the title, split at the name's first ": "
+    /// ("THE LEGEND OF ZELDA", "Ocarina of Time"); ("", name) for a name without one (game_folders.py title_parts)
+    public static (string Series, string Title) TitleParts(string name)
+    {
+        var at = name.IndexOf(": ", StringComparison.Ordinal);
+        return at > 0 && at + 2 < name.Length ? (name[..at].ToUpperInvariant(), name[(at + 2)..]) : ("", name);
+    }
+
+    /// The profile key of a copy make_game.py --check found supported, from its sentence ("... (build e0f3ccfa)."), or null
+    /// (game_folders.py copy_key): a copy of another game than the folder's goes to its own folder (--base)
+    public static string? CopyKey(string? checkText)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(checkText ?? "", @"\(build ([0-9a-f]{8,64})\)");
+        if (!m.Success) return null;
+        foreach (var p in Profiles)
+            if (p.BuildId.StartsWith(m.Groups[1].Value, StringComparison.Ordinal)) return p.Key;
+        return null;
+    }
+
+    /// One of make_game.py --update-all's framing lines: "@@game start <key> <folder>" (Folder) or "@@game end <key> <result>
+    /// [<text>]" (Result, Text); null for any other line (game_folders.py update_line)
+    public sealed record GameLine(string Kind, string Key, string Folder, string Result, string? Text);
+
+    public static GameLine? ReadGameLine(string line)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(line.TrimEnd('\r', '\n'), @"^@@game (start|end) ([a-z0-9]{1,16})(?: (.*))?$");
+        if (!m.Success) return null;
+        var rest = m.Groups[3].Success ? m.Groups[3].Value : "";
+        if (m.Groups[1].Value == "start") return new GameLine("start", m.Groups[2].Value, rest, "", null);
+        var space = rest.IndexOf(' ');
+        return space < 0 ? new GameLine("end", m.Groups[2].Value, "", rest, null)
+                         : new GameLine("end", m.Groups[2].Value, "", rest[..space], rest[(space + 1)..] is { Length: > 0 } t ? t : null);
+    }
+
+    /// Update all's outcomes from its lines: each "end" line, with the folder of the "start" line before it
+    public static List<GameLine> Results(IEnumerable<string> lines)
+    {
+        var results = new List<GameLine>();
+        var folder = "";
+        foreach (var line in lines)
+            if (ReadGameLine(line) is { } g)
+            {
+                if (g.Kind == "start") folder = g.Folder;
+                else results.Add(g with { Folder = folder });
+            }
+        return results;
+    }
+
+    /// One game of the library (nx2/game_folders.py --library --json, its fields): every game that builds, installed or not,
+    /// where under the base, its version, and whether this engine would update it (Update: null when it can't be told)
+    public sealed record LibraryGame(string Key, string Name, string Folder, string Base, bool Built, string[] OtherFolders,
+                                     string OwnFolder, string? OwnFolderHolds, string? Version, bool Kept, bool? Update);
+
+    /// --library --json read. Throws on text that is not that list
+    public static List<LibraryGame> ParseLibrary(string json)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var games = new List<LibraryGame>();
+        static string? Text(System.Text.Json.JsonElement e, string name) =>
+            e.TryGetProperty(name, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : null;
+        foreach (var g in doc.RootElement.EnumerateArray())
+        {
+            var update = g.TryGetProperty("update", out var u) && u.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False
+                ? u.GetBoolean() : (bool?)null;
+            var others = g.TryGetProperty("other_folders", out var o) && o.ValueKind == System.Text.Json.JsonValueKind.Array
+                ? o.EnumerateArray().Select(x => x.GetString() ?? "").ToArray() : Array.Empty<string>();
+            games.Add(new LibraryGame(Text(g, "key") ?? "", Text(g, "name") ?? "", Text(g, "folder") ?? "", Text(g, "base") ?? "",
+                                      g.TryGetProperty("built", out var b) && b.ValueKind == System.Text.Json.JsonValueKind.True, others,
+                                      Text(g, "own_folder") ?? "", Text(g, "own_folder_holds"), Text(g, "version"),
+                                      g.TryGetProperty("kept", out var k) && k.ValueKind == System.Text.Json.JsonValueKind.True, update));
+        }
+        return games;
+    }
+
+    /// The library without the tools to ask (no Python): the games Built finds, the others not installed, no states
+    public static List<LibraryGame> Fallback(string? folder)
+    {
+        var built = Built(folder);
+        var games = new List<LibraryGame>();
+        if (string.IsNullOrWhiteSpace(folder)) return games;
+        var b = BaseOf(folder);
+        foreach (var p in Profiles)
+        {
+            var g = built.FirstOrDefault(x => x.Key == p.Key);
+            games.Add(new LibraryGame(p.Key, g?.Name ?? p.Name, g?.Folder ?? Folder(b, p.Key), b, g != null, Array.Empty<string>(),
+                                      Folder(b, p.Key), null, null, false, null));
+        }
+        return games;
+    }
+
+    /// The built folders a library names: each built game's folder and its other folders
+    public static List<string> InstalledFolders(IEnumerable<LibraryGame> games) =>
+        games.Where(g => g.Built).SelectMany(g => new[] { g.Folder }.Concat(g.OtherFolders)).ToList();
 
     /// Each profile's folder from the Builder's game folder that holds a built game, in the profiles' order
     public static List<Game> Built(string? folder)
