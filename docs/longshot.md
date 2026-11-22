@@ -228,3 +228,27 @@ Fitted to this tree: #252's Intel compiler gate goes on this tree's `guarded_gra
 | [#1689](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1689) | Jeff Aigner | fix(build): the translator stamp hashes a C or C++ file's tokens, so a comment edit no longer re-prepares every shader |
 
 #569's play profile is Longshot's recording of its own renderer (#599 adds to it, #625 its note), and is off by default here (`RX_VK_PGO=1` turns it on): in Ocarina it measured nothing outside the spread, and it is one game's recording of a renderer the four games share. #735's rule replaces the VRAM budget row; this tree's Auto still sets the Output resolution and keeps the player's. #1689 comes here with #370's `nx2/translator_files.py`. Not taken: #771 with #873 (#873 reverts #771 line for line). Moved: #500 opens Longshot's Intel compiler gate, which comes here with #252 (A2), so it follows A2. Adapted: #231 keeps this tree's direct-mapped view front, #248 folds into `cap_buf_usage()`, #766's allocations wait at the commit limit as C1's do, and #735 reads the system's RAM through Longshot #404's `system_ram_bytes()`.
+#569's play profile is Longshot's recording of its own renderer (#599 adds to it, #625 its note), and is off by default here (`RX_VK_PGO=1` turns it on): in Ocarina it measured nothing outside the spread, and it is one game's recording of a renderer the four games share. #735's rule replaces the VRAM budget row; this tree's Auto still sets the Output resolution and keeps the player's. #1689 comes here with #370's `nx2/translator_files.py`. Not taken: #500 (it opens Longshot's Intel compiler gate, which this tree never had), #771 with #873 (#873 reverts #771 line for line). Adapted: #231 keeps this tree's direct-mapped view front, #248 folds into `cap_buf_usage()`, #766's allocations wait at the commit limit as C1's do, and #735 reads the system's RAM through Longshot #404's `system_ram_bytes()`.
+
+### Renderer performance (B2)
+
+| Longshot | Author | What |
+|---|---|---|
+| [#311](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/311) | futondestroyer | perf(dlss): create features at the recommended render size |
+| [#342](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/342) | klimovich008 | test(vk): the recorder own/idle checks with slot identities and the real wait (review 1195 of #162) |
+| [#384](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/384) | Hugo Claria | perf(vk): the BC3 scratch has the layers a run uses, 20 MB instead of 160 |
+| [#526](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/526) | mooki | fix(vk): the late pages' fix no longer puts older words over the game's newer ones |
+| [#568](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/568) | Hugo Claria | perf(vk): the staging arenas a load used a moment ago are kept, not made again every second frame |
+| [#637](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/637) | Felix Caceres | perf(vk): optimize < 8 GB VRAM management, dynamic floor, 3-tier target pool, and DLSS CNN presets |
+| [#790](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/790) | Zelda Ootr | perf(vk): the all-zero upload check reads only the guest pages that hold data, not the holes |
+| [#906](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/906) | Zelda Ootr | perf(vk): the mesh fallback stores its records attribute by attribute (RX_VK_MESH_FB_LAYOUT, soa by default) |
+| [#994](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/994) | SadTransGirl | perf(vk): the game's per-frame render targets are reused instead of made and destroyed twice a frame |
+| [#1053](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1053) | Zelda Ootr | perf(vk): the Steam Deck's GPU held at amdgpu's peak power state while the game runs (RX_VK_GPU_CLOCK, on by default on the Deck) |
+| [#1086](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1086) | Zelda Ootr | perf(vk): software matrix multiplies unrolled where the device gives the loop's words (RX_VK_MMA_UNROLL=0 keeps the loop) |
+| [#1096](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1096) | Felix Caceres | perf(vk): default DLSS to CNN preset E on < 7 GB GPUs |
+| [#1187](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1187) | HumanBean | perf(vk): VRAM mirrors on GCN too (RX 400/500, Vega): an RX 580 runs 28 to 54% faster with them |
+| [#1188](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1188) | SadTransGirl | perf(vk): a start whose driver lost its shader cache builds the pipelines again before the title, not with draws left out in play |
+| [#1255](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1255) | SadTransGirl | perf(vk): the dead render targets go at every present, as RX_VK_DEAD_EVERY=1 meant, and a pooled image waits 8 presents (RX_VK_POOL_IDLE) |
+| [#1359](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1359) | SadTransGirl | perf(vk): a freed sparse mirror's buffer is kept for the next mirror of its size, not destroyed (RX_VK_SPARSE_SPARE_MB) |
+
+Adapted: #637's VRAM rules keep this tree's host API (no host_storage field, the version checked exactly), its presenter queue stays off by default, its staging keeps 128 MB under 6.5 GB, and its device-local heap is the raw heap size. #1255's sweep goes through this tree's `target_overlap::DrawnOver`. #311's note is in `docs/temporal-history.md`. Moved to later slices: #977 (after #443, in A2), #952 (an A/B against this tree's uniform snapshot reuse), #416 with #1595 and 19beb1a6 (the pipeline cache file rule).
