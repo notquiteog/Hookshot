@@ -119,7 +119,8 @@ def main():
             need("PcacheFetch" in body, fn + " fetches a cache's data outside the fetch lock")
         need("IntelDriverGate" not in body, fn + " takes Intel's gate around a fetch (the builders take it outside the fetch lock)")
     for fn in ("VkResult guarded_graphics_held(", "VkResult guarded_compute_held("):
-        need("IntelDriverGate" not in block(draw, fn), fn + " takes Intel's gate inside the fetch lock")
+        if "struct PcacheFetch" in draw:   # (the _held builders come with #190's fetch lock, as above)
+            need("IntelDriverGate" not in block(draw, fn), fn + " takes Intel's gate inside the fetch lock")
     clear = block(draw, "VkPipeline clear_pipeline(")
     gate_at = clear.index("IntelDriverGate gate;")
     held = brace_block(clear, clear.rindex("{", 0, gate_at))

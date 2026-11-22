@@ -127,6 +127,7 @@ void dead_list(uint64_t completed) {
 }
 
 int main(int argc, char** argv) {
+    (void)depth_destroy_gen;   // (counted by destroy_later, read by the scene depth's users, none here)
     const bool target = argc > 1 && !strcmp(argv[1], "target");   // (a render target's image: to the pool, not destroyed)
     Texture t;
     if (target) t.pool_key = 0x1235;
