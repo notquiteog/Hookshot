@@ -26,7 +26,7 @@ def production_code(path):
     # here -- it gates -DRX_VK_STREAMLINE and an include path.
     # (opennr_jobs: open neural rendering's sources, which the branch adds; without third_party/opendlss-nr, as in
     # this fixture's tree, it adds none)
-    names = {"tree_headers", "vk_sources", "flag_text", "object_key", "streamline_sdk_path", "opennr_jobs",
+    names = {"tree_headers", "vk_sources", "vk_pgo_setting", "flag_text", "object_key", "streamline_sdk_path", "opennr_jobs",
              "zstd_jobs"}
     functions = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
     assert {n.name for n in functions} == names

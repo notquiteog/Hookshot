@@ -372,7 +372,7 @@ A build reads and writes tens of gigabytes. When the game folder or the build fi
 | `RX_TARGET=windows` | On Linux: the Windows game, with llvm-mingw's Linux build in `HOOKSHOT_MINGW` |
 | `RX_RELEASE=1` | A release build (`make_game.py` sets it): no console window, the shaders prepared before the title |
 | `RX_PGO=gen` or `RX_PGO=<file>` | The hot code counting its branches for a profile, or built with one (`make_game.py` passes the shipped profile) |
-| `RX_VK_PGO=gen` or `RX_VK_PGO=<file>` | The Vulkan back end's own files counting their branches for a profile, or built with one (`make_game.py` passes `work/hookshot_vk.profdata` when it is there, else the committed `assets/profiles/hookshot_vk.profdata.xz`; a compiler that can't read it builds without): [the renderer's play profile](#the-renderers-play-profile) |
+| `RX_VK_PGO=gen`, `RX_VK_PGO=<file>` or `RX_VK_PGO=0` | The Vulkan back end's own files counting their branches for a profile, or built with one (`make_game.py` passes `work/hookshot_vk.profdata` when it is there, else the committed `assets/profiles/hookshot_vk.profdata.xz`; a compiler that can't read it builds without): [the renderer's play profile](#the-renderers-play-profile). `0` (or `off`, `no`, `false`): built without a play profile, the committed one too, for a player's build or an A/B of it |
 | `RX_HOT_OPT=<level>` | The hot pieces' optimisation level (default `O2`); `O1` for [a faster build for development](#a-faster-build-for-development) |
 | `RX_MARCH=<level>` | The CPU level to build for (default this PC's: `x86-64-v3`, else `x86-64-v2`, else `x86-64`) |
 | `RX_VK_ONLY=1` | Only the Vulkan back end, with no lift |

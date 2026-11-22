@@ -24,6 +24,20 @@ def check(what, ok):
         raise SystemExit("FAIL: " + what)
 
 
+def check_build_setting():
+    """nx2/build.py's reading of RX_VK_PGO: gen, a path, or none (unset, empty, 0, off, no, false), never "0" taken as a file"""
+    bspec = importlib.util.spec_from_file_location("build_under_test", ROOT / "nx2" / "build.py")
+    import sys
+    sys.path.insert(0, str(ROOT / "nx2")); sys.path.insert(0, str(ROOT / "third_party" / "a64-kit" / "tools"))
+    build = importlib.util.module_from_spec(bspec)
+    bspec.loader.exec_module(build)
+    for value, want in ((None, None), ("", None), ("0", None), ("off", None), ("No", None), ("false", None), (" 0 ", None),
+                        ("gen", "gen"), ("/work/hookshot_vk.profdata", "/work/hookshot_vk.profdata")):
+        check("build.py's RX_VK_PGO=%r is %r" % (value, want), build.vk_pgo_setting(value) == want)
+    src = (ROOT / "nx2" / "build.py").read_text(encoding="utf-8")
+    check("build.py reads RX_VK_PGO through vk_pgo_setting", 'vk_pgo = vk_pgo_setting(os.environ.get("RX_VK_PGO"))' in src)
+
+
 def check_make_game():
     asked = []
 
@@ -64,6 +78,8 @@ def check_make_game():
         check("a copy left in the work folder from a profile the checkout no longer has is not used", pick() == unpacked)
         check("a counting build stays one (RX_VK_PGO=gen)", pick({"RX_VK_PGO": "gen"}) is None)
         check("a developer's own profile is not replaced", pick({"RX_VK_PGO": "/else.profdata"}) is None)
+        for off in ("0", "off", "no", "false", "OFF"):   # (RX_VK_PGO=0: the renderer built without the committed profile)
+            check("RX_VK_PGO=%s: no profile is passed" % off, pick({"RX_VK_PGO": off}) is None)
         check("a profile this compiler cannot read is left out, the renderer built without it", pick(can_read=lambda p: False) is None)
     shipped = ROOT / make_game.VK_PROFILE_SHIPPED
     check("the renderer's profile is committed (assets/profiles/hookshot_vk.profdata.xz)", shipped.is_file())
@@ -123,6 +139,7 @@ def check_release():
 
 
 if __name__ == "__main__":
+    check_build_setting()
     check_make_game()
     check_dev_packs()
     check_writer()
