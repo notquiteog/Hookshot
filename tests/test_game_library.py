@@ -13,7 +13,8 @@ Checked here:
     in both, a game at this version skipped unless --force, --dry-run running nothing, the @@game lines, the summary lines
     and the exit status;
   - --update-all: a folder that keeps no game files is "rebuild", not a failure; each game other than the default one
-    gets its own work folder when the work folder is the builder's own; --dry-run makes no folder and touches no power
+    gets its own work folder when the work folder is the builder's own, and from --work-base (the player's chosen build
+    files folder: <dir>, <dir>-<key>) when given; --dry-run makes no folder and touches no power
     state; an update's reason is its @@error line; the parser takes no abbreviations;
   - --base: the copy's game picks its own folder under the base; not with --out or --update;
   - a copy of one game is refused over a folder that holds another, before the folder is touched, and an empty folder, the
@@ -337,6 +338,31 @@ class UpdateAll(MakeGame):
         ran, _, _ = self.run_all("--work", mine)
         for f, cmd in ran:
             self.assertEqual([cmd[i + 1] for i, x in enumerate(cmd) if x == "--work"], [mine], "a work folder given is kept")
+
+    def test_the_players_build_files_folder(self):
+        """--work-base: the folder the player chose (on another drive) is every game's, by the folder rule: the default game's
+        DIR, another's DIR-<key>, by the game the folder holds. Nothing falls back to the default work folder"""
+        built(self.base, self.default, "v2.3.0-rc.1")
+        built(game_folders.folder(self.base, self.second), self.second, "v2.3.0-rc.1")
+        built(self.base + "-" + self.third, self.second, "v2.3.0-rc.1")   # (the second game in the third's folder too)
+        mine = os.path.join(self.tmp, "D drive", "Hookshot work")
+        ran, _, _ = self.run_all("--work-base", mine)
+        works = {f: [cmd[i + 1] for i, x in enumerate(cmd) if x == "--work"] for f, cmd in ran}
+        self.assertEqual(works, {self.base: [mine], game_folders.folder(self.base, self.second): [mine + "-" + self.second],
+                                 self.base + "-" + self.third: [mine + "-" + self.second]})
+        for _, cmd in ran:
+            self.assertNotIn("--work-base", cmd, "--work-base is --update-all's own")
+        ran, _, _ = self.run_all("--work-base=" + mine)
+        self.assertEqual([cmd[cmd.index("--work") + 1] for _, cmd in ran][0], mine, "--work-base=<dir> too")
+        self.assertFalse(any("--work-base=" + mine in cmd for _, cmd in ran))
+        self.assertFalse(os.path.exists(mine), "the folders are the updates' to make, not --update-all's")
+
+    def test_work_base_goes_with_update_all_alone(self):
+        mine = os.path.join(self.tmp, "my work")
+        self.assertIn("--work-base goes with --update-all", self.refused("--update", self.base, "--work-base", mine))
+        self.assertIn("no --work with it", self.refused("--update-all", self.base, "--work-base", mine, "--work", mine))
+        self.assertIn("needs a folder", self.refused("--update-all", self.base, "--work-base", " "))
+        self.assertEqual(self.parse("--update-all", self.base, "--work-base", mine).work_base, mine)
 
     def test_two_folders_say_what_happened_to_each(self):
         second, third = (game_folders.folder(self.base, k) for k in (self.second, self.third))

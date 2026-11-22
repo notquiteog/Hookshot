@@ -9,9 +9,11 @@
                                                                     exit 0 when the game is built; with --check, its "check ok|bad" line)
     python -I nx2/make_game.py --nup <file.nup> --base <folder>   (the copy's game into its own folder under that base: <folder> for
                                                                     the default game, <folder>-<key> for another; not with --out)
-    python -I nx2/make_game.py --update-all [<base>] [--force] [--dry-run]   (every game built under base, default
-                                                                    ~/Games/Hookshot, updated in turn; one that fails does not
-                                                                    stop the others; --dry-run says what it would do)
+    python -I nx2/make_game.py --update-all [<base>] [--force] [--dry-run] [--work-base <dir>]   (every game built under base,
+                                                                    default ~/Games/Hookshot, updated in turn; one that fails does
+                                                                    not stop the others; --dry-run says what it would do;
+                                                                    --work-base: the build files folder the player chose, <dir>
+                                                                    for the default game and <dir>-<key> for another)
 
 A copy is never built into a folder that holds another game (its .hookshot_exefs/main names another profile): the build stops
 with both games and the folder named. An empty folder, or one that holds the same game, is built into as before.
@@ -734,15 +736,15 @@ UPDATE_LINE = "@@game"   # (--update-all's framing lines: the module's docstring
 
 def update_all_args(argv):
     """The arguments each game's make_game --update gets: the ones given, without --update-all's own (its base, --force,
-    --dry-run) and without --log (this make_game's log holds every game's lines, which it passes on). The parser takes no
-    abbreviations (allow_abbrev=False), so these are the only spellings"""
+    --dry-run, --work-base: each game gets its own --work from it) and without --log (this make_game's log holds every game's
+    lines, which it passes on). The parser takes no abbreviations (allow_abbrev=False), so these are the only spellings"""
     rest, skip = [], False
     for i, arg in enumerate(argv):
         if skip:
             skip = False
-        elif arg in ("--update-all", "--log"):
-            skip = arg == "--log" or (i + 1 < len(argv) and not argv[i + 1].startswith("-"))
-        elif arg.startswith(("--update-all=", "--log=")) or arg in ("--force", "--dry-run"):
+        elif arg in ("--update-all", "--log", "--work-base"):
+            skip = arg != "--update-all" or (i + 1 < len(argv) and not argv[i + 1].startswith("-"))
+        elif arg.startswith(("--update-all=", "--log=", "--work-base=")) or arg in ("--force", "--dry-run"):
             pass
         else:
             rest.append(arg)
@@ -787,6 +789,7 @@ def update_all(a, run_one=None):
     engine = _version.release()
     dry = getattr(a, "dry_run", False)
     own_work = os.path.abspath(a.work) == os.path.abspath(getattr(a, "default_work", a.work))
+    work_base = os.path.abspath(os.path.expanduser(a.work_base)) if getattr(a, "work_base", None) else None
     results = []   # (game, folder, result, text)
 
     def line(*words):
@@ -799,7 +802,9 @@ def update_all(a, run_one=None):
             results.append((g, g["folder"], "missing", None))
             continue
         work = []
-        if own_work and g["key"] != game_profile.DEFAULT:   # (the game's own work folder, as --prepare and --base give it)
+        if work_base:   # (the build files folder the player chose: the default game's, and <dir>-<key> for another)
+            work = ["--work", game_folders.folder(work_base, g["key"])]
+        elif own_work and g["key"] != game_profile.DEFAULT:   # (the game's own work folder, as --prepare and --base give it)
             work = ["--work", game_folders.folder(os.path.abspath(a.work), g["key"])]
         for f in [g["folder"]] + g["other_folders"]:
             first = f == g["folder"]
@@ -2590,6 +2595,10 @@ def parse_args():
     p.add_argument("--dry-run", action="store_true",
                    help="with --update-all: say what it would do for each game (its @@game lines: update, current, missing), "
                         "and change nothing")
+    p.add_argument("--work-base", metavar="DIR",
+                   help="with --update-all: the build files folder the player chose (the Builders' setting), so no game's update "
+                        "falls back to the default one: the default game's work folder is DIR, another game's DIR-<key> (as "
+                        "nx2/game_folders.py names game folders). Not with --work")
     p.add_argument("--base", help="the games' base folder instead of --out: the copy's game decides its own folder in it (the base "
                                   "for the default game, <base>-<key> for another: nx2/game_folders.py)")
     p.add_argument("--no-prepare-shaders", action="store_true",
@@ -2622,8 +2631,12 @@ def parse_args():
                                      any(getattr(a, "game_" + prof.key, None) for prof, _ in game_profile.known_builds())):
         fail("--update-all updates the games already built, from the game files each keeps: give no copy, --out, --base, --update "
              "or --check with it.")
-    if (a.force or a.dry_run) and a.update_all is None:
-        fail("%s goes with --update-all." % ("--force" if a.force else "--dry-run"))
+    if (a.force or a.dry_run or a.work_base) and a.update_all is None:
+        fail("%s goes with --update-all." % ("--force" if a.force else "--dry-run" if a.dry_run else "--work-base"))
+    if a.work_base is not None and (not a.work_base.strip() or
+                                    os.path.abspath(a.work) != os.path.abspath(p.get_default("work"))):
+        fail("--work-base names every game's build files folder: give it a folder, and no --work with it." if a.work_base.strip()
+             else "--work-base needs a folder.")
     # (--prepare with no --out: the default game's folder below, and main makes it the copy's game's: game_folders_for_dump)
     a.out_from_game = bool(a.prepare and not a.out)
     if a.base is not None:   # (--base: the same choice, from the base given)
