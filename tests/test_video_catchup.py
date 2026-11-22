@@ -98,6 +98,14 @@ static void decode_next(Dec *d) {
 }
 static void decode_pending(Dec *d) { (void)d; }
 static void input_room(Dec *d) { (void)d; }
+/* (main's acquire: buffers reserved before a picture came (fill_reserved, sync_reserve) and the game profile's catch-up
+   switch. None reserved here, the catch-up on; put_picture is main's own, cut from the source) */
+#define GAME_VIDEO_CATCHUP 1
+static void fill_reserved(Dec *d) { (void)d; }
+static uint64_t sync_reserve(void) { return 0; }
+static void end_picture(Dec *d) { (void)d; }
+
+@PUT@
 
 @ACQUIRE@
 
@@ -184,6 +192,9 @@ def main():
                        through(src, "typedef struct {\n    AVCodecContext *ctx;", "} Dec;"),
                        "static volatile LONG64 submissions;"))
     fixture = HARNESS.replace("@TYPES@", types).replace("@ACQUIRE@", block(src, "static void dec_acquire(Ctx *c) {"))
+    if "static void put_picture(Dec *d, int slot, int reserved) {" in src:
+        fixture = fixture.replace("@PUT@", block(src, "static void put_picture(Dec *d, int slot, int reserved) {"))
+    fixture = fixture.replace("@PUT@", "")
     compiler = shutil.which(args.cxx)
     if not compiler:
         raise SystemExit("C++ compiler not found: " + args.cxx)

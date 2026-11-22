@@ -46,6 +46,7 @@ enum { VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT = 2, VK_COMMAND_BUFFER_LE
 enum : uint64_t { VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT = 1, VK_PIPELINE_STAGE_2_HOST_BIT = 2, VK_ACCESS_2_MEMORY_WRITE_BIT = 4,
                   VK_ACCESS_2_HOST_READ_BIT = 8 };
 #define VK_TRUE 1
+enum { VK_IMAGE_ASPECT_COLOR_BIT = 1, VK_IMAGE_ASPECT_DEPTH_BIT = 2, VK_IMAGE_ASPECT_STENCIL_BIT = 4 };
 #define VK_NULL_HANDLE nullptr
 struct Obj { int id; };
 typedef Obj* VkCommandPool;
@@ -79,6 +80,7 @@ VkResult vkCreateCommandPool(VkDevice, const VkCommandPoolCreateInfo*, const voi
 VkResult vkAllocateCommandBuffers(VkDevice, const VkCommandBufferAllocateInfo*, VkCommandBuffer* c) { *c = &the_cmd; return VK_SUCCESS; }
 VkResult vkCreateFence(VkDevice, const VkFenceCreateInfo*, const void*, VkFence* f) { *f = &the_fence; return VK_SUCCESS; }
 VkResult vkResetCommandPool(VkDevice, VkCommandPool, uint32_t) { return VK_SUCCESS; }
+void vkDestroyCommandPool(VkDevice, VkCommandPool, const void*) {}   // (main's: a pool half made is destroyed)
 VkResult vkBeginCommandBuffer(VkCommandBuffer, const VkCommandBufferBeginInfo*) { return VK_SUCCESS; }
 void vkCmdPipelineBarrier2(VkCommandBuffer, const VkDependencyInfo*) {}
 VkResult vkEndCommandBuffer(VkCommandBuffer) { return VK_SUCCESS; }
@@ -92,6 +94,7 @@ void queue_flush_locked() {}
 struct LevelGeo {};
 struct Texture {
     VkImage image = &the_image;
+    uint32_t aspect = VK_IMAGE_ASPECT_COLOR_BIT;   // (main's destroy counts a depth image's apart)
     VmaAllocation allocation = &the_alloc;
     uint64_t gpu = 0x100000, guest_size = 4096, bytes = 1 << 20, pad = 0, last_value = 0, pool_key = 0;
     std::vector<VkDeviceMemory> sparse_chunks;
@@ -99,7 +102,7 @@ struct Texture {
     struct BlockAttachment { VkImage image; VmaAllocation allocation; int format; uint32_t level; };
     std::vector<BlockAttachment> block_attachments;
 };
-static uint64_t rec_value = 0, destroy_gen = 1, total_bytes = 1 << 20;
+static uint64_t rec_value = 0, destroy_gen = 1, depth_destroy_gen = 1, total_bytes = 1 << 20;   // (depth_destroy_gen: main's scene depth for DLSS and FSR 3)
 static void logf(const char*, ...) {}
 static void full_barrier(VkCommandBuffer, const char* = nullptr) {}
 static void destroy_buffer(VkBuffer, VmaAllocation) {}
@@ -146,7 +149,14 @@ int main(int argc, char** argv) {
     completed = 10;
     rec_value = 11;
     dead_list(completed);
+    // (main's #2766 puts a dead render target's image in the pool at once, for a later recording on the same queue: the
+    // queue orders it after the read-back's copy, as after any draw still running. Only a destroyed image is a read from
+    // freed memory there; POOLS_AT_ONCE is defined when destroy_later pools)
+#ifdef POOLS_AT_ONCE
+    if (freed.count(&the_image)) {
+#else
     if (freed.count(&the_image) || pooled.count(&the_image)) {
+#endif
         std::printf("FAIL: the image a timed-out read-back copies from was %s at completed %llu, before the GPU is past the "
                     "copy (its staging buffer waits for %llu)\n", freed.count(&the_image) ? "destroyed" : "put in the target pool",
                     (unsigned long long)completed, 11ull);
@@ -185,11 +195,12 @@ def main():
     source = (ROOT / "gpu/vk/vk_texture.cpp").read_text(encoding="utf-8")
     wait = block(source, "bool readback_submit_wait()")
     frame = block(source, "void texture_frame(uint64_t completed)")
-    fixture = (FIXTURE.replace("/* DEAD */", block(source, "struct Dead {") + ";")
+    later = block(source, "void destroy_later(Texture& tex)")
+    fixture = (("#define POOLS_AT_ONCE 1\n" if "pool_put(d);" in later else "") + FIXTURE.replace("/* DEAD */", block(source, "struct Dead {") + ";")
                .replace("/* READBACK */", between(source, "// (a command buffer of its own for the read-backs", wait) + wait)
                .replace("/* FLUSH */", block(source, "struct Flush {") + ";")
                .replace("/* FLUSH_TEXTURES */", block(source, "void flush_textures(std::vector<Flush>& fs)"))
-               .replace("/* DESTROY_LATER */", block(source, "void destroy_later(Texture& tex)"))
+               .replace("/* DESTROY_LATER */", later)
                .replace("/* DEAD_LOOP */", block(frame, "    for (auto it = dead.begin(); it != dead.end();)")))
     with tempfile.TemporaryDirectory(prefix="longshot-readback-source-") as temp:
         cpp, exe = Path(temp) / "fixture.cpp", Path(temp) / "fixture.exe"

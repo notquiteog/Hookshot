@@ -36,7 +36,9 @@ def detection():
     m = re.compile(r"hw\.handheld = [^;]*;").search(src, start)
     if not m:
         raise SystemExit("vk_main.cpp auto_profile: no `hw.handheld = ...;` after `hw.integrated = `")
-    lines = [l for l in src[start:m.end()].splitlines()
+    # (main's RDNA 4 test spans lines: the whole statement goes, not its first line)
+    cut = re.sub(r"hw\.rdna4 = [^;]*;", "", src[start:m.end()])
+    lines = [l for l in cut.splitlines()
              if not re.match(r"\s*(hw\.vram_mb|hw\.mesh|hw\.rtx|hw\.rdna4|for \(|if \(dev\.memory)", l)
              and "dev.memory" not in l and "dev.mesh" not in l]
     text = "\n".join(lines)

@@ -104,6 +104,7 @@ VkResult vkResetCommandPool(VkDevice, VkCommandPool, uint32_t) {
     if (pending && !lost) violation("vkResetCommandPool with its command buffer still pending on the GPU");
     return VK_SUCCESS;
 }
+void vkDestroyCommandPool(VkDevice, VkCommandPool, const void*) { call(); }   // (main's: a pool half made is destroyed)
 VkResult vkBeginCommandBuffer(VkCommandBuffer, const VkCommandBufferBeginInfo*) { call(); return VK_SUCCESS; }
 void vkCmdPipelineBarrier2(VkCommandBuffer, const VkDependencyInfo*) {}
 VkResult vkEndCommandBuffer(VkCommandBuffer) { return VK_SUCCESS; }

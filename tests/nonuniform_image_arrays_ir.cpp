@@ -38,7 +38,7 @@
 // What make_profile and storage_binding_align read of the renderer (vk_internal.h's dev): a GPU with 32 lanes, no float add of
 // its own, NVIDIA's gather, 16-byte storage buffer offsets, f16 shaders; the nonuniform indexing features set per device below
 constexpr uint32_t VK_SHADER_STAGE_ALL = 0x7fffffff;
-constexpr uint32_t VK_DRIVER_ID_AMD_PROPRIETARY = 1;
+constexpr uint32_t VK_DRIVER_ID_AMD_PROPRIETARY = 1, VK_DRIVER_ID_MESA_RADV = 3;   // (main's make_profile reads RADV too)
 struct {
     uint32_t subgroup_max = 32, driver_id = 0;
     bool float_atomic_add = false;

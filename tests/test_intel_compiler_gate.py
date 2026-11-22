@@ -114,7 +114,9 @@ def main():
     # that waits for it)
     for fn in ("size_t play_file_write(", "void pcache_init()", "bool pcache_saved_now()", "void pipeline_cache_save(bool force)"):
         body = block(draw, fn)
-        need("PcacheFetch" in body, fn + " fetches a cache's data outside the fetch lock")
+        # (the fetch lock is Longshot #190, which this tree takes with the pipeline cache file rule: until then only the gate)
+        if "struct PcacheFetch" in draw:
+            need("PcacheFetch" in body, fn + " fetches a cache's data outside the fetch lock")
         need("IntelDriverGate" not in body, fn + " takes Intel's gate around a fetch (the builders take it outside the fetch lock)")
     for fn in ("VkResult guarded_graphics_held(", "VkResult guarded_compute_held("):
         need("IntelDriverGate" not in block(draw, fn), fn + " takes Intel's gate inside the fetch lock")
