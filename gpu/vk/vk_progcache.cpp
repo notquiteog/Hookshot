@@ -641,7 +641,17 @@ bool program_cache_complete(Program& p) {
 /// it, *busy is set, false comes back and the program is left as it was, for a worker to complete (vk_draw.cpp dispatch)
 bool program_cache_complete_ask(Program& p, bool* busy) {
     *busy = false;
-    std::lock_guard lk(light_mu);
+    // (with Intel's gate on, light_mu is only tried too: a worker's program_cache_complete holds it while it waits at the gate for
+    // another compile, and the dispatch would wait behind that. Held, the program goes to a worker as when the gate is held)
+    std::unique_lock<std::mutex> lk(light_mu, std::defer_lock);
+    if (intel_gate_on()) {
+        if (!lk.try_lock()) {
+            *busy = true;
+            return false;
+        }
+    } else {
+        lk.lock();
+    }
     return complete_from(p, disk_in, &disk_mu, busy);
 }
 /// (the load at a program's create call, vk_programs.cpp) the same for a program no other thread has yet, with the worker's

@@ -11,7 +11,9 @@
 #include <cstring>
 #include <map>
 #include <memory>
+#include <condition_variable>
 #include <mutex>
+#include <thread>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -78,6 +80,8 @@ struct IntelDriverGate {
     bool busy = false;
     explicit IntelDriverGate(bool ask = false) : busy(ask && gate_held) {}
 };
+bool gate_on = false;   // (Windows Intel: the gate is on, so the dispatch's ask only tries the cache's lock too)
+bool intel_gate_on() { return gate_on; }
 thread_local uint64_t module_program = 0;
 bool driver_faulted_program(uint64_t) { return false; }
 void driver_faulted_module(uint64_t) {}
@@ -226,6 +230,37 @@ int main(int argc, char** argv) {
             CHECK(p->code_words == words && (whole || !p->stages[0].module));
             busy_bytes += bytes_read - ask_read;
             gate_held = false;
+        }
+        {   // (Windows Intel: a worker holds light_mu, its program_cache_complete waiting at the gate. The dispatch's ask does
+            // not wait behind it: busy, nothing made, read nor failed, the program as it was, for the worker)
+            gate_on = true;
+            std::mutex m;
+            std::condition_variable cv;
+            bool held = false, let_go = false;
+            std::thread worker([&] {
+                std::lock_guard<std::mutex> lk(light_mu);
+                std::unique_lock<std::mutex> g(m);
+                held = true;
+                cv.notify_all();
+                cv.wait(g, [&] { return let_go; });
+            });
+            {
+                std::unique_lock<std::mutex> g(m);
+                cv.wait(g, [&] { return held; });
+            }
+            bool busy = false;
+            const uint64_t words = p->code_words;
+            const unsigned made_before = created;
+            const size_t ask_read = bytes_read;
+            CHECK(!program_cache_complete_ask(*p, &busy) && busy && !p->failed && created == made_before);
+            CHECK(p->code_words == words && bytes_read == ask_read);
+            {
+                std::lock_guard<std::mutex> g(m);
+                let_go = true;
+            }
+            cv.notify_all();
+            worker.join();
+            gate_on = false;
         }
         const unsigned before = created;
         const size_t read_before = bytes_read;

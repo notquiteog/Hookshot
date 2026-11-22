@@ -78,6 +78,7 @@ int vkCreateShaderModule(uintptr_t device, const VkShaderModuleCreateInfo* info,
 using VkResult = int;
 constexpr VkResult VK_SUCCESS = 0;
 struct IntelDriverGate { bool busy = false; explicit IntelDriverGate(bool = false) {} };   // (vk_internal.h's, never held here)
+inline bool intel_gate_on() { return false; }   // (vk_internal.h's: off here, program_cache_complete_ask waits for the cache's lock)
 thread_local uint64_t module_program = 0;
 bool driver_faulted_program(uint64_t) { return false; }
 void driver_faulted_module(uint64_t) {}
