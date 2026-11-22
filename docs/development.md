@@ -496,7 +496,11 @@ again from the game's files once. It is not a failure and leaves the exit status
 default one is updated with its own work folder, `<work>-<key>` (by the game the folder holds), when the work folder is
 the builder's own, as `--prepare` and `--base` give it, so each game keeps its own object cache. A Builder whose player chose
 the build files folder (another drive) passes it as `--work-base <dir>`: the default game's is `<dir>`, another's
-`<dir>-<key>`, so no update falls back to the default folder on the system drive. `--dry-run` runs
+`<dir>-<key>`, so no update falls back to the default folder on the system drive. `make_game.py --update <folder>` and `--base` follow the
+same rule: a folder of another game than the default one is updated with `<work>-<key>` (by the game it holds) when the
+work folder is the builder's own, and `--work-base <dir>` gives them `<dir>` and `<dir>-<key>` too. Each folder keeps its
+own NVIDIA DLSS and AMD FSR 4: the runtimes' fetch (`--fetch-ngx-sdk`, `--fetch-fsr-runtime`) given to `--update-all`
+reaches only a folder that has that upscaler, and a folder without DLSS is built without NVIDIA's SDK. `--dry-run` runs
 nothing and makes no folder.
 
 Then one summary line per game (`Mario Kart World: updated`; with the folder, `... in <folder>: updated`, when the game
