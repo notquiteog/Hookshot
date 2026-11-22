@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.3.0-rc.35](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.34...v2.3.0-rc.35) (2026-11-21)
+
+
+### Bug Fixes
+
+* **build:** Longshot's lifter, build and script fixes from 514591a3..9dd41326 (D1) ([#115](https://github.com/notquiteog/Hookshot/issues/115)) ([c6e434e](https://github.com/notquiteog/Hookshot/commit/c6e434e756ff7155e8a6864d487bec9b8f7c04b1))
+* **host:** Longshot's host fixes from 514591a3..9dd41326 (C1) ([#114](https://github.com/notquiteog/Hookshot/issues/114)) ([b6ebdef](https://github.com/notquiteog/Hookshot/commit/b6ebdeff8c12b9f5006056cb3d1e832209454a02))
+* **vk:** a texture or sampler registration costs no system call again ([#102](https://github.com/notquiteog/Hookshot/issues/102) halved Ocarina's frame rate) ([#118](https://github.com/notquiteog/Hookshot/issues/118)) ([b131b0a](https://github.com/notquiteog/Hookshot/commit/b131b0acfac235d9edde8b1130419ccade81d27b))
+* **vk:** Longshot's renderer fixes from 514591a3..9dd41326 (A1) ([#113](https://github.com/notquiteog/Hookshot/issues/113)) ([7c16348](https://github.com/notquiteog/Hookshot/commit/7c16348852d2fe0ae473aa8b0e682c7394c67747))
+
+## [2.3.0-rc.34](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.33...v2.3.0-rc.34) (2026-11-21)
+
+
+### Bug Fixes
+
+* **vk:** DLSS and FSR 3 keep the scene depth unless a depth image went ([#109](https://github.com/notquiteog/Hookshot/issues/109)) ([7b97cf7](https://github.com/notquiteog/Hookshot/commit/7b97cf7d251022c34d3c3913022e1e6b66ca1748))
+
+## [2.3.0-rc.33](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.32...v2.3.0-rc.33) (2026-11-21)
+
+
+### Bug Fixes
+
+* **os:** a finalized message queue keeps its room, so a send after the finalize goes in as on Horizon ([#104](https://github.com/notquiteog/Hookshot/issues/104)) ([fe760d7](https://github.com/notquiteog/Hookshot/commit/fe760d77fde5d1ea132b230a572b10068b1221a6))
+
+## [2.3.0-rc.32](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.31...v2.3.0-rc.32) (2026-11-21)
+
+
+### Bug Fixes
+
+* **os:** the rest of the timer events, timed receive, thread try-wait and core mask, in the runtime's own model ([#100](https://github.com/notquiteog/Hookshot/issues/100)) ([cc4d240](https://github.com/notquiteog/Hookshot/commit/cc4d240cc19967dbc251a4e529b463ed4274f106))
+
 ## [2.3.0-rc.31](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.30...v2.3.0-rc.31) (2026-11-21)
 
 
