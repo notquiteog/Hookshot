@@ -7,7 +7,11 @@ the stages' control sections are read from (the stage at +0x56):
               does before each draw: vertex and fragment are bound, under a serial of their own (the replays' caches
               go by serial), the same one each time the same pair is bound; the null bind changes nothing.
   whole       a program bound for every graphics stage (0x1f) is that program as it is (its own serial), whatever was
-              bound; compute alone (0x20) as well: as before.
+              bound; compute alone (0x20) as well: as before. So are 0xdf and 0xff (task and mesh, 0x40 and 0x80, as
+              well), as Mario Kart World binds, over any program; and 0x3 over a vertex and fragment program when no
+              other stage is bound.
+  again       a bind that keeps another program's stage (0x3 over a vertex, geometry and fragment program) gives the
+              same program and serial each time it is made, and another one for another pair.
   part        a vertex and fragment program bound for 0x1 only binds its vertex stage.
   pipelines   a vertex and fragment program bound for 0x3 (Mario Kart World does) over a mesh program (fragment, task,
               mesh) is that program as it is, its own serial: the mesh stages go, as no pipeline has both; and a mesh
@@ -77,6 +81,14 @@ int main() {
         has = nvn_bind_stages(cur, has, &B, 0x2, serials, read);
         has = nvn_bind_stages(cur, has, nullptr, 0x4, serials, read);
         CHECK(has && same(cur, pair));
+        static const uint32_t whole[] = {0xdf, 0xff};   // (whole, as MKW binds)
+        for (const uint32_t mask : whole) {
+            has = nvn_bind_stages(cur, has, &B, 0x2, serials, read);
+            has = nvn_bind_stages(cur, has, &C, mask, serials, read);
+            CHECK(has && same(cur, C));
+        }
+        has = nvn_bind_stages(cur, has, &C, 0x3, serials, read);
+        CHECK(has && same(cur, C));
         // whole
         has = nvn_bind_stages(cur, has, &C, 0x1f, serials, read);
         CHECK(has && same(cur, C));
@@ -96,6 +108,22 @@ int main() {
         has = nvn_bind_stages(cur, has, &M, 0xc0, serials, read);
         CHECK(has && cur.nstage == 3 && cur.sd[0].data == C.sd[1].data && cur.sd[1].data == M.sd[1].data
               && cur.sd[2].data == M.sd[2].data && cur.serial >> 63);
+    }
+    {   // again
+        nvn_prog cur{}, first{};
+        uint64_t serials[8]{};
+        bool has = false;
+        for (int round = 0; round < 3; round++) {
+            has = nvn_bind_stages(cur, has, &G, 0x1f, serials, read);
+            has = nvn_bind_stages(cur, has, &C, 0x3, serials, read);
+            CHECK(has && cur.nstage == 3 && cur.sd[0].data == C.sd[0].data && cur.sd[1].data == C.sd[1].data
+                  && cur.sd[2].data == G.sd[1].data && cur.serial >> 63);
+            if (!round) first = cur;
+            CHECK(same(cur, first));
+        }
+        has = nvn_bind_stages(cur, has, &G, 0x1f, serials, read);
+        has = nvn_bind_stages(cur, has, &A, 0x3, serials, read);
+        CHECK(has && cur.serial >> 63 && cur.serial != first.serial);
     }
     {   // unbind
         nvn_prog cur = G;
