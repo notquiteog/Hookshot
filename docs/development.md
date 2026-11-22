@@ -372,7 +372,7 @@ A build reads and writes tens of gigabytes. When the game folder or the build fi
 | `RX_TARGET=windows` | On Linux: the Windows game, with llvm-mingw's Linux build in `HOOKSHOT_MINGW` |
 | `RX_RELEASE=1` | A release build (`make_game.py` sets it): no console window, the shaders prepared before the title |
 | `RX_PGO=gen` or `RX_PGO=<file>` | The hot code counting its branches for a profile, or built with one (`make_game.py` passes the shipped profile) |
-| `RX_VK_PGO=gen`, `RX_VK_PGO=<file>` or `RX_VK_PGO=0` | The Vulkan back end's own files counting their branches for a profile, or built with one (`make_game.py` passes `work/hookshot_vk.profdata` when it is there, else the committed `assets/profiles/hookshot_vk.profdata.xz`; a compiler that can't read it builds without): [the renderer's play profile](#the-renderers-play-profile). `0` (or `off`, `no`, `false`): built without a play profile, the committed one too, for a player's build or an A/B of it |
+| `RX_VK_PGO=gen`, `RX_VK_PGO=<file>` or `RX_VK_PGO=1` | The Vulkan back end's own files counting their branches for a profile, or built with one (`make_game.py` passes `work/hookshot_vk.profdata` when it is there, else the committed `assets/profiles/hookshot_vk.profdata.xz`; a compiler that can't read it builds without): [the renderer's play profile](#the-renderers-play-profile). Unset (or `0`, `off`): no play profile, the default; `1` (or `on`): the committed one, or the checkout's own |
 | `RX_HOT_OPT=<level>` | The hot pieces' optimisation level (default `O2`); `O1` for [a faster build for development](#a-faster-build-for-development) |
 | `RX_MARCH=<level>` | The CPU level to build for (default this PC's: `x86-64-v3`, else `x86-64-v2`, else `x86-64`) |
 | `RX_VK_ONLY=1` | Only the Vulkan back end, with no lift |
@@ -446,12 +446,15 @@ header-only stage; zero means no key was available. Distinct tuples for the same
 recorded-query identities, not a complete draw replay or display timestamps. The queries can perturb frame timing.
 #### The renderer's play profile
 
-The Vulkan back end is built with a play profile of its own (after
+The Vulkan back end can be built with a play profile of its own (after
 [ProjectReLink](https://github.com/pixl27/ProjectReLink)): `assets/profiles/hookshot_vk.profdata.xz`, committed, with
 its note in `assets/profiles/README.md` (where and how Longshot recorded it, and what it measured there: about -4 to -5 % frame
-time standing and -3 % running in the Market on an RTX 3090). Every build that compiles the renderer uses it: a
-player's (with DLSS or FSR 4 too), the AppImage's, a developer's. A checkout's own `work/hookshot_vk.profdata` is used in
-its place, and `RX_VK_PGO` set by hand (`gen`, or another file) in place of both. Recording a new one:
+time standing and -3 % running in the Market on an RTX 3090). **It is off by default.** The recording is Ocarina's, of a renderer
+the four games share, and here it measured nothing outside the spread in Ocarina (#119: +0.4 fps in Kokiri Forest, -0.7 in
+Hyrule Field, an RTX 5060 Ti): a game whose runs gain would have it turned on in its game profile (not wired yet). `RX_VK_PGO=1` (or `on`, `yes`,
+`true`) asks for it in a build: a player's (with DLSS or FSR 4 too), the AppImage's, a developer's; then a checkout's own
+`work/hookshot_vk.profdata` is used in its place. `RX_VK_PGO=gen` or another file, set by hand, is the developer's, in place of
+both. Recording a new one:
 
 1. **Build a renderer that counts**, `RX_VK_PGO=gen`: the back end's own files (`gpu/vk/*.cpp` and suyu's texture
    decoders; not Eden's recompiler, sirit, Dear ImGui or zstd) are built with `-fprofile-instr-generate`, still at

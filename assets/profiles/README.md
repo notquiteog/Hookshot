@@ -7,11 +7,12 @@ one's shape and how often its branches ran: no game code or data.
 ## hookshot_vk.profdata.xz: the renderer's
 
 The Vulkan back end's play profile (nx2/build.py `RX_VK_PGO`; docs/development.md, "The renderer's play profile"),
-compressed with xz. `nx2/make_game.py` unpacks it into the work folder and builds the renderer with it, unless the
-checkout's `work/hookshot_vk.profdata` or `RX_VK_PGO` says otherwise; `scripts/linux/appimage.sh` builds the
-AppImage's renderer with it. A compiler that can't read it builds the renderer without it.
+compressed with xz. Off by default: with `RX_VK_PGO=1`, `nx2/make_game.py` unpacks it into the work folder and builds the
+renderer with it, unless the checkout's `work/hookshot_vk.profdata` stands in for it; `scripts/linux/appimage.sh` does the
+same. A compiler that can't read it builds the renderer without it. It is Ocarina's recording, of a renderer the four games
+share, and measured nothing outside the spread in Ocarina here (#119): a game whose runs gain would have it turned on in its game profile (not wired yet).
 
-One profile for every build for now. It ages rather than breaks: a function changed since the recording is compiled as
+One profile for now. It ages rather than breaks: a function changed since the recording is compiled as
 if there were no profile, the rest keep theirs. Record it again before a release, and when the renderer has changed much.
 
 The recordings below are Longshot's (its #569 and #599, by HumanBean), made on Longshot's renderer at the commits

@@ -27,15 +27,19 @@ PY=$DEPS/python/bin/python3
 # ---- the Vulkan back end, built here once (it needs no game) ----
 VKW=$B/vk-work
 rm -rf "$VKW/sa/build/hookshot_vk.so"
-# (its play profile: the checkout's work/hookshot_vk.profdata when it has one, else the committed one, assets/profiles/
-# hookshot_vk.profdata.xz, unpacked here: as nx2/make_game.py's vk_profile_for. Without either, built as before. Never
-# RX_VK_PGO from the shell: an AppImage's renderer does not count)
+# (its play profile, off by default as nx2/make_game.py's vk_profile_for: with RX_VK_PGO=1 (on, yes, true) the checkout's
+# work/hookshot_vk.profdata when it has one, else the committed one, assets/profiles/hookshot_vk.profdata.xz, unpacked here.
+# Otherwise, or without either, built as before. Never RX_VK_PGO=gen or a file from the shell: an AppImage's renderer does not
+# count, and takes no other profile)
 VK_PGO=
 mkdir -p "$VKW"
-if [ -f work/hookshot_vk.profdata ]; then VK_PGO=$ROOT/work/hookshot_vk.profdata
-elif [ -f assets/profiles/hookshot_vk.profdata.xz ]; then
-    xz -dc assets/profiles/hookshot_vk.profdata.xz > "$VKW/hookshot_vk.shipped.profdata"; VK_PGO=$VKW/hookshot_vk.shipped.profdata
-fi
+case "$(printf %s "${RX_VK_PGO:-}" | tr '[:upper:]' '[:lower:]')" in
+1|on|yes|true)
+    if [ -f work/hookshot_vk.profdata ]; then VK_PGO=$ROOT/work/hookshot_vk.profdata
+    elif [ -f assets/profiles/hookshot_vk.profdata.xz ]; then
+        xz -dc assets/profiles/hookshot_vk.profdata.xz > "$VKW/hookshot_vk.shipped.profdata"; VK_PGO=$VKW/hookshot_vk.shipped.profdata
+    fi;;
+esac
 OOT_WORK=$VKW RX_MARCH=x86-64-v3 RX_VK_ONLY=1 RX_RELEASE=1 RX_VK_PGO=$VK_PGO "$PY" -I nx2/build.py --standalone --jobs "${JOBS:-$(nproc)}"
 VK=$VKW/sa/build/hookshot_vk.so
 [ -f "$VK" ] || { echo "hookshot_vk.so was not built"; exit 1; }

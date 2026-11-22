@@ -31,7 +31,7 @@ def check_build_setting():
     sys.path.insert(0, str(ROOT / "nx2")); sys.path.insert(0, str(ROOT / "third_party" / "a64-kit" / "tools"))
     build = importlib.util.module_from_spec(bspec)
     bspec.loader.exec_module(build)
-    for value, want in ((None, None), ("", None), ("0", None), ("off", None), ("No", None), ("false", None), (" 0 ", None),
+    for value, want in ((None, None), ("", None), ("0", None), ("off", None), ("No", None), ("false", None), (" 0 ", None), ("1", None), ("on", None),
                         ("gen", "gen"), ("/work/hookshot_vk.profdata", "/work/hookshot_vk.profdata")):
         check("build.py's RX_VK_PGO=%r is %r" % (value, want), build.vk_pgo_setting(value) == want)
     src = (ROOT / "nx2" / "build.py").read_text(encoding="utf-8")
@@ -52,6 +52,8 @@ def check_make_game():
         os.makedirs(os.path.join(root, "assets", "profiles"))
         os.makedirs(work)
 
+        ON = {"RX_VK_PGO": "1"}
+
         def pick(environ=None, can_read=readable):
             return make_game.vk_profile_for(work, environ or {}, can_read, root=root)
         check("neither the committed profile nor the checkout's: RX_VK_PGO is not set", pick() is None)
@@ -60,27 +62,31 @@ def check_make_game():
         with lzma.open(os.path.join(root, make_game.VK_PROFILE_SHIPPED), "wb") as f:
             f.write(b"shipped profile")
         unpacked = os.path.join(work, make_game.VK_PROFILE_UNPACKED)
-        check("the committed profile is unpacked and passed", pick() == unpacked and open(unpacked, "rb").read() == b"shipped profile")
+        # (off by default: the committed profile is Ocarina's recording, and measured nothing there, #119)
+        check("the committed profile is not used unless asked for (RX_VK_PGO unset)", pick() is None and not os.path.exists(unpacked))
+        check("the committed profile is unpacked and passed", pick(ON) == unpacked and open(unpacked, "rb").read() == b"shipped profile")
         stamp = os.stat(unpacked).st_mtime_ns - 10**9
         os.utime(unpacked, ns=(stamp, stamp))
-        pick()
+        pick(ON)
         check("the same committed profile is not written again", os.stat(unpacked).st_mtime_ns == stamp)
         with lzma.open(os.path.join(root, make_game.VK_PROFILE_SHIPPED), "wb") as f:
             f.write(b"a newer one")
-        check("a new committed profile replaces the unpacked one", pick() == unpacked and open(unpacked, "rb").read() == b"a newer one")
+        check("a new committed profile replaces the unpacked one", pick(ON) == unpacked and open(unpacked, "rb").read() == b"a newer one")
         # (a developer's work/hookshot_vk.profdata: main copies it into the work folder, and it is used in place of the committed one)
         own = os.path.join(work, make_game.VK_PROFILE)
         for path in (own, os.path.join(root, "work", make_game.VK_PROFILE)):
             with open(path, "wb") as f:
                 f.write(b"developer's profile")
-        check("the checkout's own profile comes first", pick() == own)
+        check("the checkout's own profile comes first", pick(ON) == own)
         os.remove(os.path.join(root, "work", make_game.VK_PROFILE))
-        check("a copy left in the work folder from a profile the checkout no longer has is not used", pick() == unpacked)
+        check("a copy left in the work folder from a profile the checkout no longer has is not used", pick(ON) == unpacked)
         check("a counting build stays one (RX_VK_PGO=gen)", pick({"RX_VK_PGO": "gen"}) is None)
         check("a developer's own profile is not replaced", pick({"RX_VK_PGO": "/else.profdata"}) is None)
-        for off in ("0", "off", "no", "false", "OFF"):   # (RX_VK_PGO=0: the renderer built without the committed profile)
+        for off in ("", "0", "off", "no", "false", "OFF"):   # (the default: the renderer built without the committed profile)
             check("RX_VK_PGO=%s: no profile is passed" % off, pick({"RX_VK_PGO": off}) is None)
-        check("a profile this compiler cannot read is left out, the renderer built without it", pick(can_read=lambda p: False) is None)
+        for on in ("1", "on", "Yes", "true"):
+            check("RX_VK_PGO=%s: the profile is passed" % on, pick({"RX_VK_PGO": on}) == unpacked)
+        check("a profile this compiler cannot read is left out, the renderer built without it", pick(ON, can_read=lambda p: False) is None)
     shipped = ROOT / make_game.VK_PROFILE_SHIPPED
     check("the renderer's profile is committed (assets/profiles/hookshot_vk.profdata.xz)", shipped.is_file())
     with lzma.open(shipped) as f:
@@ -129,6 +135,9 @@ def check_release():
           "RX_VK_PGO=$VK_PGO " in build and "\nVK_PGO=\n" in appimage and
           "if [ -f work/hookshot_vk.profdata ]; then VK_PGO=$ROOT/work/hookshot_vk.profdata" in appimage and
           'xz -dc assets/profiles/hookshot_vk.profdata.xz > "$VKW/hookshot_vk.shipped.profdata"' in appimage)
+    check("the AppImage takes the profile only with RX_VK_PGO=1, as make_game.py",
+          'case "$(printf %s "${RX_VK_PGO:-}" | tr' in appimage and "1|on|yes|true)" in appimage and
+          appimage.index("1|on|yes|true)") < appimage.index('xz -dc assets/profiles/hookshot_vk.profdata.xz'))
     check("the AppImage carries assets/ (the committed profile, for a player's own renderer with DLSS or FSR 4)",
           "cp -a nx2 host game scripts LICENSE readme.md assets " in appimage)   # (this tree's copy line)
     check("and a developer's own profile when the checkout has one",

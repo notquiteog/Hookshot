@@ -418,10 +418,10 @@ def ngx_link(sdk, mingw):
 
 def vk_pgo_setting(value):
     """RX_VK_PGO's value for the renderer's play profile: "gen" (count its branches), a profile's path, or None for none: unset,
-    empty, 0, off, no or false. make_game.py passes the committed profile only while RX_VK_PGO is unset, so RX_VK_PGO=0 builds
-    the renderer without one (a player's build too, where the profile costs a frame, or for an A/B of it)"""
+    empty, 0, off, no or false (the default), and 1, on, yes or true too, which make_game.py turns into the committed profile's
+    path before it runs this (nx2/make_game.py vk_profile_for): run alone, nothing here finds one"""
     v = (value or "").strip()
-    if not v or v.lower() in ("0", "off", "no", "false"):
+    if not v or v.lower() in ("0", "off", "no", "false", "1", "on", "yes", "true"):
         return None
     return v
 
@@ -1524,7 +1524,9 @@ def main():
         vk_pgo = vk_pgo_setting(os.environ.get("RX_VK_PGO"))
         vk_pgo_flags = []
         if os.environ.get("RX_VK_PGO") and vk_pgo is None:
-            print("the Vulkan back end: built without a play profile (RX_VK_PGO=%s)" % os.environ.get("RX_VK_PGO"), flush=True)
+            print("the Vulkan back end: built without a play profile (RX_VK_PGO=%s%s)" % (os.environ.get("RX_VK_PGO"),
+                  ": no profile this compiler reads" if os.environ.get("RX_VK_PGO", "").strip().lower() in ("1", "on", "yes", "true") else ""),
+                  flush=True)
         if vk_pgo == "gen":
             vk_pgo_flags = ["-fprofile-instr-generate", "-mllvm", "-disable-vp=true"]
             print("the Vulkan back end: counting its branches for a profile (RX_VK_PGO=gen; RX_VK_PGO_FILE=<file> in a run)", flush=True)

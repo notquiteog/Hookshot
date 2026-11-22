@@ -1669,13 +1669,17 @@ VK_PROFILE_SHIPPED = os.path.join("assets", "profiles", VK_PROFILE + ".xz")
 VK_PROFILE_UNPACKED = "hookshot_vk.shipped.profdata"
 
 
+VK_PGO_ON = ("1", "on", "yes", "true")
+
+
 def vk_profile_for(work, environ, readable=None, root=ROOT):
-    """The renderer's profile nx2/build.py is given (RX_VK_PGO), or None. The checkout's work/hookshot_vk.profdata when it has one
-    (a developer's recording, copied to <work> by main), else the committed assets/profiles/hookshot_vk.profdata.xz, unpacked
-    into <work>; either only when this compiler reads it (on every system: the committed one comes from another LLVM than
-    llvm-mingw's). Not when RX_VK_PGO is set already (gen, or another profile: the developer's choice stands); with neither file
-    the renderer is built as it always was. After ProjectReLink's make_game.py"""
-    if environ.get("RX_VK_PGO"):
+    """The renderer's profile nx2/build.py is given (RX_VK_PGO), or None. Off by default: only RX_VK_PGO=1 (on, yes, true) asks for
+    one, and then it is the checkout's work/hookshot_vk.profdata when it has one (a developer's recording, copied to <work> by
+    main), else the committed assets/profiles/hookshot_vk.profdata.xz, unpacked into <work>; either only when this compiler reads
+    it (on every system: the committed one comes from another LLVM than llvm-mingw's). The committed profile is Ocarina's
+    recording, of a renderer the four games share, and measured nothing in Ocarina (#119): a game turns it on when it gains.
+    RX_VK_PGO=gen or a profile's path is the developer's, passed to nx2/build.py as set. After ProjectReLink's make_game.py"""
+    if (environ.get("RX_VK_PGO") or "").strip().lower() not in VK_PGO_ON:
         return None
     own = os.path.join(work, VK_PROFILE)
     if os.path.exists(os.path.join(root, "work", VK_PROFILE)) and os.path.exists(own):
