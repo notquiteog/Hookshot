@@ -122,12 +122,12 @@ def main():
         raise SystemExit("vk_dlss.cpp: DLSS's feature is not made again for another DLSS model")
     if "upscaler_rows::dlss_preset(opts.dlss_model" not in function(dlss, "unsigned wanted_preset() {"):
         raise SystemExit("vk_dlss.cpp: the DLSS model row (and RX_VK_DLSS_PRESET over it) is not the preset asked for")
-    # (the K row's CNN preset E on a card under 7 GB: DLSS, the row's text, its help and the bug report by the one rule,
+    # (the K row's CNN preset E on a card under 7 GB: DLSS, the row's text and its help by the one rule,
     # upscaler_rows.h cnn_for_vram, checked by behaviour in test_upscaler_rows.cpp)
     if "upscaler_rows::dlss_preset(opts.dlss_model, env, device_vram_bytes())" not in block(dlss, "unsigned wanted_preset() {"):
         raise SystemExit("vk_dlss.cpp wanted_preset: the card's memory is not given to dlss_preset (no CNN preset E under 7 GB)")
-    for name in ("const char* tx_dlss_model(int v) {", "const char* hn_dlss_model(int v, int variant) {",
-                 "bool report_default_depends_on_pc(const Row& r) {"):
+    # (this tree's Bug report has no per-PC defaults function: the row's text and its help only)
+    for name in ("const char* tx_dlss_model(int v) {", "const char* hn_dlss_model(int v, int variant) {"):
         if "ur::cnn_for_vram(" not in block(menu, name) or "device_vram_bytes()" not in block(menu, name):
             raise SystemExit("vk_menu.cpp %s: a card under 7 GB is not shown the CNN preset E that DLSS draws with"
                              % name.split("(")[0].split()[-1])

@@ -16,7 +16,7 @@ enum NVSDK_NGX_PerfQuality_Value {
     NVSDK_NGX_PerfQuality_Value_MaxQuality, NVSDK_NGX_PerfQuality_Value_UltraPerformance,
     NVSDK_NGX_PerfQuality_Value_DLAA = 5
 };
-constexpr int NVSDK_NGX_DLSS_Hint_Render_Preset_K = 11, NVSDK_NGX_DLSS_Hint_Render_Preset_L = 12,
+constexpr int NVSDK_NGX_DLSS_Hint_Render_Preset_E = 5, NVSDK_NGX_DLSS_Hint_Render_Preset_K = 11, NVSDK_NGX_DLSS_Hint_Render_Preset_L = 12,
               NVSDK_NGX_DLSS_Hint_Render_Preset_M = 13, NVSDK_NGX_DLSS_Hint_Render_Preset_Default = 0;
 constexpr int NVSDK_NGX_DLSS_Feature_Flags_MVLowRes = 1, NVSDK_NGX_DLSS_Feature_Flags_IsHDR = 2,
               NVSDK_NGX_DLSS_Feature_Flags_AutoExposure = 4;

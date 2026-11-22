@@ -78,7 +78,10 @@ struct Texture {
     VkFlags aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
     uint64_t gpu = 0;
     uint32_t width = 4096, height = 8192, nvn_format = 0x37;
+    int samples = 1;   // (upload_never, cut with it: VK_SAMPLE_COUNT_1_BIT)
+    uint64_t guest_size = 4096ull * 8192 * 2;
 };
+constexpr int VK_SAMPLE_COUNT_1_BIT = 1;
 using Ranges = std::vector<std::pair<uint64_t, uint64_t>>;
 static bool is_bc(VkFormat) { return false; }
 static bool is_astc(VkFormat) { return false; }
