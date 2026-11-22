@@ -201,7 +201,14 @@ def check_linux_builder(tmp):
     check('"--update-all", base, "--dry-run"]' in click and "self.start_update_all(base," in click,
           "the Linux Builder's Update all says what it would do first (--dry-run), then runs it")
     start = method(src, "start_update_all")
-    check('"--update-all", base]' in start and '"--work"' not in start, "the Linux Builder's Update all runs --update-all, no --work")
+    check('"--update-all", base, "--work-base", cache_dir()]' in start and '"--work"' not in start,
+          "the Linux Builder's Update all runs --update-all with its build files folder (--work-base)")
+    check("self.T(\"LibTitle\")" in form and "self.T(\"LibSub\")" in form and "Build your game" not in form,
+          "the Linux Builder's heading is every game's, from the string table")
+    check('update_all = ttk.Button(head, text=self.T("LibUpdateAll"), cursor="hand2"' in lst and 'self.T("LibNothing")' in lst and
+          "Link.TButton" not in lst.split("update_all = ")[1].split("\n")[0], "the Linux Builder's Update all is a button, saying why when disabled")
+    check(all(".grid(row=2 * i, column=%d" % c in lst for c in (1, 2, 3)) and "elide_middle(full, room" in lst,
+          "the Linux Builder's rows share three button columns and elide a folder's middle to the room they leave")
     update = method(src, "start_make_update")
     check("if self.fetched and self.tools and have and have != self.tools:" in update and
           "return self.start_update_all(" in update and "if len(folders) > 1:" in update,
@@ -257,6 +264,12 @@ def check_linux_builder(tmp):
     check(said[0] == "%s: failed: no room" % profile(game_profile.DEFAULT).game and
           said[2] == "%s: choose this game's files once to update it" % profile(lsecond).game,
           "the Linux Builder's summary lines: %r" % said)
+    width = len   # (a letter a unit: the room in letters)
+    long = "/home/player/a very long folder name/Games/Hookshot-mkw"
+    check(builder.elide_middle(long, 100, width) == long, "a path that fits is shown whole")
+    cut = builder.elide_middle(long, 21, width)
+    check(cut == long[:10] + "…" + long[-10:],
+          "a long path keeps as much of both ends as fits, its middle left out: %r" % cut)
     check(builder.text("LibUpdateAll") == "Update all" and builder.text("LibUpdateAll", "fr") == "Tout mettre à jour",
           "the Linux Builder's strings are the shared table's, in the game language chosen")
     check(builder.menu_entry(base) == ("hookshot.desktop", "Hookshot", profile(game_profile.DEFAULT).game),
@@ -298,8 +311,15 @@ def check_qt_builder():
     check('["--update-all", b, "--dry-run"]' in method(window, "update_all_click") and
           "self.start_update_all(tools, b," in method(window, "update_all_plan"),
           "the Qt Builder's Update all says what it would do first (--dry-run), then runs it")
-    check('["--update-all", base]' in method(window, "start_update_all") and
-          '"--update-all" not in args' in method(window, "run"), "the Qt Builder's Update all runs --update-all, no --work")
+    check('["--update-all", base, "--work-base", core.work()]' in method(window, "start_update_all") and
+          '"--update-all" not in args' in method(window, "run"),
+          "the Qt Builder's Update all runs --update-all with the player's build files folder (--work-base), no --work")
+    check('Button(self.T("LibUpdateAll"), "quiet")' in window and 'self.T("LibNothing")' in lib and
+          "Build your game" not in window and 'sub(self.T("LibSub"))' in window,
+          "the Qt Builder's Update all is a button with why it is disabled, and its heading is every game's")
+    check("ElidedLabel(g[\"folder\"])" in lib and "Qt.TextElideMode.ElideMiddle" in window and
+          all("r, %d)" % c in lib for c in (1, 2, 3)),
+          "the Qt Builder's rows share one grid's button columns and elide a folder's middle")
     check("ui.update_build_or_all(tools, folder, fetched)" in updater and
           "self.start_update_all(tools, b, folders)" in method(window, "update_all_or_one") and
           "if len(folders) > 1:" in method(window, "update_all_or_one"),
@@ -329,7 +349,7 @@ def check_qt_builder():
 LIBRARY_KEYS = ["LibTitle", "LibMissing", "LibCurrent", "LibUpdate", "LibInstalled", "LibAlsoIn", "LibTaken", "LibInstall",
                 "LibUpdateOne", "LibUpdateAll", "LibPickFile", "LibPickFolder", "LibNoFolders", "LibAsk", "LibNothing",
                 "LibUpdating", "LibUpdatingOne", "LibAllUpdated", "LibSomeFailed", "ResUpdated", "ResCurrent", "ResWould",
-                "ResWouldPlain", "ResMissing", "ResFailed", "LibRebuild", "ResRebuild"]
+                "ResWouldPlain", "ResMissing", "ResFailed", "LibRebuild", "ResRebuild", "LibSub"]
 
 
 def cs_keys():
@@ -373,8 +393,16 @@ def check_wpf_builder():
     click = between(window, "    async void UpdateAllClick(", "    string ResultText(")
     check('new[] { "--update-all", b, "--dry-run" }' in click and "StartUpdateAll(tools, b," in click,
           "the WPF Builder's Update all says what it would do first (--dry-run), then runs it")
-    check('new List<string> { "--update-all", baseFolder }' in between(window, "    void StartUpdateAll(", "    void GameFramed(") and
-          '!args.Contains("--update-all")' in window, "the WPF Builder's Update all runs --update-all, no --work")
+    check('new List<string> { "--update-all", baseFolder, "--work-base", Storage.Work }' in between(window, "    void StartUpdateAll(", "    void GameFramed(") and
+          '!args.Contains("--update-all")' in window,
+          "the WPF Builder's Update all runs --update-all with the player's build files folder (--work-base), no --work")
+    check("UpdateAllButton.ToolTip = library.Any(g => g.Update == true) ? null : T(S.LibNothing);" in show and
+          'x:Name="UpdateAllButton" Style="{StaticResource Quiet}"' in (hb / "MainWindow.xaml").read_text(encoding="utf-8"),
+          "the WPF Builder's Update all is a button, its tooltip saying why when disabled")
+    check("FilesTitle.Text = T(S.LibTitle);" in window and "FilesSub.Text = T(S.LibSub);" in window and
+          "Build your game" not in window, "the WPF Builder's heading is every game's, from the string table")
+    check(all('SharedSizeGroup = "%s"' % g in show for g in ("LibInstall", "LibOpen", "LibPlay")) and "MiddleElided(g.Folder)" in show,
+          "the WPF Builder's rows share three button columns and elide a folder's middle")
     check("w.UpdateBuildOrAll(tools, folder, all: fetched);" in updater, "the WPF Builder's self-update goes through UpdateBuildOrAll")
     both = between(window, "    internal async void UpdateBuildOrAll(", "    internal void UpdateBuild(")
     check("StartUpdateAll(tools, b, folders);" in both and "folders.Count > 1" in both and "UpdateBuild(tools, folder);" in both,

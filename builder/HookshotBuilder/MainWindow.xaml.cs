@@ -212,13 +212,13 @@ public partial class MainWindow : Window
                 BuildButton.Content = "Play";
                 break;
             case Mode.UpdateBuilder:
-                FilesTitle.Text = "Build your game";
+                FilesTitle.Text = T(S.LibTitle);   // (the page is every game's: no game named, no product either)
                 FilesSub.Text = $"Hookshot Builder {updateTarget} is available (this one is {builder}): update it first, then build.";
                 BuildButton.Content = "Update builder";
                 break;
             default:
-                FilesTitle.Text = "Build your game";
-                FilesSub.Text = "Pick your game files and where the game goes. Hookshot does the rest, once.";
+                FilesTitle.Text = T(S.LibTitle);
+                FilesSub.Text = T(S.LibSub);
                 BuildButton.Content = "Build the game";
                 break;
         }
@@ -709,6 +709,10 @@ public partial class MainWindow : Window
         UpdateAllButton.Content = T(S.LibUpdateAll);
         UpdateAllButton.Visibility = library.Any(g => g.Built) ? Visibility.Visible : Visibility.Collapsed;
         UpdateAllButton.IsEnabled = runner == null && library.Any(g => g.Update == true);
+        // (disabled: why, on the button itself; a game without its game files kept is the row's own Install)
+        UpdateAllButton.ToolTip = library.Any(g => g.Update == true) ? null : T(S.LibNothing);
+        ToolTipService.SetShowOnDisabled(UpdateAllButton, true);
+        Grid.SetIsSharedSizeScope(GameList, true);   // (every row's buttons in the same columns)
         for (var i = 0; i < library.Count; i++)
         {
             var g = library[i];
@@ -717,9 +721,7 @@ public partial class MainWindow : Window
             texts.Children.Add(new TextBlock { Text = g.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
             texts.Children.Add(new TextBlock { Text = LibraryState(g), Style = (Style)FindResource("Faint"), TextWrapping = TextWrapping.Wrap,
                                                Foreground = (Brush)FindResource(g.Update == true ? "Brand" : "InkSoft") });
-            if (g.Built)
-                texts.Children.Add(new TextBlock { Text = g.Folder, Style = (Style)FindResource("Faint"), TextTrimming = TextTrimming.CharacterEllipsis,
-                                                   ToolTip = g.Folder });
+            if (g.Built) texts.Children.Add(MiddleElided(g.Folder));
             if (g.OtherFolders.Length > 0)
                 texts.Children.Add(new TextBlock { Text = string.Format(T(S.LibAlsoIn), string.Join(", ", g.OtherFolders)),
                                                    Style = (Style)FindResource("Faint"), TextWrapping = TextWrapping.Wrap });
@@ -728,30 +730,65 @@ public partial class MainWindow : Window
             if (taken != null)
                 texts.Children.Add(new TextBlock { Text = taken, Style = (Style)FindResource("Faint"), TextWrapping = TextWrapping.Wrap,
                                                    Foreground = (Brush)FindResource("Bad"), Margin = new Thickness(0, 4, 0, 0) });
-            var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            if (!g.Built || !g.Kept) actions.Children.Add(InstallButton(g, taken));   // (a folder with no game files kept: built again from them)
-            if (g.Built && g.Update == true)
+            // (three button columns shared by every row, so Install, Update, Open folder and Play line up from row to row)
+            var row = new Grid { Margin = new Thickness(16, 10, 12, 10),
+                                 ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = "LibInstall" },
+                                                       new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = "LibOpen" },
+                                                       new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = "LibPlay" } } };
+            row.Children.Add(texts);
+            void Place(FrameworkElement b, int column)
+            {
+                b.VerticalAlignment = VerticalAlignment.Center;
+                Grid.SetColumn(b, column);
+                row.Children.Add(b);
+            }
+            if (!g.Built || !g.Kept) Place(InstallButton(g, taken), 1);   // (a folder with no game files kept: built again from them)
+            else if (g.Update == true)
             {
                 var update = new Button { Style = (Style)FindResource("Quiet"), Height = 36, Content = T(S.LibUpdateOne), Margin = new Thickness(0, 0, 10, 0),
                                           IsEnabled = runner == null };
                 update.Click += (_, _) => UpdateGameRow(g);
-                actions.Children.Add(update);
+                Place(update, 1);
             }
             if (g.Built)
             {
-                var open = new Button { Style = (Style)FindResource("Quiet"), Height = 36, Content = T(S.OpenFolder), Margin = new Thickness(0, 0, 10, 0) };
+                var open = new Button { Style = (Style)FindResource("Quiet"), Height = 36, Content = T(S.OpenFolder), Margin = new Thickness(0, 0, 10, 0),
+                                        ToolTip = g.Folder };
                 open.Click += (_, _) => Process.Start(new ProcessStartInfo("explorer.exe", $"\"{g.Folder}\"") { UseShellExecute = true });
-                actions.Children.Add(open);
-                actions.Children.Add(RowPlayButton(g));
+                Place(open, 2);
+                Place(RowPlayButton(g), 3);
             }
-            var row = new Grid { Margin = new Thickness(16, 10, 12, 10),
-                                 ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } } };
-            Grid.SetColumn(actions, 1);
-            row.Children.Add(texts);
-            row.Children.Add(actions);
             GameList.Children.Add(row);
         }
     }
+
+    /// A folder's path in a row, its middle left out ("C:\\Users\\…\\Games\\Hookshot-mkw") to the width the row leaves it, so it
+    /// never runs under the buttons; the whole path in its tooltip (and Open folder's)
+    TextBlock MiddleElided(string path)
+    {
+        var block = new TextBlock { Style = (Style)FindResource("Faint"), ToolTip = path, Text = path };
+        void Fit()
+        {
+            var width = block.ActualWidth;
+            if (width <= 0) return;
+            var dpi = VisualTreeHelper.GetDpi(block).PixelsPerDip;
+            var face = new Typeface(block.FontFamily, block.FontStyle, block.FontWeight, block.FontStretch);
+            double Measure(string t) => new FormattedText(t, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, face,
+                                                          block.FontSize, Brushes.Black, dpi).WidthIncludingTrailingWhitespace;
+            if (Measure(path) <= width) { block.Text = path; return; }
+            int lo = 0, hi = path.Length;   // (the most letters kept, half from each end, that fit)
+            while (lo < hi)
+            {
+                var keep = (lo + hi + 1) / 2;
+                if (Measure(Elided(path, keep)) <= width) lo = keep; else hi = keep - 1;
+            }
+            block.Text = Elided(path, lo);
+        }
+        block.SizeChanged += (_, _) => Fit();
+        return block;
+    }
+
+    static string Elided(string path, int keep) => path[..((keep + 1) / 2)] + "…" + path[(path.Length - keep / 2)..];
 
     Button RowPlayButton(Games.LibraryGame g)
     {
@@ -1766,7 +1803,8 @@ public partial class MainWindow : Window
                   folders.Any(f => File.Exists(System.IO.Path.Combine(f, ".hookshot_fsr")) &&
                                    File.Exists(System.IO.Path.Combine(f, "amd_fidelityfx_upscaler_vk.dll")) &&
                                    File.Exists(System.IO.Path.Combine(f, "LICENSE-AMD-FSR-SDK.md")));
-        var args = new List<string> { "--update-all", baseFolder };
+        // (the build files folder the player chose, every game's from it: --work-base, never the default one on the system drive)
+        var args = new List<string> { "--update-all", baseFolder, "--work-base", Storage.Work };
         if (saved?.Fsr == true) args.Add("--fsr");
         Run(tools, ShaderStep.Args(args, prepareNow), keepRows: true, dlss: dlss, fsr: fsr);
     }

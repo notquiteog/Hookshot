@@ -59,6 +59,25 @@ DLSS_LICENSE = (
     "Hookshot never includes or shares them: never share a game folder built with them.\n\nDo you accept NVIDIA's license?")
 
 
+class ElidedLabel(QLabel):
+    """A folder's path in a library row, its middle left out to the width the row leaves it (Qt's ElideMiddle), so it never
+    runs under the buttons; the whole path in its tooltip (and Open folder's). MainWindow.xaml.cs MiddleElided"""
+
+    def __init__(self, path):
+        super().__init__(path)
+        self.path = path
+        self.setFont(font(12))
+        set_color(self, "InkFaint")
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setToolTip(path)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)   # (the row's width, not the path's)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self.setText(self.fontMetrics().elidedText(self.path, Qt.TextElideMode.ElideMiddle, max(1, self.width())))
+
+
 def game_results(lines):
     """Update all's outcomes from its lines (Games.cs Results): (key, folder, result, text) for each @@game end line, with the
     folder of the start line before it (game_folders.update_line reads them)"""
@@ -723,8 +742,7 @@ class Window(QWidget):
         self.caption.raise_()
 
     def _files_page(self):
-        self.files_title, self.files_sub = heading("Build your game"), sub("Pick your game files and where the game goes. Hookshot does "
-                                                                            "the rest, once.")
+        self.files_title, self.files_sub = heading(self.T("LibTitle")), sub(self.T("LibSub"))
         self.dump_list = QVBoxLayout()
         self.dump_list.setSpacing(0)
         dump_holder = holder(self.dump_list)
@@ -790,7 +808,7 @@ class Window(QWidget):
         games_card = Card()
         games_card.setLayout(vbox(self.game_list))
         self.games_label = section(self.T("LibTitle").upper())
-        self.update_all_button = Button(self.T("LibUpdateAll"), "link")
+        self.update_all_button = Button(self.T("LibUpdateAll"), "quiet")   # (a button: disabled with why in its tooltip)
         self.update_all_button.clicked.connect(self.update_all_click)
         self.update_all_button.hide()
         self.games_box = holder(vbox(hbox(self.games_label, None, self.update_all_button), games_card))
@@ -1063,13 +1081,13 @@ class Window(QWidget):
                                    "%s is the latest version. Pick game files below only to build it again from scratch." % game)
             self.build_button.setText("Play")
         elif self.mode == "update_builder":
-            self.files_title.setText("Build your game")
+            self.files_title.setText(self.T("LibTitle"))   # (the page is every game's: no game named, no product either)
             self.files_sub.setText("Hookshot Builder %s is available (this one is %s): update it first, then build." % (self.latest_tag,
                                                                                                                      builder))
             self.build_button.setText("Update builder")
         else:
-            self.files_title.setText("Build your game")
-            self.files_sub.setText("Pick your game files and where the game goes. Hookshot does the rest, once.")
+            self.files_title.setText(self.T("LibTitle"))
+            self.files_sub.setText(self.T("LibSub"))
             self.build_button.setText("Build the game")
         self.build_button.setEnabled(self.mode != "build" or (self.source_ready() and len(out) > 2))
         self.about_text.setVisible(self.mode == "build")
@@ -1265,17 +1283,21 @@ class Window(QWidget):
         self.update_all_button.setText(self.T("LibUpdateAll"))
         self.update_all_button.setVisible(any(g["built"] for g in games))
         self.update_all_button.setEnabled(not self.runner and any(g["update"] is True for g in games))
+        self.update_all_button.setToolTip("" if any(g["update"] is True for g in games) else self.T("LibNothing"))
+        # (one grid for every row: the buttons in the same three columns from row to row, the texts in the first)
+        grid = QGridLayout()
+        grid.setContentsMargins(16, 0, 12, 0)
+        grid.setHorizontalSpacing(10)
+        grid.setColumnStretch(0, 1)
+        self.game_list.addWidget(holder(grid))
         for i, g in enumerate(games):
             if i:
-                self.game_list.addWidget(Hline())
+                grid.addWidget(Hline(), 2 * i - 1, 0, 1, 4)
             name = label(g["name"], 14, W_SEMIBOLD)
             name.setTextFormat(Qt.TextFormat.PlainText)
             texts = [name, faint(self.library_state(g))]
             if g["built"]:
-                where = faint(g["folder"])
-                where.setTextFormat(Qt.TextFormat.PlainText)
-                where.setToolTip(g["folder"])
-                texts.append(where)
+                texts.append(ElidedLabel(g["folder"]))
             if g["other_folders"]:
                 texts.append(faint(self.T("LibAlsoIn").format(", ".join(g["other_folders"]))))
             # (its own folder holds another game: an install there would replace that game, and make_game.py refuses it)
@@ -1286,28 +1308,31 @@ class Window(QWidget):
                 set_color(bad, "Bad")
                 texts.append(bad)
             for t in texts[1:]:
-                t.setTextFormat(Qt.TextFormat.PlainText)
-                t.setWordWrap(True)
-            actions = []
+                if not isinstance(t, ElidedLabel):
+                    t.setTextFormat(Qt.TextFormat.PlainText)
+                    t.setWordWrap(True)
+            r = 2 * i
+            grid.addWidget(holder(vbox(*texts, margins=(0, 10, 0, 10))), r, 0)
             if not g["built"] or not g["kept"]:   # (a folder with no game files kept: built again from them)
                 install = Button(self.T("LibInstall"), "quiet")
                 install.setEnabled(not taken and not self.runner)
                 install.setToolTip(taken or "")
                 install.clicked.connect(lambda _=False, g=g, b=install: self.install_menu(g, b))
-                actions += [install, 10]
-            if g["built"] and g["update"] is True:
+                grid.addWidget(install, r, 1)
+            elif g["update"] is True:
                 update = Button(self.T("LibUpdateOne"), "quiet")
                 update.setEnabled(not self.runner)
                 update.clicked.connect(lambda _=False, g=g: self.update_game_row(g))
-                actions += [update, 10]
+                grid.addWidget(update, r, 1)
             if g["built"]:
                 open_button = Button(self.T("OpenFolder"), "quiet")
+                open_button.setToolTip(g["folder"])
                 open_button.clicked.connect(lambda _=False, f=g["folder"]: core.open_folder(f))
                 play = Button(self.T("Play"), "go", icon="play")
                 play.setAccessibleName("%s %s" % (self.T("Play"), g["name"]))
                 play.clicked.connect(lambda _=False, g=g: self.play_game(g))
-                actions += [open_button, 10, play]
-            self.game_list.addWidget(holder(hbox(vbox(*texts), None, 12, *actions, margins=(16, 10, 12, 10))))
+                grid.addWidget(open_button, r, 2)
+                grid.addWidget(play, r, 3)
 
     def play_game(self, g):
         """(the row's own folder, where the game is: a game an older Builder built into another game's folder plays there)"""
@@ -2070,7 +2095,9 @@ class Window(QWidget):
         self.build_title.setText(self.T("LibUpdating"))
         dlss = any(os.path.isfile(os.path.join(f, "ngx", "nvngx_dlss.dll")) for f in folders) and (
             bool(core.load_settings().get("DlssLicense")) or os.path.isfile(os.path.join(core.ngx_sdk(), "LICENSE.txt")))
-        self.run(tools, ["--update-all", base] + ([] if self.prepare_now else [SHADERS_LATER]), keep_rows=True, dlss=dlss)
+        # (the build files folder the player chose, every game's from it: --work-base, never the default one on the system drive)
+        self.run(tools, ["--update-all", base, "--work-base", core.work()] + ([] if self.prepare_now else [SHADERS_LATER]),
+                 keep_rows=True, dlss=dlss)
 
     def game_framed(self, line):
         """An @@game line of Update all: a game's update begins (its steps afresh, "Updating Mario Kart World (2 of 3)") or ends

@@ -404,6 +404,21 @@ def desktop_exec(path):
 APP_ID = "io.github.NotRexed.Hookshot"   # (the game's window names itself so: host/posix/display_sdl.c's HOS_APP_ID)
 
 
+def elide_middle(text, room, measure):
+    """text with its middle left out ("/home/me/…/Games/Hookshot-mkw") so measure(text) fits room, as many letters kept as fit,
+    half from each end; the whole text when it fits"""
+    if measure(text) <= room:
+        return text
+    lo, hi = 0, len(text)
+    while lo < hi:
+        keep = (lo + hi + 1) // 2
+        if measure(text[:(keep + 1) // 2] + "…" + text[len(text) - keep // 2:]) <= room:
+            lo = keep
+        else:
+            hi = keep - 1
+    return text[:(lo + 1) // 2] + "…" + text[len(text) - lo // 2:]
+
+
 def menu_entry(folder):
     """The menu entry's file and name for a game folder, by the game it holds (game_folders.folder_key): hookshot.desktop,
     "Hookshot", for the default game, the entry it always had (made again, not a second one beside it);
@@ -976,8 +991,9 @@ class Builder(tk.Tk):
         f.columnconfigure(0, weight=1, minsize=px(580))   # (every page px(800) wide: the window keeps its width, as on Windows)
         f.columnconfigure(1, minsize=px(20))
         f.columnconfigure(2, minsize=px(200))
-        ttk.Label(f, text="Build your game", style="Title.TLabel").grid(row=0, column=0, columnspan=3, sticky="w")
-        ttk.Label(f, text="Pick your game files and where the game goes. Hookshot does the rest, once.", style="Sub.TLabel",
+        # (the page is every game's: the library's heading, no game named and no product either)
+        ttk.Label(f, text=self.T("LibTitle"), style="Title.TLabel").grid(row=0, column=0, columnspan=3, sticky="w")
+        ttk.Label(f, text=self.T("LibSub"), style="Sub.TLabel",
                   wraplength=px(800)).grid(row=1, column=0, columnspan=3, sticky="w", pady=(px(6), 0))
         games = self.library_games()
         if games:
@@ -1092,55 +1108,77 @@ class Builder(tk.Tk):
         box = ttk.Frame(parent)
         box.columnconfigure(0, weight=1)
         self.section(box, self.T("LibTitle"), 0, top=16)
-        if any(g["built"] for g in games):
-            update_all = ttk.Button(box, text=self.T("LibUpdateAll"), style="Link.TButton", cursor="hand2", command=self.update_all_click)
-            update_all.grid(row=0, column=0, sticky="e", pady=(px(16), px(10)))
-            if not any(g["update"] is True for g in games):
+        due = any(g["update"] is True for g in games)
+        if any(g["built"] for g in games):   # (a button, enabled when an update is due, else disabled and saying why)
+            head = ttk.Frame(box)
+            head.grid(row=0, column=0, sticky="e", pady=(px(16), px(10)))
+            if not due:
+                ttk.Label(head, text=self.T("LibNothing"), style="Small.TLabel").pack(side="left", padx=(0, px(10)))
+            update_all = ttk.Button(head, text=self.T("LibUpdateAll"), cursor="hand2", command=self.update_all_click)
+            update_all.pack(side="left")
+            if not due:
                 update_all.state(["disabled"])
         rows = ttk.Frame(box)
         rows.grid(row=1, column=0, sticky="we")
         rows.columnconfigure(0, weight=1)
         home = os.path.expanduser("~").rstrip("/")
+        paths, wrapped = [], []   # (the folder labels, elided below to the room the buttons leave; the labels that wrap to it)
 
         def shown(f):
             return "~" + f[len(home):] if home and f.startswith(home + "/") else f
         for i, g in enumerate(games):
             if i:
-                tk.Frame(rows, height=max(1, px(1)), background=GLASS_LINE).grid(row=2 * i - 1, column=0, columnspan=2, sticky="we",
+                tk.Frame(rows, height=max(1, px(1)), background=GLASS_LINE).grid(row=2 * i - 1, column=0, columnspan=4, sticky="we",
                                                                                 pady=px(6))
             texts = ttk.Frame(rows)
-            texts.grid(row=2 * i, column=0, sticky="we")
+            texts.grid(row=2 * i, column=0, sticky="we", padx=(0, px(12)))
             ttk.Label(texts, text=g["name"], style="Game.TLabel").pack(anchor="w")
-            ttk.Label(texts, text=self.library_state(g), style="Small.TLabel", wraplength=px(440)).pack(anchor="w")
+            state = ttk.Label(texts, text=self.library_state(g), style="Small.TLabel")
+            state.pack(anchor="w")
+            wrapped.append(state)
             if g["built"]:
-                ttk.Label(texts, text=shown(g["folder"]), style="Small.TLabel").pack(anchor="w")
+                where = ttk.Label(texts, text=shown(g["folder"]), style="Small.TLabel")
+                where.pack(anchor="w")
+                paths.append((where, shown(g["folder"])))
             if g["other_folders"]:
-                ttk.Label(texts, text=self.T("LibAlsoIn").format(", ".join(shown(f) for f in g["other_folders"])),
-                          style="Small.TLabel", wraplength=px(440)).pack(anchor="w")
+                also = ttk.Label(texts, text=self.T("LibAlsoIn").format(", ".join(shown(f) for f in g["other_folders"])), style="Small.TLabel")
+                also.pack(anchor="w")
+                wrapped.append(also)
             # (its own folder holds another game: an install there would replace that game, and make_game.py refuses it)
             taken = (self.T("LibTaken").format(shown(g["own_folder"]), game_profile.GAMES[g["own_folder_holds"]].game)
                      if not g["built"] and g["own_folder_holds"] in game_profile.GAMES else None)
             if taken:
-                ttk.Label(texts, text=taken, style="Bad.Small.TLabel", wraplength=px(440)).pack(anchor="w", pady=(px(4), 0))
-            actions = ttk.Frame(rows)
-            actions.grid(row=2 * i, column=1, sticky="e")
+                bad = ttk.Label(texts, text=taken, style="Bad.Small.TLabel")
+                bad.pack(anchor="w", pady=(px(4), 0))
+                wrapped.append(bad)
+            # (three button columns shared by every row, so Install, Update, Open folder and Play line up from row to row)
             if not g["built"] or not g["kept"]:   # (a folder with no game files kept: built again from them)
-                install = ttk.Button(actions, text=self.T("LibInstall"), cursor="hand2")
+                install = ttk.Button(rows, text=self.T("LibInstall"), cursor="hand2")
                 install.configure(command=lambda g=g, b=install: self.install_menu(g, b))
-                install.pack(side="left", padx=(0, px(8)))
+                install.grid(row=2 * i, column=1, sticky="we", padx=(0, px(8)))
                 if taken:
                     install.state(["disabled"])
-            if g["built"] and g["update"] is True:
-                ttk.Button(actions, text=self.T("LibUpdateOne"), cursor="hand2",
-                           command=lambda f=g["folder"]: self.update_game_row(f)).pack(side="left", padx=(0, px(8)))
+            elif g["update"] is True:
+                ttk.Button(rows, text=self.T("LibUpdateOne"), cursor="hand2",
+                           command=lambda f=g["folder"]: self.update_game_row(f)).grid(row=2 * i, column=1, sticky="we", padx=(0, px(8)))
             if g["built"]:
-                ttk.Button(actions, text=self.T("OpenFolder"), cursor="hand2",
-                           command=lambda f=g["folder"]: subprocess.Popen(["xdg-open", f])).pack(side="left", padx=(0, px(8)))
-                play = ttk.Button(actions, text=self.T("Play"), style="Go.TButton", image=self.images["play"], compound="left",
+                ttk.Button(rows, text=self.T("OpenFolder"), cursor="hand2",
+                           command=lambda f=g["folder"]: subprocess.Popen(["xdg-open", f])).grid(row=2 * i, column=2, sticky="we",
+                                                                                                  padx=(0, px(8)))
+                play = ttk.Button(rows, text=self.T("Play"), style="Go.TButton", image=self.images["play"], compound="left",
                                   cursor="hand2", command=lambda f=g["folder"]: self.play_and_close(f))
-                play.pack(side="left")
+                play.grid(row=2 * i, column=3, sticky="we")
                 if not game_ready(g["folder"]):   # (a Windows build of the game: not one this Builder starts)
                     play.state(["disabled"])
+        # (the room the button columns leave the texts, in the form's px(800): each path's middle left out to it, the whole path
+        # on Open folder, and the longer lines wrapped to it)
+        rows.update_idletasks()
+        buttons = sum(rows.grid_bbox(column, 0)[2] for column in (1, 2, 3)) if games else 0
+        room = max(px(200), px(800) - buttons - px(12))
+        for label, full in paths:
+            label.configure(text=elide_middle(full, room, lambda t: int(self.tk.call("font", "measure", "HsSmall", t))))
+        for label in wrapped:
+            label.configure(wraplength=room)
         if game_ready(self.cfg.get("out")):   # (the pipeline list of the folder built last, as beside its Play before)
             self.share_row(box, self.cfg["out"], wrap=px(560)).grid(row=2, column=0, sticky="w", pady=(px(10), 0))
         return box
@@ -1229,7 +1267,8 @@ class Builder(tk.Tk):
         choice is start_make_update's, for any of the folders. No --work: make_game.py gives each game its own work folder"""
         self.update_all, self.update_all_folders, self.update_all_at, self.update_all_folder = [], list(folders), 0, ""
         dlss = bool(self.dlss.get()) if getattr(self, "dlss_toggled", False) else any(folder_has_dlss(f) for f in folders)
-        cmd = [sys.executable, "-I", os.path.join(ROOT, "nx2", "make_game.py"), "--update-all", base] + \
+        # (the Builder's build files folder, every game's from it: --work-base, never another default)
+        cmd = [sys.executable, "-I", os.path.join(ROOT, "nx2", "make_game.py"), "--update-all", base, "--work-base", cache_dir()] + \
             ([] if self.prepare.get() else ["--no-prepare-shaders"]) + dlss_args(dlss)
         self.heading.configure(text=self.T("LibUpdating"))
         self.stage_text.set("Starting")
