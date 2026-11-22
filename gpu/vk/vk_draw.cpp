@@ -8,6 +8,7 @@
 // Pipelines persist in a VkPipelineCache next to the executable (mkw_vk_pipelines.bin).
 #include <algorithm>
 #include "game_profile.h"   // (the program keys this game's renderer treats specially)
+#include "cold_check.h"   // (notes_lost_by_driver: once per driver)
 #include <filesystem>
 #include <iterator>
 #include <tuple>
@@ -9749,10 +9750,19 @@ void precompile_at_create(void (*progress)(size_t done, size_t total)) {
 /// empties it; the marker (precompile_built_write) still said every note had been built, so each listed pipeline was compiled in
 /// play with its draws left out (the gate route with NVIDIA's cache pointed at an empty folder: 10,263 in no cache, 702,312 draws
 /// left out in 140 s, 21 s of waits), and only the next start built them before the title (load_default's marker, which keeps
-/// them all for good). Now the warm pass runs again at this start, behind its progress. RX_VK_COLD_CHECK=0: not asked
+/// them all for good). Now the warm pass runs again at this start, behind its progress. RX_VK_COLD_CHECK=0: not asked.
+/// Once per driver (cold_check.h): with the driver's own cache off, or too small for the notes, every start found them lost
+/// and built them all again before the title; a start whose driver they were built again for does not ask
 bool notes_lost_by_driver() {
     static const bool off = getenv("RX_VK_COLD_CHECK") && atoi(getenv("RX_VK_COLD_CHECK")) == 0;
     if (off || !dev.vk13.pipelineCreationCacheControl) return false;
+    const std::string rewarmed = pipe_notes_path() + ".rewarmed";
+    const std::string driver = cold_check::stamp(dev.props.vendorID, dev.props.deviceID, dev.props.driverVersion, dev.props.pipelineCacheUUID);
+    if (!cold_check::ask(rewarmed, driver)) {
+        logf("vk: the driver's shader cache is not asked: the notes were built again for this driver already (once per driver: with "
+             "its own cache off or too small, every start would build them; RX_VK_COLD_CHECK=0: never asked)");
+        return false;
+    }
     constexpr size_t kSample = 48;
     const std::vector<NoteRef> refs = pipe_notes_refs();
     if (refs.size() < kSample) return false;
@@ -9792,8 +9802,10 @@ bool notes_lost_by_driver() {
     const bool lost = asked >= kSample / 3 && cold_n * 2 > asked;
     logf("vk: the driver's shader cache has %zu of %zu noted pipelines asked (a sample, in %.0f ms)%s", asked - cold_n, asked,
          std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
-         lost ? ": it lost them (a driver update, or evicted): they are built again before the title (RX_VK_COLD_CHECK=0: not asked)"
+         lost ? ": it lost them (a driver update, or evicted): they are built again before the title, once for this driver "
+                "(RX_VK_COLD_CHECK=0: not asked)"
               : "");
+    if (lost) cold_check::record(rewarmed, driver);
     return lost;
 }
 
