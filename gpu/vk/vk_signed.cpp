@@ -186,9 +186,9 @@ const char* permissionless(const std::string& p) {
     struct statfs fs{};
     if (statfs(p.c_str(), &fs) != 0) return nullptr;
     switch ((unsigned long)fs.f_type) {
-    case 0x7366746eUL: return "NTFS (ntfs3)";
+    case 0x7366746eUL: return "NTFS, ntfs3";
     case 0x5346544eUL: return "NTFS";
-    case 0x65735546UL: return "FUSE (ntfs-3g or another)";
+    case 0x65735546UL: return "FUSE, ntfs-3g or another";
     case 0x2011bab0UL: return "exFAT";
     case 0x4d44UL: return "FAT";
     default: return nullptr;
@@ -209,11 +209,11 @@ bool safe(const std::string& p, const char* what, const char* kind) {
     const int level = check_level();
     if (const char* fs = permissionless(p)) {
         if (level >= 2) {
-            logf("vk: %s: %s %s is on a %s drive, which keeps no Unix permissions: not loading it (RX_VK_LIBRARY_CHECK=2)",
+            logf("vk: %s: %s %s is on a drive that keeps no Unix permissions (%s): not loading it (RX_VK_LIBRARY_CHECK=2)",
                  what, kind, p.c_str(), fs);
             return false;
         }
-        logf("vk: %s: %s %s is on a %s drive, which keeps no Unix permissions: loaded without checking who may write it",
+        logf("vk: %s: %s %s is on a drive that keeps no Unix permissions (%s): loaded without checking who may write it",
              what, kind, p.c_str(), fs);
         return true;
     }
