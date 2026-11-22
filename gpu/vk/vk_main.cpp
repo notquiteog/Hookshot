@@ -60,26 +60,6 @@ static PFN_vkGetInstanceProcAddr get_instance_proc;
 
 bool load_global() {
 #ifdef _WIN32   // (hookshot: the loader from System32 only, not from the current folder or PATH)
-    // NVIDIA Optimus hybrid laptop architecture (CPU-GPU PCIe bus for display): if no ICD is explicitly set,
-    // locate NVIDIA's nv-vk64.json in DriverStore to bind Vulkan exclusively to the dGPU, bypassing Intel iGPU loader hooking
-    // and preventing PCIe display contention.
-    if (!getenv("VK_ICD_FILENAMES")) {
-        WIN32_FIND_DATAA fd;
-        HANDLE hFind = FindFirstFileA("C:\\Windows\\System32\\DriverStore\\FileRepository\\nv*", &fd);
-        if (hFind != INVALID_HANDLE_VALUE) {
-            do {
-                if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-                    char path[MAX_PATH];
-                    snprintf(path, sizeof(path), "C:\\Windows\\System32\\DriverStore\\FileRepository\\%s\\nv-vk64.json", fd.cFileName);
-                    if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) {
-                        SetEnvironmentVariableA("VK_ICD_FILENAMES", path);
-                        break;
-                    }
-                }
-            } while (FindNextFileA(hFind, &fd));
-            FindClose(hFind);
-        }
-    }
     HMODULE m = LoadLibraryExA("vulkan-1.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
 #else
     HMODULE m = LoadLibraryA("vulkan-1.dll");   // (linux: libvulkan.so.1, host/posix/win32_posix.c)
@@ -609,11 +589,9 @@ bool create_device() {
     const bool want_present_wait = presenter_family != UINT32_MAX && has_extension(exts, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
                                    has_extension(exts, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
     if (want_present_wait)
-        for (const char* name : { VK_KHR_PRESENT_ID_EXTENSION_NAME, VK_KHR_PRESENT_WAIT_EXTENSION_NAME }) {
+        for (const char* name : {VK_KHR_PRESENT_ID_EXTENSION_NAME, VK_KHR_PRESENT_WAIT_EXTENSION_NAME}) {
             bool listed = false;
-            for (const char* w : want) {
-                if (!strcmp(w, name)) { listed = true; break; }
-            }
+            for (const char* w : want) listed |= !strcmp(w, name);
             if (!listed) want.push_back(name);
         }
 

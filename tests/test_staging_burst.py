@@ -33,9 +33,9 @@ def main():
     p.add_argument("--cxx", default="g++")
     a = p.parse_args()
     tex = (ROOT / "gpu/vk/vk_texture.cpp").read_text(encoding="utf-8")
-    arena = "constexpr uint64_t kArena = 16ull << 20;   // (#637: 16 MB arenas)"
+    arena = "constexpr uint64_t kArena = 64ull << 20;"
     if tex.count(arena) != 1:
-        raise SystemExit("vk_texture.cpp's arenas are no longer 16 MB (#637): update this test")
+        raise SystemExit("vk_texture.cpp's arenas are no longer 64 MB: update this test")
     frame = block(tex, "void texture_frame(")
     loop = block(frame, "for (auto it = arenas.begin(); it != arenas.end();) {")
     for needle in ("const bool idle = it->value <= completed && it->value != rec_value;", "if (!spare_give_back(*it)) destroy_buffer(it->buffer, it->allocation);",

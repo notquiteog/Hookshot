@@ -53,8 +53,8 @@ class TargetImagePoolTests(unittest.TestCase):
         self.assertIn("target && target_images_pool() ? target_images_pool() : images_pool()", image)
         pool = block(vma, "VmaPool target_images_pool()")
         self.assertIn('getenv("RX_VK_TARGET_BLOCKS")', pool)
-        self.assertIn("pi.blockSize = block_size;", pool)   # (kImageBlock, or 16 MB at 8 GB or less: #637)
-        self.assertIn("device_local_heap_bytes() <= vram_compact::GLOBAL_MIN_GRAPHICS_REQ ? std::min<uint64_t>(kImageBlock, 16ull << 20) : kImageBlock", pool)
+        self.assertIn("pi.blockSize = block_size;", pool)   # (kImageBlock, or 16 MB under 8 GB: #637)
+        self.assertIn("vram_compact::under_8gb(device_local_heap_bytes()) ? std::min<uint64_t>(kImageBlock, 16ull << 20) : kImageBlock", pool)
         self.assertIn("void vma_log_image_blocks()", vma)
 
     def test_the_dead_targets_are_swept_every_present_after_one_unused(self):
@@ -117,7 +117,8 @@ class TargetImagePoolTests(unittest.TestCase):
         self.assertIn("pool_put(*it);", loop[:loop.index("destroy_image(")])
         trim = frame.index("pool_trim();")
         self.assertLess(trim, frame.index("if (!dead_targets::pass_due(frame_no)) {"))   # (every present, not every tenth)
-        self.assertIn("pool_pressure = !known ? 0 : (used > allowed / 100 * 97) ? 2 : (pressure > allowed / 10 * 9) ? 1 : 0;", frame)   # (#637: three tiers)
+        # (over 90% the pool is given back, as before; #637, under 8 GB: halved over 90%, given back over 97% of the count)
+        self.assertIn("pool_pressure = !known || pressure <= allowed / 10 * 9 ? 0 : !vram_under_8gb() || used > allowed / 100 * 97 ? 2 : 1;", frame)
 
     def test_the_trim_is_bounded_a_present_and_gives_back_idle_and_excess_images(self):
         trim = block(self.tex, "size_t pool_trim()")

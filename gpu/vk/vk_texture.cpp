@@ -302,7 +302,14 @@ struct Pooled {
 std::mutex pool_mu;
 std::unordered_map<uint64_t, std::vector<Pooled>> target_pool;   // by pool_key_of
 uint64_t pool_bytes, pool_n, st_pool_reused, st_pool_made, st_pool_destroyed;
-uint8_t pool_pressure = 0;   // 0: normal, 1: pressed (>90%, halve pool), 2: critical (>97%, flush pool)
+// (0: room; 2: VRAM near what the driver allows, over 90%: the pool given back. #637, under 8 GB: 1 over 90%, the pool halved,
+// and 2 only over 97% of the driver's count: texture_frame)
+uint8_t pool_pressure = 0;
+/// (#637) Whether this card has less than 8 GB (vram_compact::under_8gb), where #637's rules apply
+bool vram_under_8gb() {
+    static const bool v = vram_compact::under_8gb(device_vram_bytes());
+    return v;
+}
 bool compact_on() {   // (hookshot: the textures in a pool of their own, compacted: compact_step. On unless RX_VK_COMPACT=0)
     static const bool v = vram_compact::enabled(getenv("RX_VK_COMPACT"));
     return v;
@@ -547,7 +554,7 @@ struct Arena {
     std::chrono::steady_clock::time_point used_at;   // (when it last staged something)
 };
 std::vector<Arena> arenas;
-constexpr uint64_t kArena = 16ull << 20;   // (#637: 16 MB arenas)
+constexpr uint64_t kArena = 64ull << 20;
 // (every arena staging() made, and the time making them took: the memory line's "made so far")
 std::atomic<uint64_t> st_arena_makes{0};
 std::atomic<int64_t> st_arena_make_ns{0};
@@ -2512,7 +2519,7 @@ Texture* create(const Key& key, const nvn_tex* t, VkFormat vf, bool astc, int bw
     {   // (decoded ASTC as BC3: 2D, at most the scratch's size; from blocks of 6 x 6 texels up (2.25 bits a texel or
         // less: BC3's 8 keep what they have) from 2 MB as RGBA8 (RX_VK_ASTC_BC_MB), the finer ones (UI, characters)
         // only from 64 MB)
-        static const uint64_t low = (uint64_t)(getenv("RX_VK_ASTC_BC_MB") ? atoi(getenv("RX_VK_ASTC_BC_MB")) : 1) << 20;
+        static const uint64_t low = (uint64_t)(getenv("RX_VK_ASTC_BC_MB") ? atoi(getenv("RX_VK_ASTC_BC_MB")) : 2) << 20;
         // (issue 519: on a card the driver gives under 6 GB, the finer ones too. An RTX 3050 Laptop (4 GB, 3.3 allowed)
         // held 1.75 GB of decoded ASTC in Goron City, drawn every frame: 5.6 GB used of 3.3, paged, 4 fps. As BC3, a
         // quarter. Now 8 GB cards and integrated GPUs too: astc_bc_policy.h. RX_VK_ASTC_BC_ALL=1 or 0 says so on any card)
@@ -2996,13 +3003,7 @@ namespace {
 /// budget (40: only an area load's burst; at 8 the ground's streamed textures waited a frame in ordinary play and the ground
 /// flickered, Discord 2026-11-09), 0: no deferral, as before
 bool upload_defer(const Texture& tex) {
-    // Terrain materials (layer arrays > 1 or very large surfaces) must always upload synchronously
-    // to prevent ground flickering. Only defer smaller single-layer NPC/character/prop textures.
-    const bool is_terrain = (tex.layers > 1) || (tex.width > 1024 && tex.height > 1024);
-    if (is_terrain) return false;
-
-    // Limit NPC/prop ASTC upload stalls to 12 ms per frame to protect 60 fps frame pacing (16.6 ms target)
-    static const int64_t budget_ns = (int64_t)(getenv("RX_VK_UPLOAD_BUDGET_MS") ? atof(getenv("RX_VK_UPLOAD_BUDGET_MS")) : 12.0) * 1000000;
+    static const int64_t budget_ns = (int64_t)(getenv("RX_VK_UPLOAD_BUDGET_MS") ? atof(getenv("RX_VK_UPLOAD_BUDGET_MS")) : 40.0) * 1000000;
     if (!budget_ns || !upload_defer_ok || tex.uploaded || !tex.astc || tex.gpu_written) return false;
     if (frame_upload_ns.load(std::memory_order_relaxed) < budget_ns) return false;
     st_deferred.fetch_add(1, std::memory_order_relaxed), st_deferred_frame.fetch_add(1, std::memory_order_relaxed);
@@ -4632,7 +4633,7 @@ void compact_step(uint64_t completed) {
         else {
             uint64_t used_vram = 0, allowed_vram = 0;
             if (vram_usage(&used_vram, &allowed_vram))
-                min_free = vram_compact::default_min_free(allowed_vram);
+                min_free = vram_compact::default_min_free(allowed_vram, vram_under_8gb());
         }
         uint64_t block_bytes = 0, free_bytes = 0, kept = 0;   // (kept: the blocks made at the start, which no run gives back)
         if (!textures_pool_usage(&block_bytes, &free_bytes, &kept) ||
@@ -4884,7 +4885,6 @@ void texture_frame(uint64_t completed) {
             // (and one nothing has staged into for 30 s: Kokiri Forest's gameplay stages next to nothing, and the 64 MB it kept are VRAM
             // behind the BAR. A load makes one again. RX_VK_STAGING_IDLE_S=<n>: that long, 0: kept)
             static const int64_t idle_s = getenv("RX_VK_STAGING_IDLE_S") ? atoll(getenv("RX_VK_STAGING_IDLE_S")) : 30;
-            // (#637) always keep at least 2 warm arenas against stale eviction, against 70-108 ms vkAllocateMemory stalls
             const bool stale = idle_s && std::chrono::steady_clock::now() - it->used_at > std::chrono::seconds(idle_s);
             // (and up to 256 MB of the ones staged into in the last 2 s stay whatever `keep` is. An arena is free for reuse once
             // the GPU finished the submission that read it, which is after the next frame staged, so frames that stage in a row
@@ -4895,7 +4895,7 @@ void texture_frame(uint64_t completed) {
             static const int64_t burst_s = getenv("RX_VK_STAGING_BURST_S") ? atoll(getenv("RX_VK_STAGING_BURST_S")) : 2;
             const bool recent = burst_s && !pool_pressure && std::chrono::steady_clock::now() - it->used_at < std::chrono::seconds(burst_s);
             const uint64_t allowed = recent ? std::max<uint64_t>(keep, 256ull << 20) : keep;
-            if (idle && (it->size > kArena || kept + it->size > allowed || (stale && kept + it->size > kArena * 2))) {
+            if (idle && (it->size > kArena || kept + it->size > allowed || stale)) {
                 if (!spare_give_back(*it)) destroy_buffer(it->buffer, it->allocation);   // (SpareArenas)
                 it = arenas.erase(it);
                 continue;
@@ -5082,19 +5082,18 @@ void texture_frame(uint64_t completed) {
     if (known) {
         if (!dynamic_floor || frame_no - floor_frame >= 30) {
             floor_frame = frame_no;
-            dynamic_floor = vram_compact::update_dynamic_floor(dynamic_floor, total_bytes, used, pressure, allowed);
+            dynamic_floor = vram_compact::update_dynamic_floor(dynamic_floor, total_bytes, used, pressure, allowed, vram_under_8gb());
         }
     }
     const uint64_t active_floor = known ? dynamic_floor : 0;
-    pool_pressure = !known ? 0 : (used > allowed / 100 * 97) ? 2 : (pressure > allowed / 10 * 9) ? 1 : 0;   // (target pool: halve at >90%, flush at >97%)
+    // (the target pool given back meanwhile over 90%; #637, under 8 GB: halved over 90%, given back over 97% of the count)
+    pool_pressure = !known || pressure <= allowed / 10 * 9 ? 0 : !vram_under_8gb() || used > allowed / 100 * 97 ? 2 : 1;
     compact.pressed = known && vram_compact::pressed(used, allowed);   // (hookshot, RX_VK_COMPACT: by the driver's own count)
     const uint64_t size_budget = budget;   // (the budget as a size, before the rules that take an excess off it: rule_target)
     if (known && pressure > allowed / 10 * 9) {
         const uint64_t over = pressure - allowed / 10 * 9;
-        const uint64_t damped_over = (allowed < vram_compact::GLOBAL_MIN_GRAPHICS_REQ) ? (over / 4) : over;
-        uint64_t cut = total_bytes > damped_over ? total_bytes - damped_over : 0;
-        if (active_floor && cut < active_floor) cut = active_floor;
-        budget = std::min(budget, cut);
+        const uint64_t cut = vram_compact::cut_by(over, vram_under_8gb());   // (#637: damped under 8 GB)
+        budget = std::min(budget, std::max(total_bytes > cut ? total_bytes - cut : 0, active_floor));
     }
     // (hookshot, RX_VK_COMPACT: what the budget's size and the 90% rule ask on their own, before the hold's lines; the 97%
     // rule's joins it below. The hold's pass lets a texture unused for the eviction's own time go for that part, as a pass
@@ -5105,8 +5104,8 @@ void texture_frame(uint64_t completed) {
     // to 13-20 ms with the shadows in place, the driver itself short. At 85 a five-minute walk across Hyrule Field at DLAA
     // 2560 x 1440 had 11-12 frames over 33 ms against 34-49 uncompacted, and a 1% low of 37 fps against 26-29
     if (compact_on() && known && !by_blocks) {
-        static const uint64_t pct = getenv("RX_VK_COMPACT_PCT") ? (uint64_t)std::clamp(atoi(getenv("RX_VK_COMPACT_PCT")), 50, 90) : 80;
-        const uint64_t held = vram_compact::held_budget(budget, total_bytes, used, reclaim, allowed, pct, active_floor);
+        static const uint64_t pct = getenv("RX_VK_COMPACT_PCT") ? (uint64_t)std::clamp(atoi(getenv("RX_VK_COMPACT_PCT")), 50, 90) : 85;
+        const uint64_t held = vram_compact::held_budget(budget, total_bytes, used, reclaim, allowed, pct, active_floor, vram_under_8gb());
         // (and what goes is the excess alone. Over its budget the cache is cut to 7/8 of it, below: right for a budget that
         // is a size, but this one is "what the textures hold less the excess", crossed again whenever anything else grows.
         // A recorder started beside the game took 0.8 GB of the allowance as play came back from 14 s in the menu: the line
@@ -5116,7 +5115,8 @@ void texture_frame(uint64_t completed) {
         hold_to = evict_to;
         // (and a reserve under that line, for the textures long unused: vram_compact.h. The pass below takes the others only
         // for the hold's own line)
-        const uint64_t reserve = vram_compact::held_budget(budget, total_bytes, used, reclaim, allowed, vram_compact::reserve_pct(pct), active_floor);
+        const uint64_t reserve = vram_compact::held_budget(budget, total_bytes, used, reclaim, allowed, vram_compact::reserve_pct(pct),
+                                                           active_floor, vram_under_8gb());
         if (reserve < budget) budget = evict_to = reserve;
     }
     // (hookshot) not while VMA's blocks hold an eighth of the allowance free: new images take that space, the driver's count does
@@ -5133,9 +5133,8 @@ void texture_frame(uint64_t completed) {
     // RX_VK_SQUEEZE_ALWAYS=1 squeezes there too)
     if (known && !by_blocks && !(kept_only && !squeeze_always) && used > allowed / 100 * 97 && !room_in_blocks) {
         const uint64_t over = used - allowed / 100 * 97;
-        const uint64_t floor = vram_compact::texture_min_floor(allowed);
-        uint64_t cut = total_bytes > over ? total_bytes - over : 0;
-        if (floor && cut < floor) cut = floor;
+        // (#637: never under the textures' floor under 8 GB; none from 8 GB)
+        const uint64_t cut = std::max(total_bytes > over ? total_bytes - over : 0, vram_compact::texture_min_floor(allowed, vram_under_8gb()));
         budget = std::min(budget, cut);
         rule_budget = std::min(rule_budget, cut);
     }
@@ -5339,7 +5338,7 @@ void texture_frame(uint64_t completed) {
     // evicted as before), the least recently used beyond that going as before. (Not written back into the memory instead: the game
     // may have put other things there since, and a write-back over scene data once crashed it)
     static const uint64_t keep_finalized_max =
-        (uint64_t)(getenv("RX_VK_KEEP_FINALIZED_MB") ? std::max(0, atoi(getenv("RX_VK_KEEP_FINALIZED_MB"))) : 128) << 20;
+        (uint64_t)(getenv("RX_VK_KEEP_FINALIZED_MB") ? std::max(0, atoi(getenv("RX_VK_KEEP_FINALIZED_MB"))) : 512) << 20;
     const auto keep_finalized = [&](const Texture* tex) {
         if (!keep_finalized_max || !tex->gpu_written || !tex->released || !tex->first_written ||
             tex->first_written != tex->last_written || tex->bytes > (4ull << 20))

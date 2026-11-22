@@ -41,8 +41,9 @@ bool vma_init(PFN_vkGetInstanceProcAddr gipa) {
     ci.instance = dev.instance;
     ci.vulkanApiVersion = VK_API_VERSION_1_3;
     ci.pVulkanFunctions = &f;
-    // (64 MB blocks on > 8 GB cards; 32 MB on <= 8 GB cards to halve fragmentation in default heap 0 blocks)
-    ci.preferredLargeHeapBlockSize = device_local_heap_bytes() <= vram_compact::GLOBAL_MIN_GRAPHICS_REQ ? (32ull << 20) : (64ull << 20);
+    // (64 MB blocks: Eglantine found 256 MB ones wasted VRAM. #637: 32 MB under 8 GB, vram_compact::under_8gb, half the
+    // fragmentation in the default heap's blocks)
+    ci.preferredLargeHeapBlockSize = vram_compact::under_8gb(device_local_heap_bytes()) ? (32ull << 20) : (64ull << 20);
     return vmaCreateAllocator(&ci, &vma) == VK_SUCCESS;
 }
 
@@ -83,8 +84,8 @@ VmaPool target_images_pool() {
     ai.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     uint32_t type = 0;
     if (vmaFindMemoryTypeIndexForImageInfo(vma, &rep, &ai, &type) != VK_SUCCESS) return VK_NULL_HANDLE;
-    const uint64_t block_size =
-        device_local_heap_bytes() <= vram_compact::GLOBAL_MIN_GRAPHICS_REQ ? std::min<uint64_t>(kImageBlock, 16ull << 20) : kImageBlock;
+    // (#637: 16 MB blocks under 8 GB, vram_compact::under_8gb)
+    const uint64_t block_size = vram_compact::under_8gb(device_local_heap_bytes()) ? std::min<uint64_t>(kImageBlock, 16ull << 20) : kImageBlock;
     VmaPoolCreateInfo pi{};
     pi.memoryTypeIndex = type;
     pi.blockSize = block_size;
