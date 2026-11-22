@@ -46,7 +46,8 @@ renamed or retyped):
     base              the base the folders are named from (base_of: a game folder of another game gives its base)
     state             "built" (installed in folder) or "missing" (in none of the base's folders)
     built             true when state is "built" (image.bin and the game's executable in folder)
-    holds             the key of the game whose copy folder keeps, or null: no copy kept, or a build no profile knows
+    holds             the key of the game whose copy folder keeps, or null: no copy kept, a build no profile knows, or
+                      not installed (another game in own_folder is own_folder_holds)
     other_folders     the base's other folders that hold this game too, built (a list, mostly empty): --update-all
                       updates each of them as well
     own_folder        the game's own folder by the rule (<base>, or <base>-<key>): where an install of it goes
@@ -54,10 +55,14 @@ renamed or retyped):
                       under this base is refused until that folder is freed (or the game goes under another base)
     version           the Hookshot version folder was built with (hookshot_version.txt version=), or null; only when built
     builder           the Builder that built it (hookshot_version.txt builder=, the Builder's executable), or null
-    kept              true when folder keeps the game files an update builds from (.hookshot_exefs and romfs)
+    kept              true when folder keeps the game files an update builds from (.hookshot_exefs and romfs); false
+                      when not installed. A built folder without them (built before updates came in) can't be updated:
+                      the game's files are to be chosen once to build it again (--update-all says "rebuild")
     update            true when this engine is to update the game (its version is older: version.py update_due, the
-                      updaters' rule), false when it is current (or newer), null when it can't be told (no version in the
-                      folder, or this engine names none). Always false when not built
+                      Linux updater's rule, which never takes a game back to an older version; the Windows Builder's
+                      Updater.cs rebuilds a differing version, a newer one too), false when it is current (or newer),
+                      null when it can't be told (no version in the folder, or this engine names none). Always false when
+                      not built, or not kept
 """
 import argparse
 import json
@@ -176,6 +181,11 @@ def folder_identity(f, rule_key, game_exe=game_exe):
     return held.key if held else rule_key
 
 
+def kept_copy(f):
+    """The folder keeps the game files an update builds from (.hookshot_exefs and romfs: make_game.py --update)"""
+    return os.path.isdir(os.path.join(f, ".hookshot_exefs")) and os.path.isdir(os.path.join(f, "romfs"))
+
+
 def library(base, game_exe=game_exe, engine=None):
     """Every game that builds (buildable(), in profile order), installed or not, under base: a dict for each with the fields
     the module's docstring lists (key, name, folder, base, state, built, holds, other_folders, own_folder,
@@ -196,15 +206,15 @@ def library(base, game_exe=game_exe, engine=None):
         there.sort(key=lambda f: f != own)   # (its own folder first, the others in profile order: sort keeps their order)
         f = there[0] if there else own
         built = bool(there)
-        held = folder_game(f)
+        held = folder_game(f) if built else None   # (not installed: what sits in its own folder is own_folder_holds)
         own_held = folder_game(own)
         have, builder = version_file(f) if built else (None, None)
-        kept = os.path.isdir(os.path.join(f, ".hookshot_exefs")) and os.path.isdir(os.path.join(f, "romfs"))
+        kept = built and kept_copy(f)
         games.append({"key": p.key, "name": p.game, "folder": f, "base": base, "state": "built" if built else "missing",
                       "built": built, "holds": held.key if held else None, "other_folders": there[1:], "own_folder": own,
                       "own_folder_holds": own_held.key if own_held and own_held.key != p.key else None,
                       "version": have, "builder": builder, "kept": kept,
-                      "update": version.update_due(have, engine) if built else False})
+                      "update": version.update_due(have, engine) if kept else False})
     return games
 
 
@@ -325,7 +335,9 @@ def main(argv=None):
             pass
         for g in games:
             state = "not installed"
-            if g["built"]:
+            if g["built"] and not g["kept"]:
+                state = "installed (%s), its files to choose again to update" % (g["version"] or "no version")
+            elif g["built"]:
                 state = "installed (%s%s)" % (g["version"] or "no version",
                                               {True: ", update due", False: "", None: ", can't tell"}[g["update"]])
             print("%-4s %-40s %-34s %s" % (g["key"], g["name"], state, g["folder"]))

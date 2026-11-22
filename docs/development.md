@@ -472,25 +472,33 @@ under this base needs its own folder freed, or another base.
 | `base` | string | The base the folders are named from (another game's folder given as the base gives its base) |
 | `state` | string | `built` (installed in `folder`) or `missing` (in none of the base's folders) |
 | `built` | bool | `state` is `built` |
-| `holds` | string or null | The key of the game whose copy `folder` keeps; null when it keeps none, or no profile knows the build |
+| `holds` | string or null | The key of the game whose copy `folder` keeps; null when it keeps none, no profile knows the build, or the game is not installed (another game in its own folder is `own_folder_holds`) |
 | `other_folders` | list of strings | The base's other folders that hold this game too (mostly empty); `--update-all` updates each |
 | `own_folder` | string | The game's own folder by the rule: where an install of it goes |
 | `own_folder_holds` | string or null | The key of another game whose copy sits in `own_folder`, or null |
 | `version` | string or null | `hookshot_version.txt`'s `version=` in `folder`, when built |
 | `builder` | string or null | `hookshot_version.txt`'s `builder=`: the Builder executable that built it |
-| `kept` | bool | `folder` keeps the game files an update builds from (`.hookshot_exefs/` and `romfs/`) |
-| `update` | bool or null | True when this engine would update it (the updaters' rule, `nx2/version.py` `update_due`: another version, unless that one is newer), false when current, null when it can't be told (no version in the folder: a checkout build writes none). False when not built |
+| `kept` | bool | `folder` keeps the game files an update builds from (`.hookshot_exefs/` and `romfs/`). False when not installed, and for a folder built before updates came in: that game's files are to be chosen once to build it again |
+| `update` | bool or null | True when this engine would update it, false when current, null when it can't be told (no version in the folder: a checkout build writes none). False when not built or not `kept`. The rule is the Linux updater's (`nx2/version.py` `update_due`): another version, unless that one is newer, so a game is never taken back to an older version. The Windows Builder's `Updater.cs` differs: it rebuilds a game whose version differs from its own, a newer one too |
 
 `--update-all` updates each built folder once, as the game it holds, in profile order (a game in two folders: both, its
 own first). It passes each update's own lines on as they come (its `@@done` or `@@error` among them) and frames them:
 
     @@game start <key> <folder>          a game's folder (a game not installed: its own folder); its lines follow
     @@game end <key> <result> [<text>]   after every start. result: updated (text: the version), current (text: the
-                                         version), missing (not installed) or failed (text: the reason); with --dry-run,
-                                         update (text: "from <version>") in place of updated, and nothing run
+                                         version), missing (not installed), rebuild (text: "choose this game's files
+                                         once to update it"), or failed (text: the reason, the update's @@error); with
+                                         --dry-run, update (text: "from <version>") in place of updated, and nothing run
 
-then one summary line per game (`Mario Kart World: updated`; with the folder, `... in <folder>: updated`, and a line
-saying so, when the game is in more than one). Under `--prepare` these lines go to stderr.
+`rebuild` is a folder built before folders kept the game files an update builds from: it can't be updated, only built
+again from the game's files once. It is not a failure and leaves the exit status as it is. Each game other than the
+default one is updated with its own work folder, `<work>-<key>` (by the game the folder holds), when the work folder is
+the builder's own, as `--prepare` and `--base` give it, so each game keeps its own object cache. `--dry-run` runs
+nothing and makes no folder.
+
+Then one summary line per game (`Mario Kart World: updated`; with the folder, `... in <folder>: updated`, when the game
+is in more than one, and a line with what happened in each). Under `--prepare` these lines go to stderr, and a copy
+refused over another game's folder tells the player to move or rename that folder.
 
 ## Draw statistics
 

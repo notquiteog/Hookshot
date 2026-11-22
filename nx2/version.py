@@ -43,8 +43,8 @@ def release(root=ROOT):
 
 
 def release_key(tag):
-    """A version to compare, by the updaters' rule (builder/linux/linux_update.py release_key, which tests/test_game_library.py
-    holds this one to; Updater.cs and builder/setup/setup.c keep the same): a release tag (v2.0.5, v2.1.0-rc.1) or git
+    """A version to compare, by the Linux updater's order (builder/linux/linux_update.py release_key, which
+    tests/test_game_library.py holds this one to): a release tag (v2.0.5, v2.1.0-rc.1) or git
     describe's v2.0.5-3-g1a2b3c4[-dirty], after v2.0.5 and before any later release. None for a version that names no
     release (a bare commit, dev, unknown). Prereleases in semver order: v2.1.0-rc.1 < v2.1.0-rc.2 < v2.1.0."""
     m = re.match(r"^(?=v|\d+\.)v?(\d+(?:\.\d+)*)(?:-(?!\d+-g|dirty$)([0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*))?(-\d+-g[0-9a-f]+)?(-dirty)?$",
@@ -57,10 +57,12 @@ def release_key(tag):
 
 def update_due(installed, engine=None):
     """Whether a game built with version installed is to be built again by this engine (engine, default release()): the
-    updaters' rule for a game (linux_update.choose_mode's "update-game"): another version, unless that one is known to be
-    newer than the engine (a game is never taken back to an older release). So a nightly whose build differs is updated
-    too, as the updaters do. None when it can't be told: no installed version (a folder built from a checkout, which
-    writes none), or an engine that names no version."""
+    Linux updater's rule for a game (linux_update.choose_mode's "update-game"): another version, unless that one is known
+    to be newer than the engine, so a game is never taken back to an older release. A nightly whose build differs is
+    updated too. (The Windows Builder's Updater.cs is not the same: it rebuilds a game whose version differs from its
+    own, a newer one too. This one, for --update-all and the library, keeps the Linux rule and never downgrades.) None
+    when it can't be told: no installed version (a folder built from a checkout, which writes none), or an engine that
+    names no version."""
     engine = release() if engine is None else engine
     installed, engine = (installed or "").strip(), (engine or "").strip()
     if not installed or not engine or engine == "unknown":

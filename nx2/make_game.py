@@ -37,7 +37,9 @@ library), and for each further folder that holds the same game:
     @@game end <key> <result> [<text>]     the outcome, after every start. result is one of updated (text: the version),
                                            current (already this version, text: it; skipped, --force builds it anyway),
                                            missing (not installed), failed (text: the reason, its @@error's text), and
-                                           with --dry-run, which runs nothing, update (text: "from <version>") in place of
+                                           rebuild (text: choose this game's files once: the folder keeps none to
+                                           update from, built before updates came in; not a failure), and with
+                                           --dry-run, which runs nothing, update (text: "from <version>") in place of
                                            updated
 
 A game in another game's folder (an older Builder built where the player chose) is updated there, as the game it is. Then
@@ -716,11 +718,15 @@ def refuse_other_game(a, out):
     got = supported_build(copy_build(a))
     if got is None or got.key == held.key:
         return
+    said = "The game folder %s holds %s, and this copy is %s: building it there would replace %s." % (out, held.game, got.game,
+                                                                                                         held.game)
+    if PREPARE:   # (RecompLauncher chose the folder: the player can't choose another there)
+        fail("%s Move or rename that folder (it holds %s, with its saves and settings), then set up %s again." % (
+            said, held.game, got.game))
     own = game_folders.folder(game_folders.base_of(out), got.key)
-    fail("The game folder %s holds %s, and this copy is %s: building it there would replace %s. Choose an empty folder for %s%s."
-         % (out, held.game, got.game, held.game, got.game,
-            "" if os.path.normcase(os.path.abspath(own)) == os.path.normcase(os.path.abspath(out)) else
-            " (its own folder beside the other games is %s)" % own))
+    fail("%s Choose an empty folder for %s%s." % (
+        said, got.game, "" if os.path.normcase(os.path.abspath(own)) == os.path.normcase(os.path.abspath(out)) else
+        " (its own folder beside the other games is %s)" % own))
 
 
 UPDATE_LINE = "@@game"   # (--update-all's framing lines: the module's docstring)
@@ -728,8 +734,8 @@ UPDATE_LINE = "@@game"   # (--update-all's framing lines: the module's docstring
 
 def update_all_args(argv):
     """The arguments each game's make_game --update gets: the ones given, without --update-all's own (its base, --force,
-    --dry-run) and
-    without --log (this make_game's log holds every game's lines, which it passes on)"""
+    --dry-run) and without --log (this make_game's log holds every game's lines, which it passes on). The parser takes no
+    abbreviations (allow_abbrev=False), so these are the only spellings"""
     rest, skip = [], False
     for i, arg in enumerate(argv):
         if skip:
@@ -745,19 +751,22 @@ def update_all_args(argv):
 
 def update_one(cmd):
     """One game's make_game --update: its lines passed on as they come. (0, None) when it built, else its exit status and the
-    reason it said (its @@error, or RecompLauncher's error line under --prepare)"""
+    reason it said: its @@error line (under --prepare, RecompLauncher's "error" line, which is what it prints instead)"""
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=None if PREPARE else subprocess.STDOUT,
                          encoding="utf-8", errors="replace")
     reason = None
     for line in p.stdout:
         line = line.rstrip("\r\n")
         print(line, flush=True)
-        for head in ("@@error ", "error "):
-            if line.startswith(head):
-                reason = line[len(head):].strip()
+        head = "error " if PREPARE else "@@error "
+        if line.startswith(head):
+            reason = line[len(head):].strip()
     p.stdout.close()
     code = p.wait()
     return code, (reason or "exit status %d" % code) if code else None
+
+
+REBUILD = "choose this game's files once to update it"   # (a folder built before folders kept them: --update-all's rebuild)
 
 
 def update_all(a, run_one=None):
@@ -765,8 +774,11 @@ def update_all(a, run_one=None):
     make_game --update of its own with the other arguments as given. Unlike build_each, one that fails does not stop the
     others. Each built folder of the base is updated once, as the game it holds: a game in another's folder (an older
     Builder built into the folder chosen) is updated there, and a game in two folders is updated in both, which the summary
-    says. A folder built with this version is skipped unless --force. --dry-run: the same lines, with what would be done
-    (update, current, missing), and nothing run. Then one summary line per game, and exit status 1 when any failed"""
+    says. A game other than the default one gets its own work folder, <work>-<key>, when the work folder is the builder's
+    own (as --prepare and --base give it), so each game's object cache stays its own. A folder built with this version is
+    skipped unless --force; one that keeps no game files to update from (built before updates came in) is "rebuild":
+    not a failure, its files are to be chosen once. --dry-run: the same lines, with what would be done (update, current,
+    rebuild, missing), and nothing run. Then one summary line per game, and exit status 1 when any failed"""
     import version as _version
     run_one = run_one or update_one
     base = game_folders.base_of(os.path.abspath(os.path.expanduser(a.update_all or default_game_folder())))
@@ -774,6 +786,7 @@ def update_all(a, run_one=None):
     stream = sys.stderr if PREPARE else sys.stdout
     engine = _version.release()
     dry = getattr(a, "dry_run", False)
+    own_work = os.path.abspath(a.work) == os.path.abspath(getattr(a, "default_work", a.work))
     results = []   # (game, folder, result, text)
 
     def line(*words):
@@ -785,29 +798,37 @@ def update_all(a, run_one=None):
             line("end", g["key"], "missing")
             results.append((g, g["folder"], "missing", None))
             continue
+        work = []
+        if own_work and g["key"] != game_profile.DEFAULT:   # (the game's own work folder, as --prepare and --base give it)
+            work = ["--work", game_folders.folder(os.path.abspath(a.work), g["key"])]
         for f in [g["folder"]] + g["other_folders"]:
-            have = g["version"] if f == g["folder"] else game_folders.version_file(f)[0]
-            due = g["update"] if f == g["folder"] else _version.update_due(have, engine)
+            first = f == g["folder"]
+            have = g["version"] if first else game_folders.version_file(f)[0]
+            kept = g["kept"] if first else game_folders.kept_copy(f)
+            due = g["update"] if first else _version.update_due(have, engine)
             line("start", g["key"], f)
-            if due is False and not a.force:
+            if not kept:
+                result, text = "rebuild", REBUILD
+            elif due is False and not a.force:
                 result, text = "current", have
             elif dry:
                 result, text = "update", have and "from %s" % have
             else:
-                code, reason = run_one(PY + [os.path.abspath(__file__)] + rest + ["--update", f])
+                code, reason = run_one(PY + [os.path.abspath(__file__)] + rest + work + ["--update", f])
                 result, text = ("failed", reason) if code else ("updated", engine)
             line("end", g["key"], result, text)
             results.append((g, f, result, text))
     said = {"updated": "updated", "update": "would be updated", "current": "up to date", "missing": "not installed",
-            "failed": "failed"}
+            "failed": "failed", "rebuild": "not updated"}
     for g, f, result, text in results:
         several = [r for r in results if r[0] is g]
         where = " in %s" % f if len(several) > 1 else ""
-        detail = (": " + text if result == "failed" else " (%s)" % text if result in ("current", "update") and text else "")
+        detail = (": " + text if result in ("failed", "rebuild") else
+                  " (%s)" % text if result in ("current", "update") and text else "")
         print("%s%s: %s%s" % (g["name"], where, said[result], detail), file=stream, flush=True)
         if len(several) > 1 and several[-1][1] == f:
-            print("%s is installed in %d folders under %s, and each was %s." % (
-                g["name"], len(several), base, "looked at, nothing changed" if dry else "updated on its own"),
+            print("%s is installed in %d folders under %s: %s." % (
+                g["name"], len(several), base, "; ".join("%s in %s" % (said[r], rf) for _, rf, r, _ in several)),
                 file=stream, flush=True)
     if any(result == "failed" for _, _, result, _ in results):
         sys.exit(1)
@@ -2541,7 +2562,7 @@ def default_game_folder():
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    p = argparse.ArgumentParser(description=__doc__.split("\n")[0], allow_abbrev=False)   # (update_all_args: exact spellings)
     p.add_argument("--nup")
     p.add_argument("--romfs")
     p.add_argument("--exefs")
@@ -2719,6 +2740,8 @@ def end_stale_games(folders):
 def main(a=None):
     if a is None:
         a = parse_args()
+    if getattr(a, "update_all", None) is not None and getattr(a, "dry_run", False):
+        return update_all(a)   # (first: a preview makes no folder, keeps no PC awake and changes no process's power state)
     portable_home = portable_game_home(a.update or a.out) if not a.check and (a.update or a.out) else None
     if a.jobs is not None and a.jobs < 0:
         fail("--jobs must be 1 or more, or 0 for automatic.")
