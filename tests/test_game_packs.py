@@ -27,6 +27,11 @@ What this guards, and why each check is here rather than left to review:
 7. **The pack's folders are where the engine looks:** load_module finds a profile's modules in its pack's lift/, every
    module name is one pack's alone and shadows none of nx2/ or a64-kit's; build_steps are the packs' (Ocarina's prompts
    and pipeline list, none for Bananza and MKW), and an unknown step is refused.
+8. **A game's runtime C is its pack's, in its runtime only (a3).** nx2/build.py pack_host compiles Ocarina's packs/oot/host
+   into Ocarina's runtime, Mario Kart World's packs/mkw/host into its, and host/game_none.c into Bananza's and an unknown
+   game's; host/ holds no oot_ file, no function of Ocarina's debug tools, teleport, opening or loading cover, and none of
+   rule 3's Mario Kart World 1.8.0 literals; host/nx2_pack.h's interface version is nx2/packs.py's; every pack's table
+   and game_none.c's are of that version, and each hook the shared runtime calls is one of the table's.
 
     python -I -B tests/test_game_packs.py
 """
@@ -462,6 +467,63 @@ def check_pack_folders():
     check(not (ROOT / "assets" / "pipeline_states").exists(), "assets/pipeline_states/ is still there beside the pack's")
 
 
+# ---- a game's runtime C (a3) ----
+
+def check_pack_host():
+    import build
+    header = (ROOT / "host" / "nx2_pack.h").read_text(encoding="utf-8")
+    api = tuple(int(re.search(r"#define NX2_PACK_API_%s (\d+)" % n, header).group(1)) for n in ("MAJOR", "MINOR"))
+    check(api == packs.NX2PC_PACK_API, "host/nx2_pack.h's interface is %d.%d, nx2/packs.py's %d.%d" % (api + packs.NX2PC_PACK_API))
+    with tempfile.TemporaryDirectory(prefix="pack-host-") as tmp:
+        for key, want in (("oot", sorted((ROOT / "packs" / "oot" / "host").glob("*.c"))),
+                          ("mkw", sorted((ROOT / "packs" / "mkw" / "host").glob("*.c"))),
+                          ("dkb", [ROOT / "host" / "game_none.c"]), ("none", [ROOT / "host" / "game_none.c"])):
+            folder = Path(tmp, key)
+            folder.mkdir()
+            game_profile.write_header(str(folder), game_profile.GAMES[key])
+            got_key, got = build.pack_host(str(folder))
+            check(got_key == key and [Path(f) for f in got] == [w.resolve() for w in want] and want,
+                  "%s's runtime C is %r, not its pack's %r" % (key, [os.path.relpath(f, ROOT) for f in got],
+                                                               [os.path.relpath(f, ROOT) for f in want]))
+    check(len(list((ROOT / "packs" / "oot" / "host").glob("*.c"))) >= 11, "Ocarina's pack has not its runtime C")
+    # (none of it left in host/)
+    shared = {p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8", errors="replace")
+              for p in sorted((ROOT / "host").rglob("*")) if p.suffix in (".c", ".h")}
+    check(not [n for n in shared if Path(n).name.startswith("oot_")], "host/ still has Ocarina's files")
+    for name in ("hos_oot_teleport_ask", "hos_oot_opening(", "oot_update_player_cheats", "hos_wide_cover(void) {",
+                 "oot_destinations[]", "occlusion_switch", "HOS_OOT_PROTECT_HEARTS", "hos_oot_live_action",
+                 "hos_oot_player_free", "hos_oot_flight_shortcut_ready", "oot_cheat_items.h"):
+        where = [n for n, text in shared.items() if name in game_profile_code(text)]
+        check(not where, "%s is in the shared runtime: %s" % (name, where))
+    for literal in ("hos_game_is_mkw", "0x806bce28", "0x825c6844", "0x837de940", "HOS_MKW_INTERVAL", "hos_mkw_pacer",
+                    "d00e4f399e411d0613aa8d26b1c02fef"):
+        where = [n for n, text in shared.items() if literal in game_profile_code(text)]
+        check(not where, "Mario Kart World 1.8.0's %s is in the shared runtime: %s" % (literal, where))
+    mkw = (ROOT / "packs" / "mkw" / "host" / "mkw_pacer.c").read_text(encoding="utf-8")
+    for literal in ("0x806bce28", "0x825c6844", "0x837de940", "HOS_MKW_INTERVAL", "d00e4f399e411d0613aa8d26b1c02fef"):
+        check(literal in mkw, "Mario Kart World's pack lost %s" % literal)
+    # (the pacer is noted only in 1.8.0, behind the check, and the present hooks do nothing without it)
+    check(mkw.count("mkw_180() &&") == 2 and "if (hos_mkw_pacer && forced" in mkw and "if (pacer && freq)" in mkw,
+          "Mario Kart World 1.8.0's hooks are not behind its build check")
+    # (every pack's table and game_none.c's: the version and size, and only the table's own members)
+    members = re.findall(r"\(\*(\w+)\)\(", header[header.index("typedef struct NX2PackHost"):header.index("} NX2PackHost;")])
+    check(members[:1] == ["start"] and len(members) >= 10, "NX2PackHost's hooks: %r" % members)
+    for path in [ROOT / "host" / "game_none.c"] + sorted((ROOT / "packs").glob("*/host/*_pack*.c")):
+        text = path.read_text(encoding="utf-8")
+        check(".version = NX2_PACK_API_MAJOR << 16 | NX2_PACK_API_MINOR," in text and ".size = sizeof(NX2PackHost)," in text
+              and "const NX2PackHost *nx2_pack_host(void)" in text, "%s's table has no version, size or nx2_pack_host" % path.name)
+        used = set(re.findall(r"^\s*\.(\w+) = ", text[text.index("static const NX2PackHost"):], re.M))
+        check(used <= set(members) | {"version", "size", "key"}, "%s sets a member the table has not: %r" % (path.name, used))
+    check((ROOT / "packs" / "mkw" / "host" / "mkw_pacer.c").read_text(encoding="utf-8").count("const NX2PackHost *nx2_pack_host(void)") == 1,
+          "Mario Kart World's pack has no table")
+
+
+def game_profile_code(text):
+    """C without its comments: a comment may say where a thing went"""
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    return re.sub(r"//[^\n]*", "", text)
+
+
 # ---- the Builders' copies ----
 
 def check_builders():
@@ -490,6 +552,7 @@ def main():
     check_travels()
     check_lift_key()
     check_pack_folders()
+    check_pack_host()
     check_builders()
     for f in FAILURES:
         print("FAIL: " + f)

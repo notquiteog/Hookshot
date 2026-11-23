@@ -51,6 +51,7 @@ import imgui_backend
 import ui_fonts
 import toolchain
 import translator_files
+import packs
 import version
 import win_manifest
 
@@ -1234,6 +1235,30 @@ def compile_one(job):
     return src, time.time() - t, None
 
 
+def pack_host(game_dir):
+    """The running game's pack's C, compiled into this game's runtime only (docs/game-packs.md a3): (its key, its files), the
+    files its pack.json "host" names (globs under packs/<key>/, .c files only, none outside the pack), or host/game_none.c,
+    which takes none of the runtime's hooks (host/nx2_pack.h), for a game whose pack has none, and for a profile no pack is.
+    The game is the profile header's (GAME_PROFILE_KEY): the lift's, else game/'s"""
+    import glob
+    with open(os.path.join(game_dir, "game_profile.h"), encoding="utf-8") as f:
+        m = re.search(r'^#define GAME_PROFILE_KEY "([a-z0-9]+)"', f.read(), re.M)
+    key = m.group(1) if m else "none"
+    manifest = packs.tree().get(key) or {}
+    root = os.path.realpath(packs.folder(key, ""))
+    files = []
+    for pattern in manifest.get("host", []):
+        for f in sorted(glob.glob(os.path.join(root, pattern))):
+            f = os.path.realpath(f)
+            if not f.startswith(root + os.sep) or not f.endswith(".c"):
+                raise SystemExit("packs/%s/pack.json: host names %s, which is not a .c file of the pack" % (key, f))
+            if f not in files:
+                files.append(f)
+    if manifest.get("host") and not files:
+        raise SystemExit("packs/%s/pack.json: host names no file there (%s)" % (key, ", ".join(manifest["host"])))
+    return key, files or [os.path.join(os.path.realpath(HOST), "game_none.c")]
+
+
 def game_profile_bytes(folder):
     """a game profile header as a dependency: a profile change rebuilds what reads it, and nothing else"""
     with open(os.path.join(folder, "game_profile.h"), "rb") as f:
@@ -1303,7 +1328,7 @@ def main():
         have_wgpu = os.path.isfile(os.path.join(WGPU, "include", "webgpu", "webgpu.h"))
         host_srcs = sorted(os.path.join(HOST, f) for f in os.listdir(HOST) if f.endswith(".c") and (f != "pgo_rt.c" or PGO == "gen")
                            and not (LINUX and f in ("display.c", "mf_av1.c", "rx_nowgpu.c")) and (f != "rx_nowgpu.c" or not have_wgpu)
-                           and (f != "dav1d_av1.c" or dav1d_windows()))
+                           and (f != "dav1d_av1.c" or dav1d_windows()) and f != "game_none.c")   # (game_none.c: pack_host's)
         if LINUX:   # (the window on SDL2, the Win32 calls on POSIX, no Media Foundation and no WebGPU renderer)
             host_srcs += [os.path.join(POSIX, f) for f in ("win32_posix.c", "display_sdl.c", "linux_stubs.c", "prof.c")]
     else:
@@ -1375,6 +1400,17 @@ def main():
               (["-I" + ZSTD] if os.path.basename(s) in ZSTD_HOST else []) +
               (dav1d_fl if os.path.basename(s) in ("nn_video.c", "dav1d_av1.c") else []),
               host_deps + (zstd_api if os.path.basename(s) in ZSTD_HOST else b"")) for s in host_srcs]
+    # the game's pack's C (pack_host), with the runtime's flags and headers and its own folders' headers: into this game's
+    # runtime only, so another game's runtime holds none of it (Mario Kart World's and Bananza's no Ocarina code)
+    if host_srcs:
+        pack_key, pack_srcs = pack_host(game_dir)
+        pack_dirs = sorted({os.path.dirname(s) for s in pack_srcs})
+        pack_deps = host_deps + b"".join(open(os.path.join(d, f), "rb").read() for d in pack_dirs for f in sorted(os.listdir(d))
+                                         if f.endswith(".h"))
+        print("game pack: %s, its C %s" % (pack_key, ", ".join(os.path.relpath(s, os.path.join(HOST, "..")) for s in pack_srcs)),
+              flush=True)
+        jobs += [(cc, s, os.path.join(obj_dir, "pack_%s_%s.o" % (pack_key, os.path.basename(s)[:-2])),
+                  host_fl + ["-I" + d for d in pack_dirs], pack_deps) for s in pack_srcs]
     # libopus 1.5.2 (third_party/opus, from TOTKPort): nn::codec's hardware Opus decoder (host/nn_codec.c)
     # (hookshot: built for the same CPU target as the rest (CPU), so its float code can be vectorized where the target has
     # AVX2: the vendored copy has no x86 intrinsics files of its own)

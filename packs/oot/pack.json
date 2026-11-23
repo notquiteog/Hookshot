@@ -32,6 +32,7 @@
            "env_prefixes": ["OOT_"]},
   "build_steps": ["prompts", "pipeline_states"],
   "saves_dir": "hookshot",
+  "host": ["host/*.c"],
   "license": "GPL-3.0-or-later",
   "comments": {
     "builds.0.version": "the update; base v65536",
