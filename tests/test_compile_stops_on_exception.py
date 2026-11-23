@@ -42,7 +42,7 @@ def actual_coordinator(source):
 
 class CompileStopsOnExceptionTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix='longshot-compile-stops-')
+        self.temporary = tempfile.TemporaryDirectory(prefix='hookshot-compile-stops-')
         self.addCleanup(self.temporary.cleanup)
         self.folder = Path(self.temporary.name).resolve()
         self.cache = self.folder / 'cache'
