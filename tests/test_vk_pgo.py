@@ -9,6 +9,7 @@ No compiler, no game.
 python -I -B tests/test_vk_pgo.py
 """
 import importlib.util
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -108,16 +109,31 @@ def check_dev_packs():
     with tempfile.TemporaryDirectory(prefix="longshot-vk-pgo-base-") as work:
         prof = os.path.join(work, make_game.VK_PROFILE)
         shipped = os.path.join(work, make_game.VK_PROFILE_UNPACKED)
-        check("a base with no profile: a renderer pack is built with none", packs.renderer_profile(work, {}) == {})
-        # (a base of main: make_game.py unpacked the committed profile and built with it)
+        check("a base with no compile database: a renderer pack is built with no profile", packs.renderer_profile(work, {}) == {})
+        db = os.path.join(work, "sa", "build")
+        os.makedirs(db)
+
+        def built(*vk_args):
+            entries = [{"file": "/src/host/hos_main.c", "arguments": ["clang", "-fprofile-instr-use=/game.prof", "-c"]},
+                       {"file": "/src/gpu/vk/vk_draw.cpp", "arguments": ["clang++", *vk_args, "-c"]}]
+            with open(os.path.join(db, "compile_commands.json"), "w", encoding="utf-8") as f:
+                json.dump(entries, f)
+        # (a base of main: make_game.py unpacked the committed profile, but the profile is off by default here: built without)
         with open(shipped, "wb") as f:
             f.write(b"committed profile")
-        check("a base built with the committed profile: a renderer pack is built with it too, by the base's path",
+        built("-O2")
+        check("a base whose renderer was built without a profile: none, whatever profile files its work folder holds",
+              packs.renderer_profile(work, {}) == {})
+        built("-O2", "-fprofile-instr-use=" + shipped)
+        check("a base whose renderer was built with the committed profile: the pack too, by the base's path",
               packs.renderer_profile(work, {}) == {"RX_VK_PGO": shipped})
         with open(prof, "wb") as f:
             f.write(b"profile")
-        check("a base whose checkout had its own profile: that one, as make_game.py chose it",
+        built("-O2", "-fprofile-instr-use=" + prof)
+        check("a base whose checkout had its own profile: that one, as the base's build used it",
               packs.renderer_profile(work, {}) == {"RX_VK_PGO": prof})
+        built("-O2", "-fprofile-instr-use=" + os.path.join(work, "gone.profdata"))
+        check("a profile the base's build used that is gone: none", packs.renderer_profile(work, {}) == {})
         check("a counting pack stays one", packs.renderer_profile(work, {"RX_VK_PGO": "gen"}) == {})
     # (what a pack builds: a profile switch set for it builds, even with no file changed)
     for how, env, want, why in ((None, {}, None, "no change, no switch: nothing to build"),
@@ -156,16 +172,16 @@ def check_unread_message():
     check("and clang's own reason", "(error: Profile data error: unsupported version)" in old)
     check("and that the build goes on", "building without it" in old)
     check("an older clang on Linux is told where the build tools' LLVM is",
-          "LLVM 23.1.5 reads it" in old and "scripts/dev_build.py env" in old and "clang 23 or newer" in old)
+          "LLVM 23.1.5 reads it" in old and "scripts/linux/deps.sh" in old and "clang 23 or newer" in old)
     new = make_game.profile_unread_message(prof, "clang version 23.1.4\n", err, True, "23.1.5")
-    check("a clang as new as the build tools' gets no advice to install it", "dev_build.py" not in new)
+    check("a clang as new as the build tools' gets no advice to install it", "deps.sh" not in new)
     check("nor does Windows (llvm-mingw is the builder's own)",
-          "dev_build.py" not in make_game.profile_unread_message(prof, "clang version 18.1.3\n", err, False, "23.1.5"))
+          "deps.sh" not in make_game.profile_unread_message(prof, "clang version 18.1.3\n", err, False, "23.1.5"))
     unknown = make_game.profile_unread_message(prof, "", "", True, "23.1.5")
     check("a clang that names no version is 'this compiler', and an empty reason is said",
-          unknown.startswith("this compiler cannot read") and "(no message)" in unknown and "dev_build.py env" in unknown)
+          unknown.startswith("this compiler cannot read") and "(no message)" in unknown and "scripts/linux/deps.sh" in unknown)
     check("without the build tools' version (no deps.sh) the line has no advice",
-          "dev_build.py" not in make_game.profile_unread_message(prof, "clang version 18.1.3\n", err, True, None))
+          "deps.sh" not in make_game.profile_unread_message(prof, "clang version 18.1.3\n", err, True, None))
     check("the build tools' version comes from scripts/linux/deps.sh",
           make_game.build_tools_llvm(str(ROOT)) and make_game.build_tools_llvm(str(ROOT))[0].isdigit())
     with tempfile.TemporaryDirectory() as empty:

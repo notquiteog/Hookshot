@@ -50,7 +50,9 @@ def main():
                       vk=str(vk), GPU=str(root / "gpu"), vk_jobs=[], cxx=a.cxx, obj_dir=str(root / "obj"),
                       vflags=["-std=c++17", "-O0"], imgui_flags=[], imgui_users=(), shader_stamp="", stamp_def="",
                       vk_lib_deps=b"", logo_text=b"", imgui_deps=b"", vk_sources=lambda: [str(src), str(other)],
-                      vk_pgo_flags=[])   # (RX_VK_PGO: no profile, as by default)
+                      vk_pgo_flags=[],   # (RX_VK_PGO: no profile, as by default)
+                      # (the header packages, whose trees are in the renderer's keys: empty folders here)
+                      spirv_headers=str(root / "spirv"), vk_headers=str(root / "vulkan"), vma_headers=str(root / "vma"))
             exec(code, ns)
             return {Path(j[1]).name: (ns["object_key"](j[1], j[3], j[4]), j) for j in ns["vk_jobs"]}
 
@@ -84,6 +86,12 @@ def main():
         assert result(jobs()["vk_dlss.cpp"]) == 11 and len(cache) == 3, "restoring headers did not reuse their original object"
         common.write_text("// changed backend header\n", encoding="utf-8")
         assert first["vk_other.cpp"][0] != jobs()["vk_other.cpp"][0], "existing backend dependencies were lost"
+        # (hookshot: another Vulkan header package, which comes in by -I alone, keys the renderer's objects anew: with the
+        # object store, two work folders of other packages would otherwise share them)
+        before = jobs()["vk_other.cpp"][0]
+        (root / "vulkan/include/vulkan").mkdir(parents=True)
+        (root / "vulkan/include/vulkan/vulkan_core.h").write_text("#define VK_HEADER_VERSION 345\n", encoding="utf-8")
+        assert before != jobs()["vk_other.cpp"][0], "a Vulkan header package's change kept the renderer's object keys"
     print("PASS: actual DLSS job rebuilds changed SDK headers; relocation, restoration, disabled NGX and unrelated objects retain reuse")
 
 

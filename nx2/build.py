@@ -558,8 +558,21 @@ def cache_put(obj, key):
     try:
         os.link(obj, dst)
     except OSError:
+        # (a copy, across volumes: under a name of its own, then renamed in, so that nothing, the object store's share or
+        # another build, ever reads it half written)
         import shutil
-        shutil.copyfile(obj, dst)
+        import tempfile
+        fd, tmp = tempfile.mkstemp(prefix=key + ".", suffix=".tmp", dir=OBJ_CACHE)
+        os.close(fd)
+        try:
+            shutil.copyfile(obj, tmp)
+            os.replace(tmp, dst)
+        except OSError:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
 
 
 class MemoryStatus(ctypes.Structure):   # (Windows' MEMORYSTATUSEX, for GlobalMemoryStatusEx)
@@ -1600,10 +1613,14 @@ def main():
             print("the Vulkan back end: with AMD FSR 4 (AMD's FSR API headers, third_party/fidelityfx)", flush=True)
         # (Eden's recompiler and sirit see only their own headers: a change to the back end's vk_*.h does not
         # rebuild their ~500 files; the back end itself depends on everything, suyu's texture decoders included)
+        # (hookshot) the header packages' own trees too, Vulkan's, SPIR-V's and VMA's: they come in by -I alone, which the object
+        # keys leave out (flag_text), and with the object store (#371) two work folders of other packages would share objects
         vk_lib_deps = tree_headers(os.path.join(vk, "eden"), os.path.join(vk, "sirit"), os.path.join(vk, "compat"),
-                                   os.path.join(GPU, "compat"))
+                                   os.path.join(GPU, "compat"), os.path.join(spirv_headers, "include"))
         vdeps = tree_headers(vk, os.path.join(GPU, "render"), os.path.join(GPU, "compat"),
-                             os.path.join(GPU, "third_party", "suyu", "video_core", "textures"), os.path.join(kit.ROOT, "game"))
+                             os.path.join(GPU, "third_party", "suyu", "video_core", "textures"), os.path.join(kit.ROOT, "game"),
+                             os.path.join(spirv_headers, "include"), os.path.join(vk_headers, "include"),
+                             os.path.join(vma_headers, "include"))
         opennr, opennr_ptx, opennr_count = opennr_jobs(cxx, vk, gen_dir, obj_dir, vflags, vdeps)
         print("vk: open neural rendering (OpenDLSS-NR): %s" % (("compiled in, %d PTX kernels" % opennr_count) if opennr
                                                                else "left out (no third_party/opendlss-nr)"))

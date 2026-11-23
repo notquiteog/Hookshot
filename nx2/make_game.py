@@ -1972,8 +1972,8 @@ def profile_unread_message(prof, version_text, stderr, linux, wanted):
             % (who, os.path.basename(prof), why[-1] if why else "no message"))
     major = re.match(r"\d+", wanted or "")
     if linux and major and (not m or int(m.group(1)) < int(major.group(0))):
-        line += (". The build tools' LLVM %s reads it: `python -I scripts/dev_build.py env` installs them and prints the "
-                 "variables that point the build at them (EMSDK), or install clang %s or newer" % (wanted, major.group(0)))
+        line += (". The build tools' LLVM %s reads it: `bash scripts/linux/deps.sh` fetches them into build-linux/deps "
+                 "(emsdk/upstream, which the build finds through EMSDK), or install clang %s or newer" % (wanted, major.group(0)))
     return line
 
 

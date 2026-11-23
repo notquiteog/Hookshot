@@ -308,18 +308,26 @@ def base_env(predict_s):
 
 
 def renderer_profile(base_work, environ):
-    """The renderer's play profile for a pack of the renderer alone: the one make_game.py gave the base's build, by the same
-    path, so the base's objects are found again, since nx2/build.py run by itself uses none and the pack's renderer would then
-    differ from the base's by more than the change. That is <base work>/hookshot_vk.profdata when the base's checkout had its
-    own, else the committed one make_game.py unpacked there (hookshot_vk.shipped.profdata: every base of main since the
-    profile was committed; before this looked for the first name only, every renderer pack of such a base was built without
-    the profile its base had). Nothing when the base had none, or when RX_VK_PGO is set (a counting pack, or another profile)"""
+    """The renderer's play profile for a pack of the renderer alone: the one the base's build used, by the same path, so the
+    base's objects are found again, since nx2/build.py run by itself uses none and the pack's renderer would then differ from
+    the base's by more than the change. (hookshot) Read from what the base's build compiled the renderer with, its
+    <base work>/sa/build/compile_commands.json (-fprofile-instr-use=): a profile file being in the work folder does not say
+    the build used it, the profile being off by default here (RX_VK_PGO=1, #119), and make_game.py unpacks the committed one
+    all the same. Nothing when the base had none, or when RX_VK_PGO is set (a counting pack, or another profile)"""
     if environ.get("RX_VK_PGO"):
         return {}
-    for name in ("hookshot_vk.profdata", "hookshot_vk.shipped.profdata"):
-        prof = os.path.join(base_work, name)
-        if os.path.isfile(prof):
-            return {"RX_VK_PGO": prof}
+    try:
+        with open(os.path.join(base_work, "sa", "build", "compile_commands.json"), encoding="utf-8") as f:
+            entries = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    for e in entries if isinstance(entries, list) else ():
+        if not isinstance(e, dict) or "/gpu/vk/" not in str(e.get("file", "")).replace("\\", "/"):
+            continue
+        args = e.get("arguments") or shlex.split(e.get("command") or "")
+        for a in args:
+            if a.startswith("-fprofile-instr-use=") and os.path.isfile(a.split("=", 1)[1]):
+                return {"RX_VK_PGO": a.split("=", 1)[1]}
     return {}
 
 
