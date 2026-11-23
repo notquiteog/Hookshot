@@ -77,7 +77,6 @@ struct {
     bool task_mesh_fallback = false;
     uint32_t max_vertex_divisor = 0;
     VkPhysicalDeviceProperties props{};
-    uint32_t max_vertex_divisor = 0;
     VkDriverId driver_id = VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA;
     VkPhysicalDevice physical = VK_NULL_HANDLE;
 } dev;

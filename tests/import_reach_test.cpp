@@ -81,7 +81,9 @@ static std::atomic<uint64_t> pools_gen{1};
 static std::mutex pools_mu, bg_mu;
 static std::condition_variable bg_cv, bg_done_cv;
 static std::deque<std::pair<uint64_t, uint64_t>> bg_queue;
-static std::vector<uint64_t> bg_inflight;
+static std::map<uint64_t, uint64_t> bg_inflight;   // (this tree's: [lo, hi) queued or being imported)
+struct DeadImport { VkBuffer buffer; VkDeviceMemory memory; uint64_t value; uint64_t lo, bytes; std::vector<VkDeviceMemory> pieces; };
+static std::deque<DeadImport> dead_imports;   // (this tree's retired imports, freed once the GPU is past them: none here)
 static std::vector<std::pair<uint64_t, Pool>> bg_ready;
 static int64_t st_bg_waits, st_prefetch_sent, st_prefetch_used, st_prefetch_dropped, st_async_sent, st_async_copies;
 static std::vector<Pool*> mirror_wanted, sparse_wanted;

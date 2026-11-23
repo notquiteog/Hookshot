@@ -24,6 +24,7 @@
 #include "../gpu/vk/keep_rendered.h"
 #include "../gpu/vk/target_overlap.h"
 #include "../gpu/vk/vram_compact.h"
+#include "../gpu/vk/compat/hookshot_env.h"   // (env_on: this tree's switches' rule)
 
 namespace mkwvk {
 struct Texture {   // (the fields the pass and finalized_obsolete read)
@@ -48,6 +49,7 @@ void memory_written_runs(uint64_t guest, uint64_t size, uint32_t gen, Ranges& ou
     if (it != written_since_release.end() && it->second) out.push_back({0, it->second});
 }
 uint64_t dead_min_unused_presents() { return 1; }
+bool vram_under_8gb() { return false; }   // (this tree's #637 rules for small cards: a 16 GB card here)
 void logf(const char*, ...) {}
 
 #include OBSOLETE   // (finalized_obsolete, as the source has it)
@@ -57,6 +59,7 @@ std::vector<Texture*> choose(uint64_t completed, bool sweep, uint64_t budget) {
     const bool known = true;
     const uint64_t used = 1ull << 30, allowed = 8ull << 30;   // (far from the driver's limit: keep_rendered's 3600 presents)
     const uint64_t evict_to = 0, rule_to = 0, hold_to = 0;
+    const bool dead_targets = true;   // (this tree's texture_frame: dead_targets_on(), on by default)
 #include CUT
     std::vector<Texture*> out;
     for (const Evict& e : evict) out.push_back(e.tex);
