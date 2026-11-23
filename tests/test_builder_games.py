@@ -18,8 +18,9 @@ Checked here:
     strings.py made from Strings.cs (gen_strings.py) with the library's keys;
   - the WPF Builder (builder/HookshotBuilder): the same calls (Runner.Library, UpdateAllClick, StartUpdateAll,
     Updater.UpdateFolder's UpdateBuildOrAll, InstallGame, BuildWhere, GameFramed), Finder's shortcuts per game with
-    Hookshot.lnk for the default one, the launcher page's LaunchSeries/LaunchTitle, Games.cs's profiles and default key
-    game_profile.py's, and every language of Strings.cs translating the library's strings; and with .NET, Games.cs compiled
+    Hookshot.lnk for the default one, the launcher page's LaunchSeries/LaunchTitle, Games.cs's profiles the game packs'
+    (packs/<key>/pack.json through nx2/packs.py: key, name, build id, in order), which are game_profile.py's that build, and its
+    default key the packs' (packs.DEFAULT, game_profile.DEFAULT), the Qt Builder's PROFILES the same, and every language of Strings.cs translating the library's strings; and with .NET, Games.cs compiled
     with tests/builder_games_test.cs answers as game_folders.py does: the games and folders, folder_key, shortcut_name,
     title_parts, update_line, copy_key, the parsed --library --json and Update all's results, how a run ended (Outcome), the
     library without the tools' answer (Fallback) and a game's shortcut folder;
@@ -49,6 +50,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "nx2"))
 import game_folders  # noqa: E402
 import game_profile  # noqa: E402
+import packs  # noqa: E402
 
 failures = []
 
@@ -509,9 +511,13 @@ def check_qt_builder(tmp):
     check("own = shortcut_folder(game_folder)" in method(core, "shortcuts", "top") and
           "core.repoint_default(" in method(window, "got_library"),
           "the Qt Builder's shortcuts are on a game's own folder, and a stale Hookshot.lnk is put onto the default game's")
-    check(eval(core[core.index("PROFILES = (") + len("PROFILES = "):core.index(")\nDEFAULT_KEY")] + ")") ==
-          tuple((p.key, p.game, p.build_id) for p in game_folders.buildable()) and
-          'DEFAULT_KEY = "%s"' % game_profile.DEFAULT in core, "the Qt Builder's profiles are game_profile.py's that build")
+    qt = eval(core[core.index("PROFILES = (") + len("PROFILES = "):core.index(")\nDEFAULT_KEY")] + ")")
+    want = tuple((k, m["name"], m["builds"][0]["build_id"]) for k, m in packs.tree().items())
+    check(qt == want, "the Qt Builder's PROFILES are the game packs': %r, not %r" % (qt, want))
+    check(want == tuple((p.key, p.game, p.build_id) for p in game_folders.buildable()),
+          "the packs' games are not game_profile.py's that build")
+    check('DEFAULT_KEY = "%s"' % packs.DEFAULT in core and packs.DEFAULT == game_profile.DEFAULT,
+          "the Qt Builder's DEFAULT_KEY is the packs' DEFAULT")
     check_qt_shortcuts(tmp)
     check("game_link(own, shortcut_folder(was), key)" in method(core, "repoint_default", "top") and
           "for key, _name, _bid in PROFILES:" in method(core, "move_work", "top"),
@@ -567,9 +573,11 @@ def cs_profiles():
 
 def check_wpf_builder():
     rows, default = cs_profiles()
-    want = [(p.key, p.game, p.build_id) for p in game_folders.buildable()]
-    check(rows == want, "Games.cs's profiles are game_profile.py's that build: %r, not %r" % (rows, want))
-    check(default == game_profile.DEFAULT, "Games.cs's default key is game_profile.DEFAULT (%r)" % (default,))
+    want = [(k, m["name"], m["builds"][0]["build_id"]) for k, m in packs.tree().items()]
+    check(rows == want, "Games.cs's profiles are the game packs': %r, not %r" % (rows, want))
+    check(want == [(p.key, p.game, p.build_id) for p in game_folders.buildable()],
+          "the packs' games are not game_profile.py's that build")
+    check(default == packs.DEFAULT == game_profile.DEFAULT, "Games.cs's default key is the packs' DEFAULT (%r)" % (default,))
     hb = ROOT / "builder" / "HookshotBuilder"
     window = (hb / "MainWindow.xaml.cs").read_text(encoding="utf-8")
     runner = (hb / "Runner.cs").read_text(encoding="utf-8")
