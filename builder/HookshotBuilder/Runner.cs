@@ -99,8 +99,15 @@ sealed class Runner
         this.ffxSdk = ffxSdk;
     }
 
+    /// make_game.py with these arguments, in the build's environment. (Its six parameters are what tests/builder_workers
+    /// reflects on: another script goes through ScriptInfo)
     static ProcessStartInfo Info(Tools tools, IEnumerable<string> args, int? workers = null, string? ngxSdk = null,
-                                 int? memoryGb = null, string? ffxSdk = null, string script = "make_game.py")
+                                 int? memoryGb = null, string? ffxSdk = null) =>
+        ScriptInfo(tools, "make_game.py", args, workers, ngxSdk, memoryGb, ffxSdk);
+
+    /// One of the tools' scripts (nx2/<script>) with these arguments, in the build's environment
+    static ProcessStartInfo ScriptInfo(Tools tools, string script, IEnumerable<string> args, int? workers = null,
+                                       string? ngxSdk = null, int? memoryGb = null, string? ffxSdk = null)
     {
         var si = new ProcessStartInfo(tools.Python)
         {
@@ -177,7 +184,7 @@ sealed class Runner
     {
         try
         {
-            using var p = Process.Start(Info(tools, args, script: script))!;
+            using var p = Process.Start(ScriptInfo(tools, script, args))!;
             var stderr = p.StandardError.ReadToEndAsync();   // (drained, so a long complaint cannot stall it)
             var lines = new List<string>();
             while (p.StandardOutput.ReadLine() is { } line) lines.Add(line);
