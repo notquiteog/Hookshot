@@ -9532,6 +9532,7 @@ bool prepare_run(void (*progress)(size_t done, size_t total), bool background, b
          "%zu programs with texture variants, %zu at the limit) in %.1f s", programs, background ? " in play" : "", made.load(), (long long)failed,
          (long long)shader_left_out(), libs.load(), variants.load(),
          asking.load(), capped.load(), std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+    shader_fail_lines();   // (the failed by their "not translated" lines, all of them: those lines stop at 30 programs each)
     if (warm) {
         // (translated, whatever becomes of the libraries: a start that is closed in them goes on with them alone)
         prepared_for.warmed = 0;
