@@ -277,7 +277,7 @@ Fitted to this tree:
 - #700's counter goes into this tree's own readback wait, whose rule for which waits are forced differs from Longshot's.
 - #1244's dummy view, for devices without a null descriptor, replaces this tree's earlier form of the same fix.
 - #1462's obsolete targets join this tree's `evict_rendered` and `RX_VK_EVICT_NO_FLUSH` rules.
-- #1222 finds a source by the format it was made in: an opaque texture this tree made BC1 on its first upload (#2554) is found as the BC3 it was made, and the new one is made BC1 too before the copy. Only 2D, non-sparse textures are hashed.
+- #1222 is off by default (`RX_VK_ASTC_REUSE=1` turns it on): hashing every new texture made one frame of MKW's boot 627-711 ms against 280-290, and the bench's routes reused nothing. On, it finds a source by the format it was made in: an opaque texture this tree made BC1 on its first upload (#2554) is found as the BC3 it was made, and the new one is made BC1 too before the copy. Only 2D, non-sparse textures are hashed.
 - #1555 keeps the memory types host pointers import as, asked once, and asks again, inside the import fence, only when they give a buffer none or its allocation fails: asked for every import, the question walks the heap on NVIDIA's Windows driver (13-30 ms an import).
 - #924's R and B swap is for texels uploaded from the game's memory only: a 5-5-5 image the GPU drew is sampled as its attachment wrote it.
 - #671 keeps this tree's AMD rule: there a sparse BC image keeps its raw attachment usage, which the driver answers no for and takes.

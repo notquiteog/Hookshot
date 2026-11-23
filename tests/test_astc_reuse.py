@@ -34,6 +34,10 @@ def check_source():
     shape = src[src.index("astc_reuse::Shape reuse_shape(const Texture& t) {"):]
     if "t.bc1 == 2 && t.format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK ? VK_FORMAT_BC3_UNORM_BLOCK" not in shape[:shape.index("\n}\n")]:
         raise SystemExit("reuse_shape compares a texture made BC1 on its first upload by its BC1: no new one ever matches it")
+    # (hookshot: off by default, RX_VK_ASTC_REUSE=1 on: its hashing made one frame of MKW's boot 627-711 ms)
+    on = src[src.index("bool reuse_on() {"):]
+    if 'getenv("RX_VK_ASTC_REUSE") && atoi(getenv("RX_VK_ASTC_REUSE")) != 0' not in on[:on.index("\n}\n")]:
+        raise SystemExit("the ASTC reuse is on by default again: its hashing costs MKW's boot a 627-711 ms frame")
     forget = src[src.index("void forget_gpu(Texture* tex) {"):]
     if "reuse_drop(*tex);" not in forget[:200]:
         raise SystemExit("forget_gpu no longer takes a destroyed texture out of the reuse list")

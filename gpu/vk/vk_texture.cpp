@@ -1891,8 +1891,12 @@ bool upload(Texture& tex, const Ranges* dirty) {
 // ---- (hookshot) decoded ASTC used again (astc_reuse.h): a new texture whose blocks and image are those of one the game
 // finalized takes that one's image by a GPU copy, and the old one goes at the next texture_frame. RX_VK_ASTC_REUSE=0: every
 // new texture decoded, as before ----
+/// (hookshot) Off by default, RX_VK_ASTC_REUSE=1 on: every new 2D ASTC texture's blocks are hashed at its first upload, and in
+/// MKW's boot, which uploads its textures in a few frames before the title, that made one frame of 627-711 ms against main's
+/// 280-290 (RTX 5060 Ti, Linux; DK Bananza's A3 runs, gone with it off). Nothing measured here was reused by it either: the
+/// game's revisits in the bench routes made none of their textures again with the blocks and shape of a finalized one
 bool reuse_on() {
-    static const bool v = !getenv("RX_VK_ASTC_REUSE") || atoi(getenv("RX_VK_ASTC_REUSE")) != 0;
+    static const bool v = getenv("RX_VK_ASTC_REUSE") && atoi(getenv("RX_VK_ASTC_REUSE")) != 0;
     return v;
 }
 std::mutex reuse_mu;
