@@ -539,8 +539,8 @@ both. Recording a new one:
 
 1. **Build a renderer that counts**, `RX_VK_PGO=gen`: the back end's own files (`gpu/vk/*.cpp` and suyu's texture
    decoders; not Eden's recompiler, sirit, Dear ImGui or zstd) are built with `-fprofile-instr-generate`, still at
-   `-O2`, and the module gets its own copy of `host/pgo_rt.c`. As a pack of a change (`base` takes it the same way),
-   or the renderer alone:
+   `-O2`, and the module gets its own copy of `host/pgo_rt.c`. As a pack of a change (`base` takes it the same way;
+   `pack` builds the renderer for `RX_VK_PGO` even when no file changed since the base), or the renderer alone:
    ```
    RX_VK_PGO=gen python -I scripts/dev_packs.py pack <dir> vk-count
    RX_VK_PGO=gen OOT_WORK=<work> RX_RELEASE=1 RX_VK_ONLY=1 python -I nx2/build.py --standalone
@@ -806,7 +806,7 @@ Damage taken, Debug tools), gives its own words for a row by the row's key in `h
 Debug tab (a slot each in the rows table) and the list pages they open, its own controls, and its translations, looked
 up before the renderer's. A game's option ids are its pack's, `HOS_OPT_GAME_BASE` (0x10000) and up. A game with no table
 (Mario Kart World, Bananza) has none of these rows and no tools; the Debug tab keeps its Developer rows. The renderer is
-compiled with the empty profile's `game_profile.h` (`nx2/build.py` `renderer_profile`), so it holds no game's program keys
+compiled with the empty profile's `game_profile.h` (`nx2/build.py` `empty_profile_dir`), so it holds no game's program keys
 either: the runtime hands it its own (`HOOKSHOT_PROFILE_*`).
 
 `build_steps` in pack.json say which of `make_game.py`'s optional steps a game takes part in: a game whose pack names
