@@ -90,6 +90,25 @@ class MenuI18nTests(unittest.TestCase):
                 "Those of the first controller, from its type and name (SDL's). With none, the keyboard's (the Switch's with XInput "
                 "alone)."
             ),
+            # (game packs a4: the general wording of the rows that named Ocarina, which a game without its own words shows)
+            "Game frame rate cap": (
+                "Limits frames rendered by the game. Generated frames are additional. Changes at once. 30 reduces rendering work "
+                "and keeps real time even with Game speed set to Per frame. Past 60 is experimental: some cutscenes and bosses can "
+                "misbehave. 60 is the safe choice. Uncapped: as fast as the PC can, still at real time; with V-Sync on, the "
+                "display's refresh rate is the limit."
+            ),
+            "Microphone": "What the game hears when it listens to the microphone.",
+            "Text size": "How large the text of dialogue and signs is drawn.",
+            "Skip opening": "Skips the new-game opening and leaves later cutscenes and the title screen alone.",
+            "Auto run": (
+                "Sprint without holding A (or its key). Hold it until the sprint starts, then let go: it keeps going. Let go of the "
+                "stick or the movement keys, or tap A again, to stop."
+            ),
+            "Debug tools": "The game's testing tools, below while this is on.",
+            "Damage taken": (
+                "How much health a hit takes. Normal is unchanged. Changes apply at once; healing is unchanged. Debug tools Off "
+                "makes it Normal until they are on again."
+            ),
         }
         for name, hint in hints.items():
             self.assertTrue(hint in self.menu, "%s: expected complete hint is no text of vk_menu.cpp" % name)

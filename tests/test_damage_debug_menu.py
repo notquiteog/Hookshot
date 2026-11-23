@@ -5,7 +5,9 @@ pack's packs/<key>/menu/menu.c) in the table's order, in its groups, with Damage
 entry) beside Heart protection in Player, not under Developer. The renderer's real rows, visibility, order, groups and
 keyboard traversal are compiled with Ocarina's real table (packs/oot/menu/menu.c, as C), handed over as the host does
 (MkwVkHost.game_menu), and without a table (a game with none: Mario Kart World, Donkey Kong Bananza): no tools, no Debug tools
-row, no Damage taken, the Developer rows alone. No GPU, no game.
+row, no Damage taken, the Developer rows alone. The tools' list pages, through the real cheat_press: Teleport keeps its choice
+across a visit to the Inventory, which opens on All at its first card. The rows are counted first with no host, as kTop's
+static initializer does, and the table is still found once the host is there. No GPU, no game.
 """
 import argparse
 from pathlib import Path
@@ -49,7 +51,7 @@ def main():
         assert '"%s"' % name not in table, name
     source = '#include <algorithm>\n#include <atomic>\n#include <cassert>\n#include <cctype>\n#include <cstdarg>\n#include <cstdio>\n'
     source += '#include <cstring>\n#include <iterator>\n#include <string>\n'
-    source += '#include "vk_api.h"\n'
+    source += '#define _Static_assert static_assert   // (rx_nvn.h, which vk_api.h includes, is C)\n#include "vk_api.h"\n'
     source += 'struct HostStub { uint32_t version; const NX2GameMenu* (*game_menu)(void); };\n'
     # (no host until mkwvk_init: the rows are counted by a static initializer before it, kTop)
     source += 'static HostStub host_stub = {25, nullptr};\nstatic HostStub* host = nullptr;\n'
@@ -87,6 +89,43 @@ bool model_shown(bool available) { return available; }
                  "int menu_damage_taken("):
         source += block(menu, name) + '\n'
     source += between(menu, "int tool_total() {", "/// (hookshot) The Debug tab's rows from top down")
+    # (a tool's row pressed: the list pages it opens, as menu_tick's confirm does)
+    source += 'int page = 0;\nstd::atomic<bool> open_now{true};\n'
+    source += block(menu, "void cheat_press(int i, const bool* press, bool& changed) {") + '\n'
+    source += r'''
+/// The table's tool of that name (its slot), -1 none
+static int tool_named(const char* name) {
+    const NX2GameMenu* m = menu_game();
+    for (int i = 0; m && i < m->tool_count; ++i)
+        if (m->tools[i].name && !std::strcmp(m->tools[i].name, name)) return i;
+    return -1;
+}
+static void confirm(int tool) {
+    bool press[17] = {}, changed = false;
+    press[7] = true;
+    cheat_press(tool, press, changed);
+    assert(changed);
+}
+/// Teleport keeps its choice across a visit to the Inventory (and back to the Debug tab between them), as it did when the
+/// two pages were the renderer's own; the Inventory opens on All at its first card, as it always has
+static void list_choices() {
+    const int teleport = tool_named("Teleport"), inventory = tool_named("Inventory");
+    assert(teleport >= 0 && inventory >= 0);
+    confirm(teleport);
+    assert(page == 3 && teleport_choice == 0 && teleport_count() == 31);
+    teleport_choice = 5;   // (Lost Woods, as the keys leave it)
+    page = 0;
+    confirm(inventory);
+    assert(page == 4 && item_choice == 0 && inventory_filter == 0 && item_count() > 50);
+    item_choice = 7, inventory_filter = 1;
+    page = 0;
+    confirm(teleport);
+    assert(page == 3 && teleport_choice == 5 && !std::strcmp(teleport_name(teleport_choice), "Lost Woods"));
+    page = 0;
+    confirm(inventory);
+    assert(page == 4 && item_choice == 0 && inventory_filter == 0);
+}
+'''
     source += r'''
 static void tools_in() {   // (menu_game_init's part this fixture needs: the slots named, their first values)
     const NX2GameMenu* m = menu_game();
@@ -140,6 +179,7 @@ int main(int argc, char** argv) {
         assert(opts.damage_taken == 3); // Hiding the tools must not reset the saved option.
         assert(menu_damage_taken() == (env || enabled ? 3 : 1)); // Hidden means Normal for the host.
     }
+    if (game) list_choices();   // (the list pages' choices kept across visits)
     if (game) {   // (the groups as before: Player, Travel, Camera & world, of 6, 3 and 2 tools)
         const NX2GameMenu* m = menu_game();
         assert(m->group_count == 3 && tool_total() == 11);

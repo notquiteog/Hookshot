@@ -1651,7 +1651,12 @@ const char* choice_name(const NX2MenuTool* t, int index) {
 }
 // ---- the list pages a tool opens (NX2_TOOL_LIST: NX2GameMenu.lists): page 3 a places list's, page 4 an items list's ----
 constexpr int kMaxCards = 256, kMaxSections = 16;
-int list_shown = -1;   // (the list the open page shows, NX2GameMenu.lists' index)
+// (the list each page shows, NX2GameMenu.lists' index: [0] the places page's, [1] the items page's; -1 none opened yet. Each
+// page keeps its own: a visit to the Inventory leaves the Teleport page's choice where it was. A places list keeps its choice
+// across another places list's visits too, list_choice)
+constexpr int kMaxLists = 16;
+int list_shown[2] = {-1, -1};
+int list_choice[kMaxLists] = {};
 const NX2MenuList* list_of(int list) {
     const NX2GameMenu* m = menu_game();
     return m && m->lists && list >= 0 && list < m->list_count && m->lists[list].cards && m->lists[list].count > 0 ? &m->lists[list]
@@ -1668,7 +1673,7 @@ const NX2MenuList& list_now(int style) {
     static const NX2MenuCard none_card = {"", nullptr, 0};   // (no such list: a page of one empty card, which no tool opens)
     static const NX2MenuList none[2] = {{NX2_LIST_PLACES, "", nullptr, &none_card, 1, nullptr, 0, 0, 0},
                                         {NX2_LIST_ITEMS, "", nullptr, &none_card, 1, nullptr, 0, 0, 0}};
-    const NX2MenuList* l = list_of(list_shown);
+    const NX2MenuList* l = list_of(list_shown[style == NX2_LIST_ITEMS]);
     if (!l || l->style != style) l = list_of(list_first(style));
     return l ? *l : none[style == NX2_LIST_ITEMS];
 }
@@ -4945,10 +4950,19 @@ void cheat_press(int i, const bool* press, bool& changed) {
     case NX2_TOOL_LIST:
         if (press[7]) {
             if (const NX2MenuList* list = list_of(t->list)) {
-                if (list_shown != t->list) teleport_choice = 0, item_choice = 0, inventory_filter = 0;   // (another list: its start)
-                list_shown = t->list;
-                if (list->style == NX2_LIST_PLACES) page = 3, teleport_follow = true, changed = true;
-                else page = 4, choose_inventory_filter(0), changed = true;
+                if (list->style == NX2_LIST_PLACES) {   // (its choice as it was left: another places list's kept for it)
+                    int& shown = list_shown[0];
+                    if (shown != t->list && t->list < kMaxLists) {
+                        if (shown >= 0 && shown < kMaxLists) list_choice[shown] = teleport_choice;
+                        teleport_choice = list_choice[t->list];
+                    }
+                    shown = t->list;
+                    teleport_choice = std::clamp(teleport_choice, 0, card_count(*list) - 1);
+                    page = 3, teleport_follow = true, changed = true;
+                } else {   // (the items page opens on All at its first card, as it always has)
+                    list_shown[1] = t->list;
+                    page = 4, choose_inventory_filter(0), changed = true;
+                }
             }
         }
         break;

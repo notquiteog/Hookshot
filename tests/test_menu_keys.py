@@ -317,9 +317,9 @@ def main():
     cheats = menu[menu.index("void cheat_press(int i,"):menu.index("void menu_tick() {")]
     # (game packs a4: the tools are the game's menu table's, a list tool opens its list's page by its style: Ocarina's Teleport
     # the places page, 3, its Inventory the items page, 4)
-    need(cheats, r"case NX2_TOOL_LIST:\s*if \(press\[7\]\) \{.*?if \(list->style == NX2_LIST_PLACES\) page = 3, teleport_follow = true",
+    need(cheats, r"case NX2_TOOL_LIST:\s*if \(press\[7\]\) \{.*?if \(list->style == NX2_LIST_PLACES\) \{.*?page = 3, teleport_follow = true",
          "confirm on a places list's tool (Teleport) does not open the map list")
-    need(cheats, r"else page = 4, choose_inventory_filter\(0\)", "confirm on an items list's tool (Inventory) does not open the editor")
+    need(cheats, r"\} else \{[^}]*?list_shown\[1\] = t->list;\s*page = 4, choose_inventory_filter\(0\)", "confirm on an items list's tool (Inventory) does not open the editor")
     table = (ROOT / "packs" / "oot" / "menu" / "menu.c").read_text(encoding="utf-8")
     need(table, r'\.kind = NX2_TOOL_LIST, \.name = "Teleport",.*?\.list = OOT_LIST_TELEPORT\}', "Ocarina's Teleport is no list tool")
     need(table, r'\.kind = NX2_TOOL_LIST, \.name = "Inventory",.*?\.list = OOT_LIST_INVENTORY\}', "Ocarina's Inventory is no list tool")

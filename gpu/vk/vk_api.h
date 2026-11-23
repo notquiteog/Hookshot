@@ -72,7 +72,11 @@ enum { HOS_OPT_GAME_BASE = 0x10000 };
    menu's general rows the game implements, its own words for some of them, its tools on the Debug tab and the list pages they
    open, its own controls on the Controls page, and the translations of all of it. The renderer draws only what the table says
    (gpu/vk/vk_menu.cpp); a game with no table (host/game_none.c) has no tools and none of the feature rows below. */
-#define NX2_GAME_MENU_VERSION 1   /* NX2GameMenu.version; a table of another version is not read, nor one smaller than this one */
+/* NX2GameMenu.version; a table of another version is not read, nor one smaller than this one. Its size covers NX2GameMenu
+   alone: a change to any of the structs its arrays hold (NX2MenuText, NX2MenuTool, NX2MenuGroup, NX2MenuList, NX2MenuCard,
+   NX2MenuSection, NX2MenuControl, NX2MenuEntry, NX2MenuLang), a member added at their end too, changes the layout the renderer
+   steps through those arrays by, and bumps NX2_GAME_MENU_VERSION (and the pack interface, host/nx2_pack.h) */
+#define NX2_GAME_MENU_VERSION 1
 /* The general rows only some games implement (pack.json "features", by the names in quotes; tests/test_game_packs.py holds the
    two the same): a row whose feature the running game does not list is hidden, its saved value kept */
 enum {
