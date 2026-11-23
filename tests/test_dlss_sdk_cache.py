@@ -49,7 +49,8 @@ def main():
                       vk=str(vk), GPU=str(root / "gpu"), vk_jobs=[], cxx=a.cxx, obj_dir=str(root / "obj"),
                       vflags=["-std=c++17", "-O0"], imgui_flags=[], imgui_users=(), shader_stamp="", stamp_def="",
                       vk_lib_deps=b"", logo_text=b"", imgui_deps=b"", vk_sources=lambda: [str(src), str(other)],
-                      vk_pgo_flags=[])   # (RX_VK_PGO: no profile, as by default)
+                      vk_pgo_flags=[],   # (RX_VK_PGO: no profile, as by default)
+                      vk_profile=str(root / "renderer_profile"))   # (the empty profile's header folder, game packs a4)
             exec(code, ns)
             return {Path(j[1]).name: (ns["object_key"](j[1], j[3], j[4]), j) for j in ns["vk_jobs"]}
 
