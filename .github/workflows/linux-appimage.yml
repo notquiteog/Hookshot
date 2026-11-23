@@ -36,6 +36,56 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The container the AppImage is built in: CI's build image (.github/ci/appimage-build.Dockerfile, made by
+  # .github/workflows/appimage-build-image.yml), Ubuntu 22.04 with the system packages installed, tagged with the hash of
+  # that Dockerfile and scripts/linux/system_packages.sh; or plain ubuntu:22.04 when this repository has no image for
+  # these files yet (a pull request that changes the package list, the image's first run not made yet), and then the
+  # AppImage job installs the packages itself. A missing image never fails the run: this job names the other one.
+  image:
+    name: Find the build image
+    if: >-
+      github.ref_name != 'builder-parts' && github.ref_name != 'linux-parts' && github.ref_name != 'nightly'
+      && github.ref_name != 'rc'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.find.outputs.image }}
+      hash: ${{ steps.find.outputs.hash }}
+      prebuilt: ${{ steps.find.outputs.prebuilt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/ci/appimage-build.Dockerfile
+            scripts/linux/system_packages.sh
+          sparse-checkout-cone-mode: false
+      # (the same hash as the image workflow's tag: tests/test_appimage_build_image.py)
+      - name: Find the image
+        id: find
+        env:
+          HASH: ${{ hashFiles('.github/ci/appimage-build.Dockerfile', 'scripts/linux/system_packages.sh') }}
+          GH_TOKEN: ${{ github.token }}
+          DOCKER_CONFIG: ${{ runner.temp }}/docker
+        run: |
+          test -n "$HASH"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/hookshot-appimage-build:$HASH"
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          # (a private package needs the token; a public one is read without it, so a refused login is not the end)
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null 2>&1 ||
+            echo "::notice::no login to ghcr.io: looking for the image without one"
+          if timeout 60 docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "the build image for these packages: $image"
+            { echo "image=$image"; echo "prebuilt=true"; } >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::no build image $image yet (.github/workflows/appimage-build-image.yml makes it): the AppImage job installs its packages on ubuntu:22.04"
+            { echo "image=ubuntu:22.04"; echo "prebuilt=false"; } >> "$GITHUB_OUTPUT"
+          fi
+
   appimage:
     # (builder-parts holds the installer's parts: no AppImage there, and it must never be made "latest")
     # (nightly is moved forward by the release job of a push to main, here or in the Windows builder workflow, and rc by
@@ -43,60 +93,69 @@ jobs:
     if: >-
       github.ref_name != 'builder-parts' && github.ref_name != 'linux-parts' && github.ref_name != 'nightly'
       && github.ref_name != 'rc'
+    needs: image
     runs-on: ubuntu-latest
-    container: ubuntu:22.04
+    # (the build image, or ubuntu:22.04 without one: the image job above. A login only for the build image: Docker Hub
+    # would refuse a GitHub token, and empty credentials are no login)
+    container:
+      image: ${{ needs.image.outputs.image }}
+      credentials:
+        username: ${{ needs.image.outputs.prebuilt == 'true' && github.actor || '' }}
+        password: ${{ needs.image.outputs.prebuilt == 'true' && secrets.GITHUB_TOKEN || '' }}
     # (about 4 minutes with the dependencies cached; building them all, as a release does, takes longer)
     timeout-minutes: 60
-    # (id-token and attestations: a release's build provenance)
+    # (id-token and attestations: a release's build provenance. packages: the build image, when it is private)
     permissions:
       contents: read
+      packages: read
       id-token: write
       attestations: write
     steps:
+      # (the image's /etc/hookshot-ci-image holds the hash it was made for: the packages are there when it is this
+      # checkout's. Otherwise the four steps after this one install them, as every run did before the image)
+      - name: Build image
+        id: packages
+        env:
+          HASH: ${{ needs.image.outputs.hash }}
+          IMAGE: ${{ needs.image.outputs.image }}
+        run: |
+          if [ -n "$HASH" ] && [ "$(cat /etc/hookshot-ci-image 2>/dev/null)" = "$HASH" ]; then
+            echo "the system packages come with $IMAGE"
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no build image for this checkout's packages in $IMAGE: they are installed here"
+          fi
       # (dpkg without an fsync per file: this container is thrown away after the job, so an install cut short loses nothing)
       - name: Package installs without fsync
+        if: steps.packages.outputs.installed != 'true'
         run: echo force-unsafe-io > /etc/dpkg/dpkg.cfg.d/force-unsafe-io
       # (the job's container fetches from archive.ubuntu.com, which on 2026-11-23 served GitHub's runners slowly enough that
       # four AppImage builds hit the hour still downloading packages. GitHub's runners are in Azure, whose Ubuntu mirror is
-      # near them: use it, and give apt its own retries and a timeout so one slow connection is dropped. Its own step, so the
-      # package bootstrap below stays the script tests/test_appimage_package_retry.py runs)
+      # near them: use it, and give apt its own retries and a timeout so one slow connection is dropped. The build image
+      # has the same, .github/ci/appimage-build.Dockerfile)
       - name: Package mirror
+        if: steps.packages.outputs.installed != 'true'
         run: |
           sed -i -E 's#http://(archive|security)\.ubuntu\.com/ubuntu#http://azure.archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list
           printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-ci-network
+      # (the package list, before git is installed: without git this checkout comes from GitHub's API. The checkout below
+      # replaces it with the repository's own)
+      - name: Package list
+        if: steps.packages.outputs.installed != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          path: .packages
+          persist-credentials: false
+      # (scripts/linux/system_packages.sh, the one package list, the build image's too: tests/test_appimage_package_retry.py
+      # runs it with failing apt and PPA stand-ins)
       - name: System packages
+        if: steps.packages.outputs.installed != 'true'
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          retry_packages() {
-            for try in 1 2 3; do
-              if "$@"; then return 0; else package_status=$?; fi
-              if [ "$try" = 3 ]; then return "$package_status"; fi
-              sleep 20
-            done
-          }
-          base_packages() {
-            apt-get update &&
-              apt-get install -y --no-install-recommends software-properties-common gpg-agent
-          }
-          toolchain_packages() {
-            # Enrollment can leave a source without its key after a network failure. Repair it before refreshing
-            # indexes that depend on that key; retrying the base refresh first would stop at NO_PUBKEY (#2266).
-            # --no-update only separates enrollment from the explicit, signed index refresh immediately afterward.
-            # (libstdc++ 13, from the toolchain PPA: C++20 <format>; linked in statically)
-            # Launchpad metadata connections can hang past the entire job's hour. Give each retry a real chance;
-            # terminate enrollment after three minutes, then kill it if termination itself stalls.
-            timeout --kill-after=5s 180s add-apt-repository -y --no-update ppa:ubuntu-toolchain-r/test &&
-              apt-get update &&
-              apt-get install -y --no-install-recommends g++-13 libstdc++-13-dev &&
-              apt-get install -y --no-install-recommends git ca-certificates curl xz-utils zstd file unzip python3 \
-              build-essential gcc-12 g++-12 libstdc++-12-dev nasm meson ninja-build cmake pkg-config \
-              libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxfixes-dev libxinerama-dev \
-              libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev libegl-dev libgles-dev libdrm-dev libgbm-dev \
-              libpulse-dev libasound2-dev libpipewire-0.3-dev libudev-dev libdbus-1-dev libxft-dev libfontconfig1-dev zlib1g-dev
-          }
-          retry_packages base_packages
-          retry_packages toolchain_packages
+          sh -e .packages/scripts/linux/system_packages.sh
+          rm -rf .packages
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

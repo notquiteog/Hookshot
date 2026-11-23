@@ -104,9 +104,11 @@ jobs:
     uses: ./.github/workflows/linux-appimage.yml
     with:
       tag: ${{ needs.release-please.outputs.tag || needs.promote.outputs.tag }}
-    # (id-token and attestations: the build provenance of the files)
+    # (id-token and attestations: the build provenance of the files. packages: CI's build image, which the AppImage is
+    # built in, .github/workflows/appimage-build-image.yml)
     permissions:
       contents: write
+      packages: read
       id-token: write
       attestations: write
 

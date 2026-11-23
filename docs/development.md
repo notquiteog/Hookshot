@@ -518,6 +518,33 @@ Then one summary line per game (`Mario Kart World: updated`; with the folder, `.
 is in more than one, and a line with what happened in each). Under `--prepare` these lines go to stderr, and a copy
 refused over another game's folder tells the player to move or rename that folder.
 
+#### The AppImage's build image (CI)
+
+The Linux AppImage workflow (`.github/workflows/linux-appimage.yml`) builds in a container of Ubuntu 22.04 with its
+system packages (the compilers, libstdc++ 13 from Launchpad's toolchain PPA, the X11, Wayland and audio headers) already
+installed: CI's build image, `.github/ci/appimage-build.Dockerfile`. Its packages are `scripts/linux/system_packages.sh`,
+the one list, which `scripts/linux/Dockerfile` (`scripts/linux/docker.sh`) installs too. Without the image every run
+fetched them from archive.ubuntu.com and Launchpad, and a slow or failing Launchpad (503s on 2026-11-23) failed the run
+or held it to its hour.
+
+- **Made by** `.github/workflows/appimage-build-image.yml`, in each repository that runs it (a fork makes its own), and
+  pushed to that owner's GHCR as `ghcr.io/<owner>/hookshot-appimage-build:<hash>`, `<hash>` being `hashFiles()` of the
+  Dockerfile and `system_packages.sh`; a run on main also moves `:latest`. It runs when either file (or the workflow)
+  changes on main, and by hand. The image's `/etc/hookshot-ci-image` holds its hash.
+- **Used by** the AppImage workflow's `image` job, which hashes its checkout's two files and names that tag when the
+  registry has it, else `ubuntu:22.04`. The `appimage` job then skips its package steps when the image's
+  `/etc/hookshot-ci-image` matches, and otherwise installs the packages itself as before (the Azure mirror, the retries
+  of `system_packages.sh`). A missing image only makes a run slower: a pull request that changes the list builds on
+  `ubuntu:22.04` until its image is made, and the first runs after such a change reaches main do too, until the image
+  workflow's run is over.
+- **To refresh it** (Ubuntu's or the PPA's newer package versions, without a change to the list): Actions >
+  *AppImage build image* > *Run workflow* on main, or `gh workflow run appimage-build-image.yml --ref main`. It pushes
+  the same tag again. A run on another branch pushes that branch's hash tag, never `:latest`: for a pull request that
+  changes the list, run it on the branch (`--ref <branch>`), then re-run the AppImage job to build in it.
+- **To change the packages**, edit `system_packages.sh` alone; `tests/test_appimage_package_retry.py` runs it with
+  failing apt and PPA stand-ins, and `tests/test_appimage_build_image.py` keeps the two workflows on the same tag.
+  The image holds no game data; GHCR keeps every tag, and an old one can be deleted from the package's page.
+
 ## Draw statistics
 
 Set `RX_VK_DRAW_STATS=<directory>` and create `<directory>/draw_stats.now` during play to measure one future frame.

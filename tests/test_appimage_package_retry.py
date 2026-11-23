@@ -2,6 +2,9 @@
 
 No network or package installation. The command stand-ins record ordering and
 inject transient or persistent failures at each bootstrap stage under sh -e.
+The bootstrap is scripts/linux/system_packages.sh, which the AppImage workflow's
+"System packages" step runs when its build image is not there, and which CI's
+build image (.github/ci/appimage-build.Dockerfile) and scripts/linux/Dockerfile run.
 """
 import argparse
 import json
@@ -67,16 +70,49 @@ else:raise SystemExit('unexpected package command')
 '''
 
 
-def bootstrap(root):
+SCRIPT = "scripts/linux/system_packages.sh"
+
+
+def step(root, name):
+    """The run: script of the AppImage workflow's step of this name"""
     source = (root / ".github/workflows/linux-appimage.yml").read_text(encoding="utf-8")
-    start = source.index("      - name: System packages")
-    start = source.index("        run: |\n", start) + len("        run: |\n")
+    start = source.index("      - name: %s\n" % name)
+    end = source.find("\n      - ", start + 1)
+    block = source[start:end if end >= 0 else len(source)]
+    start = block.index("        run: |\n") + len("        run: |\n")
     lines = []
-    for line in source[start:].splitlines():
+    for line in block[start:].splitlines():
         if line and not line.startswith("          "):
             break
         lines.append(line[10:] if line else "")
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines).strip() + "\n", block
+
+
+def bootstrap(root):
+    return (root / SCRIPT).read_text(encoding="utf-8")
+
+
+class WorkflowRunsTheScript(unittest.TestCase):
+    """The step this test once read inline now runs the shared script: the retries tested below are the ones CI runs"""
+
+    def test_system_packages_step_runs_the_shared_script(self):
+        run, block = step(ROOT, "System packages")
+        self.assertEqual(run, "sh -e .packages/%s\nrm -rf .packages\n" % SCRIPT)
+        self.assertIn("DEBIAN_FRONTEND: noninteractive", block)
+        self.assertIn("if: steps.packages.outputs.installed != 'true'", block)
+        # (the script comes from the "Package list" checkout, made before git is installed, into the folder it runs from)
+        source = (ROOT / ".github/workflows/linux-appimage.yml").read_text(encoding="utf-8")
+        listing = source[source.index("      - name: Package list\n"):source.index("      - name: System packages\n")]
+        self.assertIn("path: .packages", listing)
+        self.assertIn("ref: ${{ inputs.tag }}", listing)
+
+    def test_the_script_is_posix_and_stops_on_failure(self):
+        text = bootstrap(ROOT)
+        self.assertTrue(text.startswith("#!/bin/sh\n"), "run with sh in the container, whose default shell is sh")
+        self.assertRegex(text, r"\nset -e\n")
+        self.assertTrue(text.rstrip().endswith("retry_packages base_packages\nretry_packages toolchain_packages"))
+        if os.name != "nt":
+            self.assertTrue(os.access(ROOT / SCRIPT, os.X_OK), SCRIPT + " is executable")
 
 
 @unittest.skipIf(os.name == "nt", "POSIX AppImage package bootstrap")
