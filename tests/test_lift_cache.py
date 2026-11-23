@@ -160,13 +160,13 @@ def check_key_after_lift():
 
 def check_lift_sources():
     """Every module of nx2/ and a64-kit that loading the lift's two scripts really imports is one lift_sources() hashes (its
-    import walk reads the source; this imports them, capstone and lz4 stood in where they are not installed)"""
+    import walk reads the source; this imports them, capstone, lz4 and numpy stood in where they are not installed)"""
     import subprocess
     import sys
     code = ("import importlib, os, sys, types\n"
             "class Stub(types.ModuleType):\n    def __getattr__(self, n):\n"
             "        if n.startswith('__'):\n            raise AttributeError(n)\n        return 0\n"
-            "for name in ('capstone', 'lz4', 'lz4.block'):\n"
+            "for name in ('capstone', 'lz4', 'lz4.block', 'numpy'):\n"
             "    try:\n        importlib.import_module(name)\n    except ImportError:\n"
             "        sys.modules[name] = Stub(name)\n"
             "sys.path.insert(0, sys.argv[1])\nsys.argv[1:] = []\n"

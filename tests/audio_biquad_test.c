@@ -15,6 +15,7 @@ static void hos_log(const char *format, ...) { (void)format; }
 #define ARG(n) (c->x[n])
 #define RET(value) (c->x[0] = (uint64_t)(value))
 #define GP(value) ((void *)(uintptr_t)(value))
+static void *hos_guest_range(uint64_t a, uint64_t n) { (void)n; return GP(a); }   /* (host/hos.h's: here the guest's addresses are the host's) */
 #define G64(value) (*(uint64_t *)GP(value))
 #define G32(value) (*(uint32_t *)GP(value))
 #include "audio_biquad.inc"

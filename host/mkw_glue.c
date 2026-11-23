@@ -214,6 +214,66 @@ static uint64_t peek_guest(uint64_t a) {
     return G64(a);
 }
 
+#ifdef _WIN32
+/* (hookshot, #383) The x64 stack walks below (the crash report's, HOS_SAMPLE's and HOS_SAMPLE_ALL's) go one frame at a time
+   through unwind_step, which reads only the walked thread's own stack. RtlVirtualUnwind reads the frame's saved registers
+   and its return address at the stack pointer, or through the frame register when the function has one; a thread stopped
+   where its unwind data does not describe the frame (being made or ending, switching stacks, mid-prologue) gave it a
+   stack pointer that was not a stack, and its read faulted in the sampler's thread, which took the game down (0xc0000005
+   at ntdll.dll, reading 0x438, from sample_all_thread). The host is C without SEH (no -fms-extensions), so the walk is made
+   unable to fault rather than guarded: a step whose stack pointer, or frame register, is outside [lo, hi), the thread's
+   committed stack, ends the walk there, and the sample is only cut short */
+typedef struct { uint64_t lo, hi; } StackRange;
+/* a thread's committed stack (its TEB's StackLimit to StackBase), read while it is suspended; {0, 0} when it can't be */
+static StackRange thread_stack(HANDLE th) {
+    typedef LONG(NTAPI * QueryThread)(HANDLE, int, PVOID, ULONG, PULONG);
+    static QueryThread query;
+    static int looked;
+    if (!looked) {
+        query = (QueryThread)(void *)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtQueryInformationThread");
+        looked = 1;
+    }
+    struct {   /* (THREAD_BASIC_INFORMATION, ThreadBasicInformation = 0: not in the SDK's headers) */
+        LONG exit_status;
+        NT_TIB *teb;
+        void *process, *thread;
+        ULONG_PTR affinity;
+        LONG priority, base_priority;
+    } tbi = {0};
+    StackRange r = {0, 0};
+    if (query && query(th, 0, &tbi, sizeof tbi, NULL) >= 0 && tbi.teb) {
+        r.lo = (uint64_t)tbi.teb->StackLimit;
+        r.hi = (uint64_t)tbi.teb->StackBase;
+    }
+    return r;
+}
+static StackRange own_stack(void) {
+    const NT_TIB *tib = (const NT_TIB *)NtCurrentTeb();
+    StackRange r = {(uint64_t)tib->StackLimit, (uint64_t)tib->StackBase};
+    return r;
+}
+static int on_stack(StackRange s, uint64_t p) { return p >= s.lo && p + 8 <= s.hi; }
+/* one frame up: 1 when ctx is now its caller's frame, 0 when the walk ends (no unwind data, or a step that would read
+   outside the stack s). An empty s ({0, 0}: its limits could not be read) ends every walk at its first frame */
+static int unwind_step(CONTEXT *ctx, StackRange s) {
+    if (!on_stack(s, ctx->Rsp)) return 0;
+    DWORD64 image = 0;
+    PRUNTIME_FUNCTION f = RtlLookupFunctionEntry(ctx->Rip, &image, NULL);
+    if (!f) return 0;
+    /* (UNWIND_INFO: the low nibble of its fourth byte is the frame register, 0 for none; registers 0 to 15 are Rax to R15,
+       in CONTEXT's order. An entry whose UnwindData has its low bit set points at the RUNTIME_FUNCTION that has it) */
+    const RUNTIME_FUNCTION *rf = f;
+    if (rf->UnwindData & 1) rf = (const RUNTIME_FUNCTION *)(image + (rf->UnwindData & ~1u));
+    const BYTE *info = (const BYTE *)(image + rf->UnwindData);
+    const unsigned frame_reg = info[3] & 15;
+    if (frame_reg && !on_stack(s, (&ctx->Rax)[frame_reg])) return 0;
+    void *handler_data;
+    DWORD64 frame;
+    RtlVirtualUnwind(UNW_FLAG_NHANDLER, image, ctx->Rip, f, ctx, &handler_data, &frame, NULL);
+    return on_stack(s, ctx->Rsp) || !ctx->Rip;
+}
+#endif
+
 static LONG WINAPI report_crash(EXCEPTION_POINTERS *info) {
     EXCEPTION_RECORD *rec = info->ExceptionRecord;
     const uint64_t rip = info->ContextRecord->Rip;
@@ -231,6 +291,7 @@ static LONG WINAPI report_crash(EXCEPTION_POINTERS *info) {
 #ifdef _WIN32
     {   /* the host stack from the faulting frame (x64 unwind data), as module+offset (nx2/samap.py maps mkw.exe's) */
         CONTEXT ctx = *info->ContextRecord;
+        const StackRange stack = own_stack();
         char hb[1024];
         int n = snprintf(hb, sizeof hb, "CRASH: host backtrace:");
         for (int i = 0; i < 20 && ctx.Rip && n < (int)sizeof hb - 48; i++) {
@@ -241,12 +302,7 @@ static LONG WINAPI report_crash(EXCEPTION_POINTERS *info) {
                 GetModuleFileNameA(m, mn, MAX_PATH);
             const char *mb = strrchr(mn, '\\');
             n += snprintf(hb + n, sizeof hb - n, " %s+%#llx", mb ? mb + 1 : mn, (unsigned long long)(ctx.Rip - (uint64_t)m));
-            DWORD64 image = 0;
-            PRUNTIME_FUNCTION f = RtlLookupFunctionEntry(ctx.Rip, &image, NULL);
-            if (!f) break;
-            void *handler_data;
-            DWORD64 frame;
-            RtlVirtualUnwind(UNW_FLAG_NHANDLER, image, ctx.Rip, f, &ctx, &handler_data, &frame, NULL);
+            if (!unwind_step(&ctx, stack)) break;   /* (a fault in here would be a second crash inside the report) */
         }
         hos_log("%s", hb);
     }
@@ -454,6 +510,7 @@ static DWORD WINAPI sample_thread(void *p) {
         CONTEXT ctx = {0};
         ctx.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
         const BOOL got = GetThreadContext(th, &ctx);
+        const StackRange stack = got ? thread_stack(th) : (StackRange){0, 0};   /* (#383: the walk stays on it) */
         uint64_t keys[2] = {0, 0};
         char stack_line[1024];
         int stack_len = 0;
@@ -480,12 +537,7 @@ static DWORD WINAPI sample_thread(void *p) {
                 if (depth == 0) keys[0] = key;
                 if (m == exe && !keys[1]) keys[1] = key;
                 if (m == exe && !stacks) break;
-                DWORD64 image = 0;
-                PRUNTIME_FUNCTION f = RtlLookupFunctionEntry(ctx.Rip, &image, NULL);
-                if (!f) break;
-                void *hd;
-                DWORD64 frame;
-                RtlVirtualUnwind(UNW_FLAG_NHANDLER, image, ctx.Rip, f, &ctx, &hd, &frame, NULL);
+                if (!unwind_step(&ctx, stack)) break;
             }
         }
         ResumeThread(th);
@@ -731,6 +783,7 @@ static DWORD WINAPI sample_all_thread(void *p) {
             CONTEXT ctx = {0};
             ctx.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
             const BOOL got = GetThreadContext(th[i], &ctx);
+            const StackRange stack = got ? thread_stack(th[i]) : (StackRange){0, 0};   /* (#383: the walk stays on it) */
             char line[1024];
             int len = snprintf(line, sizeof line, "%ld %s|", ms, tn[i]);
             for (int depth = 0; got && depth < 16 && ctx.Rip && len < (int)sizeof line - 96; depth++) {
@@ -749,12 +802,7 @@ static DWORD WINAPI sample_all_thread(void *p) {
                 }
                 len += snprintf(line + len, sizeof line - len, "%s%s+%llx", depth ? ";" : "", mi < 0 ? "?" : modname[mi],
                                 (unsigned long long)(ctx.Rip - (uint64_t)m));
-                DWORD64 image = 0;
-                PRUNTIME_FUNCTION f = RtlLookupFunctionEntry(ctx.Rip, &image, NULL);
-                if (!f) break;
-                void *hd;
-                DWORD64 frame;
-                RtlVirtualUnwind(UNW_FLAG_NHANDLER, image, ctx.Rip, f, &ctx, &hd, &frame, NULL);
+                if (!unwind_step(&ctx, stack)) break;
             }
             ResumeThread(th[i]);
             fprintf(out, "%s\n", line);

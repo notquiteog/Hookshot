@@ -35,6 +35,8 @@ typedef struct { uint64_t x[32]; } Ctx;
 typedef void (*A64Fn)(Ctx *);
 static uint8_t *guest;   /* (the guest's first 4 GB, untouched pages cost nothing) */
 #define A64_PTR(a) (guest + (uint64_t)(a))
+/* (host/hos.h's hos_guest_range over this 4 GB window: NULL unless all n bytes lie in it) */
+static void *hos_guest_range(uint64_t a, uint64_t n) { return a < (1ULL << 32) && n <= (1ULL << 32) - a ? A64_PTR(a) : NULL; }
 static uint8_t recomp_load8(Ctx *c, uint64_t a) { (void)c; return *A64_PTR(a); }
 static uint32_t recomp_load32(Ctx *c, uint64_t a) { (void)c; uint32_t v; memcpy(&v, A64_PTR(a), 4); return v; }
 static uint64_t recomp_load64(Ctx *c, uint64_t a) { (void)c; uint64_t v; memcpy(&v, A64_PTR(a), 8); return v; }
