@@ -1001,21 +1001,24 @@ void apply_preset(int p) {
     // its resolution is DLSS's nearest mode)
     if (p > 0) opts.resolution = ur::snap_render(upscaler(), opts.resolution);   // (a slider stop kept)
     opts.budget = p;   // (Custom chosen on this row: none, as before)
-    // (hookshot, from Longshot #292) High or Ultra chosen: an Output resolution still at the game's 2048x1152 goes to 2560x1440,
-    // where the screen has those pixels or is not known (auto_settings.h high_output: the size those tiers start at). Only
-    // that way: a lower preset keeps the output the player has, and one the environment sets (HOS_OUTPUT_RES) stays
-    if (!env_holds(&opts.output_res)) {
-        uint32_t sw = 0, sh = 0;
-        const bool known = screen_size(&sw, &sh);
-        const Out o = output_at(opts.output_res);
-        if (o.w == kGameOutput.w && o.h == kGameOutput.h &&
-            ::auto_settings::high_output(p, known ? (int)sw : 0, known ? (int)sh : 0))
-            for (int i = 1; i < custom_index(); i++)
-                if ((int)outputs()[i].w == ::auto_settings::kHighW && (int)outputs()[i].h == ::auto_settings::kHighH) {
-                    opts.output_res = i;
-                    break;
-                }
-    }
+}
+/// (hookshot, from Longshot #292) The Quality preset p chosen on its row: High or Ultra move an Output resolution still at the
+/// game's 2048x1152 to 2560x1440, where the screen has those pixels or is not known (auto_settings.h high_output: the size those
+/// tiers start at). Only that way, and only when the player chooses: a lower preset keeps the output, one the environment sets
+/// (HOS_OUTPUT_RES) stays, and apply_preset (Auto's rows, a first start's) leaves it, as the row is exempt from the presets
+void preset_output(int p) {
+    if (env_holds(&opts.output_res)) return;
+    uint32_t sw = 0, sh = 0;
+    const bool known = screen_size(&sw, &sh);
+    const Out o = output_at(opts.output_res);
+    if (!(o.w == kGameOutput.w && o.h == kGameOutput.h) ||
+        !::auto_settings::high_output(p, known ? (int)sw : 0, known ? (int)sh : 0))
+        return;
+    for (int i = 1; i < custom_index(); i++)
+        if ((int)outputs()[i].w == ::auto_settings::kHighW && (int)outputs()[i].h == ::auto_settings::kHighH) {
+            opts.output_res = i;
+            return;
+        }
 }
 /// keep_own (Auto choosing again for new hardware): the preset-exempt row the player set under Auto stays theirs, the Output
 /// resolution (another than the one Auto set, auto_output). Mesh shaders Auto never sets (RX_VK_MESH_SHADERS), and the
@@ -2582,6 +2585,7 @@ void set_row(Row& r, int v, int dir, bool keep = true) {
     } else if (r.value == &opts.preset) {
         *r.value = v > r.hi ? r.lo : v < r.lo ? r.hi : v;
         apply_preset(*r.value);
+        preset_output(*r.value);   // (High and Ultra's 1440p output, chosen on the row only)
     } else {
         *r.value = v > r.hi ? r.lo : v < r.lo ? r.hi : v;   // (Game language: written when the row is left, game_lang_tick)
         // (another shape: the Output resolution moves to one of its sizes, the screen's own when it has that shape)
