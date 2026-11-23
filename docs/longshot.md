@@ -251,3 +251,28 @@ Fitted to this tree: #252's Intel compiler gate goes on this tree's `guarded_gra
 | [#1359](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1359) | SadTransGirl | perf(vk): a freed sparse mirror's buffer is kept for the next mirror of its size, not destroyed (RX_VK_SPARSE_SPARE_MB) |
 
 Adapted: #637 is taken for discrete cards of less than 8 GB alone (`vram_compact::under_8gb`, the device-local heap under 7.5 GB, since an 8 GB card's heap and allowance both read under 8 GB; never an integrated GPU such as the Steam Deck's): there it brings the start's 8% of blocks, the dynamic floor of 1800 MB and up, damped contraction, the runs' proportional start, the target pool halved over 90%, VMA's 32 and 16 MB blocks, `RX_VK_KEEP_FINALIZED_MB` 128, `RX_VK_ASTC_BC_MB` 1, `RX_VK_IMPORT_LOW` 70, and a 6 GB card's mirrors at a third (at most 1700 MB); its two DLSS CNN rows are for every card, and its staging keeps 128 MB where the driver allows 6.5 GB or less on a discrete card under 8 GB (an integrated GPU keeps main's 64 MB). Its changes for every card are left out: the Vulkan driver picked from DriverStore when `VK_ICD_FILENAMES` is unset, the write-back cap on by default (`RX_VK_WB_MAX_KB`), the textures' floor on cards of 8 GB and more, the hold's 80% line and its shorter times, a 4 GB card's mirrors past its 256 MB, the upload deferral's 12 ms and its terrain test, the 16 MB staging arenas and the two kept warm (on every card: on the Steam Deck #568 measured 9 to 41 ms for each arena made again), and an unused rule for hosts of version 14. Its host API stays this tree's (no host_storage field, the version checked exactly), its presenter queue stays off by default, and its device-local heap is the raw heap size. #1188's check asks once per driver (`gpu/vk/cold_check.h`). #1255's sweep goes through this tree's `target_overlap::DrawnOver`. #311's note is in `docs/temporal-history.md`. Moved to later slices: #977 (after #443, in A2), #952 (an A/B against this tree's uniform snapshot reuse), #416 with #1595 and 19beb1a6 (the pipeline cache file rule).
+
+### Host fixes (C2)
+
+| Longshot | Author | What |
+|---|---|---|
+| [#157](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/157) | klimovich008 | fix(host): BroadcastConditionVariable and the timed semaphore acquires reach the HLE's objects |
+| [#628](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/628) | Zelda Ootr | test: three checks run or skip by what the PC has, instead of failing without it |
+| [#1179](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1179) | Joey Magnus | fix(hle): sizes and names the game passes are checked to lie in guest memory in more host functions |
+| [#1343](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1343) | dyst | fix(host): the samplers' stack walks stay on the walked thread's stack, so HOS_PROFILE=1 no longer crashes the game on Windows |
+
+Fitted to this tree:
+- #1343 brings only its stack-walk guard (`unwind_step` on the walked thread's own stack); the crash records around it in Longshot's `mkw_glue.c` come with #75.
+- #1179's guards go on this tree's own range check where it already had one: `GR`, which stops the run with the file and line where a span the game names is not its memory. Ocarina's event-name copies are in its pack (`packs/oot/host/oot_teleport.c`), and `tests/test_hle_guest_ranges.py` reads them there.
+- #157 updates this tree's earlier port of the same fix (upstream Hookshot #2765) to Longshot's: a broadcast owes the mutex only to the waiters in when it was made (`cv_in`), the semaphore's count is read and written atomically, and a long timeout is clamped below `INFINITE`.
+
+Already here: #980 (this tree's one rule for on/off switches is `gpu/vk/compat/hookshot_env.h`'s `env_on` and `env_on_or`).
+
+Not taken: #932, `make_game` leaving one CPU thread free by default. This tree's `make_game` takes every thread and leaves the count to `nx2/build.py`'s memory gate (issue 531, `tests/test_linux_builder_jobs.py`); the builders pass a count of their own (the Linux builder's `toolchain.default_jobs`).
+
+Moved:
+- #75, #593, #1416, #1375, #1714 and #626, the crash records and the crash window, to a batch of their own: this tree's log start and close differ.
+- #327, the virtual cores' kicks and core cache, to the host performance batch (C3): this tree's scheduler differs, and it needs numbers.
+- #1721, the Deck's built-in controls, to the input batch (E): this tree's pad reading differs.
+
+Held: #292, a new install's Output resolution from 2048x1152 to 2560x1440 (56% more pixels), is a default to decide and measure.
