@@ -267,12 +267,7 @@ Adapted: #637 is taken for discrete cards of less than 8 GB alone (`vram_compact
 | [#924](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/924) | jcabarca | fix(vk): map the NVN 5-5-5 and BGRA8 formats by their bit layout |
 | [#1031](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1031) | jcabarca | fix(vk): make the GPU's writes visible to the host's reads at each submission's end |
 | [#1222](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1222) | Joey Magnus | fix(vk): a revisited area's ASTC textures take the finalized copies' images, not a decode |
-| [#1241](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1241) | jcabarca | fix(vk): validate texture blits before vkCmdBlitImage |
-| [#1242](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1242) | jcabarca | fix(vk): skip clears of textures kept in ASTC blocks |
-| [#1243](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1243) | jcabarca | fix(vk): keep mesh indirect argument ranges from overlapping |
 | [#1244](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1244) | jcabarca | fix(vk): skip texel buffer views of formats the device cannot use |
-| [#1247](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1247) | jcabarca | fix(vk): cooperative matrix probe checks map and fence, keeps in-flight resources |
-| [#1248](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1248) | jcabarca | fix(vk): failed sparse binds leave their blocks unbound for the retry |
 | [#1462](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1462) | mooki | fix(vk): a finalized render target goes once the game has written over its storage |
 | [#1534](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1534) | mooki | fix(vk): the tree-shadow mask gives back the history images and views a new size or a gone texture replaces |
 | [#1555](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1555) | jcabarca | fix(vk): a host pointer import takes its memory type from its own pointer and the buffer's requirements |
@@ -282,9 +277,13 @@ Fitted to this tree:
 - #700's counter goes into this tree's own readback wait, whose rule for which waits are forced differs from Longshot's.
 - #1244's dummy view, for devices without a null descriptor, replaces this tree's earlier form of the same fix.
 - #1462's obsolete targets join this tree's `evict_rendered` and `RX_VK_EVICT_NO_FLUSH` rules.
+- #1222 finds a source by the format it was made in: an opaque texture this tree made BC1 on its first upload (#2554) is found as the BC3 it was made, and the new one is made BC1 too before the copy. Only 2D, non-sparse textures are hashed.
+- #1555 keeps the memory types host pointers import as, asked once, and asks again, inside the import fence, only when they give a buffer none or its allocation fails: asked for every import, the question walks the heap on NVIDIA's Windows driver (13-30 ms an import).
+- #924's R and B swap is for texels uploaded from the game's memory only: a 5-5-5 image the GPU drew is sampled as its attachment wrote it.
+- #671 keeps this tree's AMD rule: there a sparse BC image keeps its raw attachment usage, which the driver answers no for and takes.
 - #919 brings only the feature gate (`vertexAttributeInstanceRateDivisor`): this tree already read `maxVertexAttribDivisor` and clamped to it.
 
-Already here: #1162 (upstream Hookshot #3003), #1250 (upstream Hookshot #3031) and #1251 (with A2's read-back fixes).
+Already here, their checks taken: #1241 (blits validated), #1242 (no clears of ASTC-kept textures), #1243 (mesh indirect ranges), #1247 (the cooperative matrix probe) and #1248 (failed sparse binds); their code was in this tree before, and their picks bring only the tests. Already here: #1162 (upstream Hookshot #3003), #1250 (upstream Hookshot #3031) and #1251 (with A2's read-back fixes).
 
 Moved:
 - #1536 to frame generation (G): it needs Longshot's present slots (`kPresentSlotsMax`).

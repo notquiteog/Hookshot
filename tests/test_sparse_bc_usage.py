@@ -57,7 +57,7 @@ struct VkImageFormatProperties {
     VkFlags sampleCounts;
     uint64_t maxResourceSize;
 };
-struct Dev { VkDevice device = nullptr; VkPhysicalDevice physical = nullptr; } dev;
+struct Dev { VkDevice device = nullptr; VkPhysicalDevice physical = nullptr; struct { uint32_t vendorID = 0x10de; } props; } dev;
 struct Tex { VkFormat format = 0; VkImageUsageFlags usage = 0; VkImage image = 0; } x;
 bool is_bc(VkFormat f) { return f == VK_FORMAT_BC7_UNORM_BLOCK; }
 
@@ -142,6 +142,14 @@ int main() {
     ok = make(VK_FORMAT_R8G8B8A8_UNORM, base | raw, 64);
     check(!ok && made == 0 && x.usage == (base | raw),
           "a sparse uncompressed image refused keeps its usage and is not made (its residency was asked with it)");
+
+    // (hookshot: AMD's drivers answer no for the raw attachment usage and take it, as the image without sparse keeps it: made
+    // with its whole usage, a refusal handled as for any image)
+    dev.props.vendorID = 0x1002, refused = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    ok = make(VK_FORMAT_BC7_UNORM_BLOCK, base | raw, 64);
+    check(ok && made == 1 && made_usage == (base | raw) && x.usage == (base | raw),
+          "on AMD a sparse BC image keeps its raw attachment usage although the driver answers no (this tree's #1801 rule)");
+    dev.props.vendorID = 0x10de;
 
     refused = 0, max_layers = 32;
     ok = make(VK_FORMAT_BC7_UNORM_BLOCK, base | raw, 64);

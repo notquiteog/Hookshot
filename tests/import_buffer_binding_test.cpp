@@ -57,7 +57,7 @@ constexpr int MEM_COMMIT = 1, MEM_RESERVE = 2, PAGE_READWRITE = 4;
 struct MEMORY_BASIC_INFORMATION { uint8_t* BaseAddress; size_t RegionSize; int State; };
 void* VirtualAlloc(void* p, size_t, int, int) { return p; }
 // (import_fence.h's stand-in: how many stood, and how many allocations were made while one did)
-unsigned fences = 0, fenced_allocations = 0;
+unsigned fences = 0, fenced_allocations = 0, queries = 0, fenced_queries = 0;
 bool fence_up = false;
 struct ImportFence {
     const bool on;
@@ -66,6 +66,8 @@ struct ImportFence {
 };
 size_t VirtualQuery(void*, MEMORY_BASIC_INFORMATION*, size_t) { return 0; }
 VkResult vkGetMemoryHostPointerPropertiesEXT(VkDevice, VkExternalMemoryHandleTypeFlagBits, const void*, VkMemoryHostPointerPropertiesEXT* hp) {
+    queries++;
+    if (fence_up) fenced_queries++;   // (hookshot: asked behind the import fence, as the allocation is)
     if (fault == Fault::Properties) return VK_ERROR_OUT_OF_HOST_MEMORY;
     hp->memoryTypeBits = host_bits[std::min(property_calls++, 1u)]; return VK_SUCCESS;
 }
@@ -188,9 +190,10 @@ void run(const std::string& route, const std::string& test) {
     const bool success = call(route, p);
     assert(owner_releases == destroyed_buffers);   // Every factory rollback preserves main's owner hook.
     // (a host-pointer import's allocation is made behind the fence, a dma-buf's without one, and none is left standing)
-    assert(!fence_up && fences == fenced_allocations && (route != "dma" || fences == 0));
+    // (and each question about the pointer too, Longshot #1555's, behind a fence of its own: import_fence.h)
+    assert(!fence_up && fences == fenced_allocations + fenced_queries && queries == fenced_queries && (route != "dma" || fences == 0));
     if (test == "healthy" || (route == "pool" && test != "both-bind-fail")) {
-        assert(route == "dma" || fences == 1);
+        assert(route == "dma" || fences == 2);   // (the question and the allocation)
         assert(success && p.buffer && p.memory && p.address && address_queries == 1);
         assert(buffers.size() == 1 && memories.size() == 1 && import_holds.rows.empty());
         if (route == "pool") {

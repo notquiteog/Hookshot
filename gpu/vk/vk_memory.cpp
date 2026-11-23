@@ -472,10 +472,21 @@ bool import_pool(uint64_t lo, uint64_t hi, Pool& p) {
         return true;
     }
 #endif
-    // (the memory types this pointer can be imported as: asked for each pointer, the driver answers per pointer)
+    // (hookshot, import_fence.h) the driver's question about the pointer walks the heap from here to the end of its run of
+    // read-write pages: the page after the range ends the run while it is asked. Not with the CPU write watches, which
+    // change protections themselves. RX_VK_IMPORT_FENCE=0 (or off, false, no): off
+    static const bool fence_on = [] {
+        const char* v = getenv("RX_VK_IMPORT_FENCE");
+        return !v || !env_value_off(v);
+    }();
+    // (the memory types this pointer can be imported as, asked before the buffer is made: see below)
     VkMemoryHostPointerPropertiesEXT hp{VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT};
-    if (vkGetMemoryHostPointerPropertiesEXT(dev.device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, ptr, &hp) !=
-        VK_SUCCESS) {
+    VkResult asked;
+    {
+        const ImportFence fence(ptr, bytes, fence_on && !page_watches);
+        asked = vkGetMemoryHostPointerPropertiesEXT(dev.device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, ptr, &hp);
+    }
+    if (asked != VK_SUCCESS) {
         import_remember_failure(lo, hi);
         return false;
     }
@@ -490,7 +501,10 @@ bool import_pool(uint64_t lo, uint64_t hi, Pool& p) {
         import_remember_failure(lo, hi);
         return false;
     }
-    // (the type must also be one the buffer allows, and the buffer must fit in the imported bytes)
+    // (Longshot #1555: the type must also be one the buffer allows, and the buffer must fit in the imported bytes. The types
+    // are this pointer's own, asked for each import: one outside them is not valid for it, VUID-VkMemoryAllocateInfo-
+    // memoryTypeIndex-01744. hookshot: asked inside the import fence, as the allocation is: the question walks the heap on
+    // NVIDIA's Windows driver, 13-30 ms an import without it, import_fence.h)
     VkMemoryRequirements req{};
     vkGetBufferMemoryRequirements(dev.device, p.buffer, &req);
     uint32_t type = UINT32_MAX;
@@ -516,13 +530,6 @@ bool import_pool(uint64_t lo, uint64_t hi, Pool& p) {
     ai.pNext = &im;
     ai.allocationSize = bytes;
     ai.memoryTypeIndex = type;
-    // (hookshot, import_fence.h) the driver's question about the pointer walks the heap from here to the end of its run of
-    // read-write pages: the page after the range ends the run while it is asked. Not with the CPU write watches, which
-    // change protections themselves. RX_VK_IMPORT_FENCE=0 (or off, false, no): off
-    static const bool fence_on = [] {
-        const char* v = getenv("RX_VK_IMPORT_FENCE");
-        return !v || !env_value_off(v);
-    }();
     VkResult allocated;
     {
         const ImportFence fence(ptr, bytes, fence_on && !page_watches);

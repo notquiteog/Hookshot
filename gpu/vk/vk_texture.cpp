@@ -1900,7 +1900,11 @@ astc_reuse::Freed<Texture> freed;   // (reuse_mu)
 std::vector<Texture*> reuse_gone;   // (reuse_mu: the images that served one, for texture_frame)
 std::atomic<int64_t> st_reused{0}, st_reused_bytes{0}, st_reuse_retired{0}, st_reuse_hash_ns{0}, st_reuse_hash_bytes{0};
 astc_reuse::Shape reuse_shape(const Texture& t) {
-    return {(uint32_t)t.format, t.width, t.height, t.depth, t.levels, t.layers, t.skip, (uint32_t)t.nvn_format, t.key_layout,
+    // (hookshot) by the format it was made in: an opaque texture this tree made BC1 on its first upload (#2554, bc1 == 2) is
+    // found as the BC3 it was made, as the new one of the same blocks still is when it is looked for (reuse_upload makes it
+    // BC1 too before the copy). By its BC1 a source never matched, and nothing was ever reused
+    const VkFormat made = t.bc1 == 2 && t.format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK ? VK_FORMAT_BC3_UNORM_BLOCK : t.format;
+    return {(uint32_t)made, t.width, t.height, t.depth, t.levels, t.layers, t.skip, (uint32_t)t.nvn_format, t.key_layout,
             t.bc, t.bc_resized};
 }
 /// (used again by its own address, or going: no longer one to copy from)
@@ -1928,6 +1932,9 @@ void reuse_released(const nvn_tex* t) {
 /// A new decoded ASTC texture's blocks hashed (its first upload, whole), and the image of a finalized one with the same blocks
 /// and shape copied into it: true when it was. One uploaded again keeps no hash, and is not listed when finalized
 bool reuse_upload(Texture& tex, uint64_t total) {
+    // (hookshot) none of these is ever served, and none is a source: their blocks are not hashed (a hash costs ~0.08 ms a MB
+    // on the replay thread, in a load)
+    if (tex.sparse || tex.type != VK_IMAGE_TYPE_2D || !tex.image) return false;
     const auto t0 = std::chrono::steady_clock::now();
     static thread_local std::vector<uint8_t> scratch;
     astc_reuse::Hasher h;
@@ -1938,13 +1945,18 @@ bool reuse_upload(Texture& tex, uint64_t total) {
     tex.blocks_hash = h.h | 1;
     st_reuse_hash_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
     st_reuse_hash_bytes += (int64_t)total;
-    if (tex.sparse || tex.type != VK_IMAGE_TYPE_2D || !tex.image) return false;
     Texture* from;
     {
         std::lock_guard lk(reuse_mu);
         if (!freed.size()) return false;
         from = freed.find(tex.blocks_hash, reuse_shape(tex), [](const Texture* t) { return reuse_shape(*t); });
         if (!from || from == &tex || !from->image || !from->uploaded || from->gpu_written) return false;
+        // (hookshot) a source made BC1 (opaque, #2554): the new one, made BC3, is made BC1 too, so the copy is between
+        // images of one block size; a new one that cannot be made so is decoded as before
+        if (from->format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK && tex.format != VK_FORMAT_BC1_RGBA_UNORM_BLOCK) {
+            if (tex.format != VK_FORMAT_BC3_UNORM_BLOCK || !bc_reformat(tex, VK_FORMAT_BC1_RGBA_UNORM_BLOCK)) return false;
+            tex.bc1 = 2;
+        }
         freed.unlist(from->blocks_hash, from);
         from->freed_listed = false, from->reuse_retire = true;
         reuse_gone.push_back(from);
@@ -2781,8 +2793,9 @@ Texture* create(const Key& key, const nvn_tex* t, VkFormat vf, bool astc, int bw
         };
         // (a compressed one the driver refuses sparse with its raw attachment usage, or then its raw storage usage, the
         // residency query above did not ask about: asked again without it, as a compressed image refused is made below;
-        // its raw views are then not made)
-        bool ok = fits() ||
+        // its raw views are then not made. hookshot: not on AMD, whose drivers answer no for the raw attachment usage and
+        // take it all the same, as the image without sparse keeps it there (#1801): made as before, a refusal handled below)
+        bool ok = dev.props.vendorID == 0x1002 || fits() ||
                   ((ci.usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) && is_bc(x.format) &&
                    (ci.usage &= ~VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, x.usage = ci.usage, fits())) ||
                   ((ci.usage & VK_IMAGE_USAGE_STORAGE_BIT) && is_bc(x.format) &&
@@ -3487,8 +3500,10 @@ VkImageView texture_view(Texture* tex, const nvn_tex* t, const nvn_view* v, VkIm
             break;
         default: break;
         }
-        // (RGB5A1 and RGB5 have R in the low bits, their A1R5G5B5 image B)
-        if (nf == NVN_FORMAT_RGB5A1 || nf == NVN_FORMAT_RGB5)
+        // (RGB5A1 and RGB5 have R in the low bits, their A1R5G5B5 image B: swapped for texels uploaded from the game's memory.
+        // hookshot: not for an image the GPU drew, which its attachment views wrote unswizzled, R in the image's R: sampled
+        // swapped, a 5-5-5 render target came back with R and B exchanged)
+        if ((nf == NVN_FORMAT_RGB5A1 || nf == NVN_FORMAT_RGB5) && !tex->gpu_written)
             for (unsigned& s : sw)
                 s = s == NVN_TEXTURE_SWIZZLE_R ? NVN_TEXTURE_SWIZZLE_B : s == NVN_TEXTURE_SWIZZLE_B ? NVN_TEXTURE_SWIZZLE_R : s;
         static const bool swap_9e5 = env_on("RX_VK_9E5_SWAP");   // (hookshot, diagnosis: R and B swapped)
@@ -5049,6 +5064,10 @@ void reuse_retire_frame() {
             std::lock_guard lk(from_memory_mu);
             if (evicted_from_memory.size() > 50000) evicted_from_memory.clear();
             evicted_from_memory[evicted_key(t->gpu, t->width, t->height, t->nvn_format)] = t->guest_size;
+        }
+        if (remade_log_on()) {   // (as the eviction's ends: no longer one made again)
+            std::lock_guard lk(evicted_mu);
+            remade.erase(t);
         }
         destroy_later(*t);
         forget_gpu(t);

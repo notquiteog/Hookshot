@@ -23,6 +23,17 @@ def check_source():
                    "went.swap(reuse_gone);"):
         if needle not in src:
             raise SystemExit("vk_texture.cpp no longer has: " + needle)
+    # (hookshot: only 2D, non-sparse textures with an image are hashed, before anything else; a source made BC1 is found by
+    # the BC3 it was made, and the new one is made BC1 before the copy)
+    up = src[src.index("bool reuse_upload(Texture& tex, uint64_t total) {"):]
+    up = up[:up.index("\n}\n")]
+    if up.index("if (tex.sparse || tex.type != VK_IMAGE_TYPE_2D || !tex.image) return false;") > up.index("astc_reuse::Hasher h;"):
+        raise SystemExit("reuse_upload hashes a texture it never serves (sparse, not 2D, or without an image)")
+    if "bc_reformat(tex, VK_FORMAT_BC1_RGBA_UNORM_BLOCK)" not in up:
+        raise SystemExit("reuse_upload copies a BC1 source into a BC3 image")
+    shape = src[src.index("astc_reuse::Shape reuse_shape(const Texture& t) {"):]
+    if "t.bc1 == 2 && t.format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK ? VK_FORMAT_BC3_UNORM_BLOCK" not in shape[:shape.index("\n}\n")]:
+        raise SystemExit("reuse_shape compares a texture made BC1 on its first upload by its BC1: no new one ever matches it")
     forget = src[src.index("void forget_gpu(Texture* tex) {"):]
     if "reuse_drop(*tex);" not in forget[:200]:
         raise SystemExit("forget_gpu no longer takes a destroyed texture out of the reuse list")

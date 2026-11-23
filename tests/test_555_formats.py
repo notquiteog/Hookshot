@@ -78,11 +78,15 @@ def main():
     for name in ALPHA_ONE:
         if "case NVN_FORMAT_%s:" % name not in switch:
             bad.append("the sampled view of NVN_FORMAT_%s does not read alpha as one" % name)
-    swap = re.search(r"if \(([^)]*)\)\s*for \(unsigned& s : sw\)\s*s = s == NVN_TEXTURE_SWIZZLE_R \? "
+    swap = re.search(r"if \((.*?)\)\s*for \(unsigned& s : sw\)\s*s = s == NVN_TEXTURE_SWIZZLE_R \? "
                      r"NVN_TEXTURE_SWIZZLE_B : s == NVN_TEXTURE_SWIZZLE_B \? NVN_TEXTURE_SWIZZLE_R : s;", view)
     for name in SWAP_RB:
         if not swap or "nf == NVN_FORMAT_%s" % name not in swap.group(1):
             bad.append("the sampled view of NVN_FORMAT_%s does not swap R and B" % name)
+    # (hookshot: only for texels uploaded from the game's memory; an image the GPU drew, its attachment views writing it
+    # unswizzled, is sampled as written)
+    if swap and "!tex->gpu_written" not in swap.group(1):
+        bad.append("the R and B swap of RGB5A1 and RGB5 is made for images the GPU drew too (their attachments wrote them unswizzled)")
     if bad:
         raise SystemExit("\n".join(bad))
     print("5-5-5, 4-4-4-4 and BGRA8 formats map with their bit layout: ok")
