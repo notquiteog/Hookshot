@@ -26,7 +26,10 @@ APPIMAGE = ROOT / ".github/workflows/linux-appimage.yml"
 IMAGE = ROOT / ".github/workflows/appimage-build-image.yml"
 RELEASE = ROOT / ".github/workflows/release.yml"
 DOCKERFILE = ROOT / ".github/ci/appimage-build.Dockerfile"
-HASH = "${{ hashFiles('.github/ci/appimage-build.Dockerfile', 'scripts/linux/system_packages.sh') }}"
+# (the recipe: the Dockerfile, the package list and the image's workflow, so a changed one is never main's tag)
+RECIPE = (".github/ci/appimage-build.Dockerfile", "scripts/linux/system_packages.sh",
+          ".github/workflows/appimage-build-image.yml")
+HASH = "${{ hashFiles(%s) }}" % ", ".join("'%s'" % path for path in RECIPE)
 NAME = 'ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/hookshot-appimage-build'
 FALLBACK = ("Package installs without fsync", "Package mirror", "Package list", "System packages")
 INSTALL_IF = "if: steps.packages.outputs.installed != 'true'"
@@ -76,12 +79,17 @@ class Wiring(unittest.TestCase):
 
     def test_image_workflow_triggers_and_rights(self):
         triggers = self.image[:self.image.index("\npermissions:")]
-        for path in (".github/ci/appimage-build.Dockerfile", "scripts/linux/system_packages.sh",
-                     ".github/workflows/appimage-build-image.yml"):
-            self.assertIn("      - %s\n" % path, triggers)
+        for event in ("push", "pull_request"):
+            with self.subTest(event):
+                # (the event's own lines, indented under it)
+                block = re.search(r"\n  %s:\n((?:    .*\n)+)" % event, triggers + "\n").group(1)
+                self.assertEqual(re.findall(r"^      - (\S+)$", block, re.M), list(RECIPE))
         self.assertIn("  push:\n    branches: [main]\n", triggers)
         self.assertIn("\n  workflow_dispatch:", triggers)
-        self.assertNotIn("pull_request", triggers)
+        self.assertNotIn("pull_request_target", self.image)
+        # (a pull request from a fork has a token that may not push here: its job does not run, and its build installs)
+        self.assertIn("    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == "
+                      "github.repository\n", self.image)
         self.assertIn("\npermissions:\n  contents: read\n", self.image)
         self.assertIn("    permissions:\n      contents: read\n      packages: write\n", self.image)
         self.assertEqual(self.image.count("packages: write"), 1)
@@ -122,7 +130,7 @@ class Wiring(unittest.TestCase):
         # (the image job hashes the checkout the build makes)
         checkout = image[image.index("      - uses: actions/checkout@"):image.index("      - name: Find the image")]
         self.assertIn("ref: ${{ inputs.tag }}", checkout)
-        for path in (".github/ci/appimage-build.Dockerfile", "scripts/linux/system_packages.sh"):
+        for path in RECIPE:
             self.assertIn("            %s\n" % path, checkout)
 
     def test_install_only_without_the_image(self):

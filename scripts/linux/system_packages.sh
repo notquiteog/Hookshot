@@ -5,8 +5,8 @@
 #  - .github/workflows/linux-appimage.yml's "System packages" step, when that image is not there for these files (a pull
 #    request that changes this list, before its image is made);
 #  - scripts/linux/Dockerfile, the same build on any distribution (scripts/linux/docker.sh).
-# A change here makes a new CI image (its tag is the hash of this file and that Dockerfile). Checked without a network
-# by tests/test_appimage_package_retry.py, which runs this file with failing apt and PPA stand-ins.
+# A change here makes a new CI image (its tag hashes this file, that Dockerfile and its workflow). Checked without a
+# network by tests/test_appimage_package_retry.py, which runs this file with failing apt and PPA stand-ins.
 # DEBIAN_FRONTEND=noninteractive is the caller's.
 set -e
 

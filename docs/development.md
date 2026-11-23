@@ -529,18 +529,19 @@ or held it to its hour.
 
 - **Made by** `.github/workflows/appimage-build-image.yml`, in each repository that runs it (a fork makes its own), and
   pushed to that owner's GHCR as `ghcr.io/<owner>/hookshot-appimage-build:<hash>`, `<hash>` being `hashFiles()` of the
-  Dockerfile and `system_packages.sh`; a run on main also moves `:latest`. It runs when either file (or the workflow)
-  changes on main, and by hand. The image's `/etc/hookshot-ci-image` holds its hash.
-- **Used by** the AppImage workflow's `image` job, which hashes its checkout's two files and names that tag when the
+  Dockerfile, `system_packages.sh` and the workflow itself (the whole recipe: a changed one is a new tag); a run on main
+  also moves `:latest`. It runs when one of the three changes, on main and in a pull request from a branch of the
+  repository (not from a fork, which may not push there), and by hand. The image's `/etc/hookshot-ci-image` holds its
+  hash.
+- **Used by** the AppImage workflow's `image` job, which hashes its checkout's three files and names that tag when the
   registry has it, else `ubuntu:22.04`. The `appimage` job then skips its package steps when the image's
   `/etc/hookshot-ci-image` matches, and otherwise installs the packages itself as before (the Azure mirror, the retries
-  of `system_packages.sh`). A missing image only makes a run slower: a pull request that changes the list builds on
-  `ubuntu:22.04` until its image is made, and the first runs after such a change reaches main do too, until the image
-  workflow's run is over.
+  of `system_packages.sh`). A missing image only makes a run slower: a pull request that changes the list starts its
+  AppImage build at the same time as its image, so that first run installs the packages itself, and a re-run of the
+  AppImage job once the image is pushed builds in it; a pull request from a fork always installs them.
 - **To refresh it** (Ubuntu's or the PPA's newer package versions, without a change to the list): Actions >
   *AppImage build image* > *Run workflow* on main, or `gh workflow run appimage-build-image.yml --ref main`. It pushes
-  the same tag again. A run on another branch pushes that branch's hash tag, never `:latest`: for a pull request that
-  changes the list, run it on the branch (`--ref <branch>`), then re-run the AppImage job to build in it.
+  the same tag again. A run on another branch pushes that branch's hash tag, never `:latest`.
 - **To change the packages**, edit `system_packages.sh` alone; `tests/test_appimage_package_retry.py` runs it with
   failing apt and PPA stand-ins, and `tests/test_appimage_build_image.py` keeps the two workflows on the same tag.
   The image holds no game data; GHCR keeps every tag, and an old one can be deleted from the package's page.

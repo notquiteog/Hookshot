@@ -38,9 +38,10 @@ concurrency:
 jobs:
   # The container the AppImage is built in: CI's build image (.github/ci/appimage-build.Dockerfile, made by
   # .github/workflows/appimage-build-image.yml), Ubuntu 22.04 with the system packages installed, tagged with the hash of
-  # that Dockerfile and scripts/linux/system_packages.sh; or plain ubuntu:22.04 when this repository has no image for
-  # these files yet (a pull request that changes the package list, the image's first run not made yet), and then the
-  # AppImage job installs the packages itself. A missing image never fails the run: this job names the other one.
+  # that Dockerfile, scripts/linux/system_packages.sh and that workflow; or plain ubuntu:22.04 when this repository has
+  # no image for these files yet (a pull request that changes the package list, before its image is made; one from a
+  # fork), and then the AppImage job installs the packages itself. A missing image never fails the run: this job names
+  # the other one.
   image:
     name: Find the build image
     if: >-
@@ -63,12 +64,13 @@ jobs:
           sparse-checkout: |
             .github/ci/appimage-build.Dockerfile
             scripts/linux/system_packages.sh
+            .github/workflows/appimage-build-image.yml
           sparse-checkout-cone-mode: false
       # (the same hash as the image workflow's tag: tests/test_appimage_build_image.py)
       - name: Find the image
         id: find
         env:
-          HASH: ${{ hashFiles('.github/ci/appimage-build.Dockerfile', 'scripts/linux/system_packages.sh') }}
+          HASH: ${{ hashFiles('.github/ci/appimage-build.Dockerfile', 'scripts/linux/system_packages.sh', '.github/workflows/appimage-build-image.yml') }}
           GH_TOKEN: ${{ github.token }}
           DOCKER_CONFIG: ${{ runner.temp }}/docker
         run: |

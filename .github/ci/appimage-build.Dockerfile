@@ -2,9 +2,9 @@
 # already installed, so a run no longer fetches them from archive.ubuntu.com and Launchpad's toolchain PPA (on
 # 2026-11-23 both were slow or answering 503, and four runs failed or ran out their hour in that step).
 # .github/workflows/appimage-build-image.yml builds it, with scripts/linux as its context, and pushes it to this
-# repository owner's GHCR as hookshot-appimage-build:<hash>, the hash being hashFiles() of this file and
-# scripts/linux/system_packages.sh. The AppImage job runs in that tag when it exists, and installs the packages itself
-# when it does not, as before.
+# repository owner's GHCR as hookshot-appimage-build:<hash>, the hash being hashFiles() of this file,
+# scripts/linux/system_packages.sh and that workflow. The AppImage job runs in that tag when it exists, and installs the
+# packages itself when it does not, as before.
 #
 # The same packages and the same base as the job's own install: scripts/linux/system_packages.sh is the one list. Ubuntu
 # 22.04 is not a preference: the AppImage carries this system's C library as the game's sysroot (glibc 2.35).
