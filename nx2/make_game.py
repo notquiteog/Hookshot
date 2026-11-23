@@ -768,16 +768,30 @@ def update_work(a):
 UPSCALER_ARGS = ("--fetch-ngx-sdk", "--accept-nvidia-license", "--fetch-fsr-runtime", "--accept-amd-license")
 
 
+DLSS_RUNTIMES = {"windows": ("nvngx_dlss.dll", "nvngx_dlssg.dll"),
+                 "linux": ("libnvidia-ngx-dlss.so", "libnvidia-ngx-dlssg.so")}   # (DLSS's and Frame Generation's, any version)
+
+
+def folder_dlss(f):
+    """A game folder built with NVIDIA DLSS: DLSS's runtime or DLSS Frame Generation's in its ngx folder, of any version (on
+    Linux libnvidia-ngx-dlss.so.<version>: one placed by an older SDK too, the Linux Builder's folder_has_dlss rule), so a
+    new pinned SDK does not take DLSS from a folder an older one built"""
+    try:
+        names = os.listdir(os.path.join(f, "ngx"))
+    except OSError:
+        return False
+    runtimes = DLSS_RUNTIMES[ngx_platform()]
+    if ngx_platform() == "windows":
+        return any(n.lower() in runtimes for n in names)
+    return any(n == r or n.startswith(r + ".") for n in names for r in runtimes)
+
+
 def folder_upscalers(f, rest):
     """(--update-all) One folder's own NVIDIA DLSS and AMD FSR 4, as a single --update of it keeps them: the runtimes' fetch
     (--fetch-ngx-sdk, --fetch-fsr-runtime, with their licenses, as given to --update-all) only for a folder that has DLSS's
     runtime or FSR 4's mark, and NVIDIA's SDK (HOOKSHOT_NGX_SDK) left out of the environment of one without DLSS, so no game
     gets an upscaler because another has it. FSR 4 itself the update keeps by the folder's mark. (args, env or None)"""
-    try:
-        ngx = ngx_script() if os.path.isfile(os.path.join(ROOT, "scripts", "ngx_sdk.py")) else None
-        dlss = bool(ngx) and os.path.isfile(os.path.join(f, "ngx", ngx.runtime_name(ngx_platform(), "runtime")))
-    except (OSError, KeyError, AttributeError):
-        dlss = False
+    dlss = folder_dlss(f)
     fsr = os.path.isfile(os.path.join(f, FSR_MARK))
     args = []
     if dlss:

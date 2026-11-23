@@ -363,6 +363,30 @@ class UpdateAll(MakeGame):
         self.assertFalse(any("--work-base=" + mine in cmd for _, cmd in ran))
         self.assertFalse(os.path.exists(mine), "the folders are the updates' to make, not --update-all's")
 
+    def test_dlss_of_an_older_sdk_is_still_dlss(self):
+        """A folder an older NVIDIA SDK built keeps DLSS in Update all: its runtime of any version (Linux's
+        libnvidia-ngx-dlss.so.<version>), or Frame Generation's alone, is DLSS, as the Linux Builder's folder_has_dlss says"""
+        older, framegen, none = self.base, game_folders.folder(self.base, self.second), game_folders.folder(self.base, self.third)
+        built(older, self.default, "v2.3.0-rc.1")
+        built(framegen, self.second, "v2.3.0-rc.1")
+        built(none, self.third, "v2.3.0-rc.1")
+        runtimes = {"linux": ("libnvidia-ngx-dlss.so.300.0.0", "libnvidia-ngx-dlssg.so.300.0.0"),
+                    "windows": ("nvngx_dlss.dll", "nvngx_dlssg.dll")}[self.mg.ngx_platform()]
+        for folder, name in ((older, runtimes[0]), (framegen, runtimes[1])):
+            os.makedirs(os.path.join(folder, "ngx"), exist_ok=True)
+            Path(folder, "ngx", name).write_bytes(b"authored runtime placeholder")
+        os.makedirs(os.path.join(none, "ngx"))
+        Path(none, "ngx", "libnvidia-ngx-dlss-not.txt").write_bytes(b"not a runtime")
+        self.assertEqual([self.mg.folder_dlss(f) for f in (older, framegen, none)], [True, True, False])
+        flags = ["--fetch-ngx-sdk", "--accept-nvidia-license"]
+        with mock.patch.dict(os.environ, HOOKSHOT_NGX_SDK=os.path.join(self.tmp, "ngx-sdk")):
+            ran, _, _ = self.run_all(*flags)
+        cmds = dict(ran)
+        self.assertEqual([x for x in cmds[older] if x in flags], flags, "an older SDK's DLSS fetched again, not dropped")
+        self.assertEqual([x for x in cmds[framegen] if x in flags], flags)
+        self.assertIsNone(self.envs[older])
+        self.assertNotIn("HOOKSHOT_NGX_SDK", self.envs[none])
+
     def test_work_base_goes_with_a_build_of_known_games(self):
         mine = os.path.join(self.tmp, "my work")
         self.assertIn("--work-base goes with --update-all, --update or --base",
