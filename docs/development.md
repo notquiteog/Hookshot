@@ -531,8 +531,9 @@ or held it to its hour.
   pushed to that owner's GHCR as `ghcr.io/<owner>/hookshot-appimage-build:<hash>`, `<hash>` being `hashFiles()` of the
   Dockerfile, `system_packages.sh` and the workflow itself (the whole recipe: a changed one is a new tag); a run on main
   also moves `:latest`. It runs when one of the three changes, on main and in a pull request from a branch of the
-  repository (not from a fork, which may not push there), and by hand. The image's `/etc/hookshot-ci-image` holds its
-  hash.
+  repository (not from a fork, which may not push there), and by hand. A tag that is there already is not made again
+  but by hand: a pull request's next push, and main once it is merged, reuse its image (main only names it `:latest`).
+  The image's `/etc/hookshot-ci-image` holds its hash.
 - **Used by** the AppImage workflow's `image` job, which hashes its checkout's three files and names that tag when the
   registry has it, else `ubuntu:22.04`. The `appimage` job then skips its package steps when the image's
   `/etc/hookshot-ci-image` matches, and otherwise installs the packages itself as before (the Azure mirror, the retries

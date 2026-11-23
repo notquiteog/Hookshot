@@ -98,12 +98,14 @@ jobs:
     needs: image
     runs-on: ubuntu-latest
     # (the build image, or ubuntu:22.04 without one: the image job above. A login only for the build image: Docker Hub
-    # would refuse a GitHub token, and empty credentials are no login)
+    # would refuse a GitHub token. Credentials with an empty username or password are refused before the job starts,
+    # while an empty mapping is no login)
     container:
       image: ${{ needs.image.outputs.image }}
-      credentials:
-        username: ${{ needs.image.outputs.prebuilt == 'true' && github.actor || '' }}
-        password: ${{ needs.image.outputs.prebuilt == 'true' && secrets.GITHUB_TOKEN || '' }}
+      credentials: >-
+        ${{ needs.image.outputs.prebuilt == 'true'
+        && fromJSON(format('{{"username":{0},"password":{1}}}', toJSON(github.actor), toJSON(secrets.GITHUB_TOKEN)))
+        || fromJSON('{}') }}
     # (about 4 minutes with the dependencies cached; building them all, as a release does, takes longer)
     timeout-minutes: 60
     # (id-token and attestations: a release's build provenance. packages: the build image, when it is private)

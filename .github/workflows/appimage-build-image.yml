@@ -53,6 +53,15 @@ jobs:
           test -n "$HASH"
           name="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/hookshot-appimage-build"
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          # (a pull request's next push, or main's merge of it, has the same recipe: its image is there, and main only
+          # names it :latest. A run by hand makes it again, with the packages' newer versions)
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] && docker manifest inspect "$name:$HASH" >/dev/null 2>&1; then
+            if [ "$LATEST" = true ]; then
+              docker buildx imagetools create --tag "$name:latest" "$name:$HASH"
+            fi
+            echo "$name:$HASH is there already$([ "$LATEST" = true ] && echo ', now :latest')" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           docker build --pull -f .github/ci/appimage-build.Dockerfile --build-arg "HOOKSHOT_CI_IMAGE=$HASH" \
             --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \

@@ -116,10 +116,16 @@ class Wiring(unittest.TestCase):
         image, appimage = job(self.appimage, "image"), job(self.appimage, "appimage")
         self.assertIn("    needs: image\n", appimage)
         self.assertIn("    container:\n      image: ${{ needs.image.outputs.image }}\n", appimage)
-        # (a login only for the build image: Docker Hub refuses a GitHub token, and empty credentials are none)
-        self.assertIn("        username: ${{ needs.image.outputs.prebuilt == 'true' && github.actor || '' }}\n", appimage)
-        self.assertIn("        password: ${{ needs.image.outputs.prebuilt == 'true' && secrets.GITHUB_TOKEN || '' }}\n",
-                      appimage)
+        # (a login only for the build image: Docker Hub refuses a GitHub token. An empty username or password is refused
+        # when the job is set up (run 45199134975: "Unexpected value ''"); an empty mapping is no login. One expression
+        # for the whole mapping, so it is a mapping and not a string)
+        credentials = re.search(r"\n      credentials: >-\n((?:        .*\n)+)", appimage)
+        self.assertIsNotNone(credentials, "the container's credentials")
+        expression = " ".join(line.strip() for line in credentials.group(1).splitlines())
+        self.assertEqual(expression, "${{ needs.image.outputs.prebuilt == 'true' && fromJSON(format("
+                         "'{{\"username\":{0},\"password\":{1}}}', toJSON(github.actor), toJSON(secrets.GITHUB_TOKEN))) "
+                         "|| fromJSON('{}') }}")
+        self.assertNotIn("username: ${{", appimage)
         for rights in (image, appimage):
             self.assertIn("      packages: read\n", rights)
         # (the same runs: a skipped image job would skip the build)
@@ -182,6 +188,41 @@ class Steps(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             outputs = dict(line.split("=", 1) for line in out.read_text(encoding="utf-8").splitlines())
             return outputs, log.read_text(encoding="utf-8").splitlines()
+
+    def build(self, event, latest, manifest):
+        """The image workflow's "Build and push" step with a stand-in docker: what docker was asked, by its first words"""
+        _, script = step(IMAGE.read_text(encoding="utf-8"), "Build and push")
+        with tempfile.TemporaryDirectory(prefix="appimage-build-") as temp:
+            folder = Path(temp)
+            tools = folder / "bin"
+            tools.mkdir()
+            log = folder / "docker.log"
+            # (the first two words: docker run's script runs over lines)
+            stub(tools, "docker", 'echo "$1 $2" >> "%s"\ncase "$1" in login) cat >/dev/null;; manifest) exit %d;; esac\n'
+                 % (log, manifest))
+            summary = folder / "summary"
+            env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"], GITHUB_STEP_SUMMARY=str(summary),
+                       HASH="ab" * 32, GH_TOKEN="token", GITHUB_ACTOR="someone", GITHUB_REPOSITORY_OWNER="NotQuiteOG",
+                       GITHUB_EVENT_NAME=event, LATEST=latest, GITHUB_SERVER_URL="https://github.com",
+                       GITHUB_REPOSITORY="NotQuiteOG/Hookshot", GITHUB_SHA="0" * 40)
+            result = subprocess.run([shutil.which("bash"), "--noprofile", "--norc", "-eo", "pipefail", "-c", script],
+                                    env=env, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            return log.read_text(encoding="utf-8").splitlines()
+
+    def test_build_only_a_new_recipe_or_by_hand(self):
+        tag = "ghcr.io/notquiteog/hookshot-appimage-build:" + "ab" * 32
+        made = ["login ghcr.io", "build --pull", "run --rm", "push " + tag]  # (the build checks its image before the push)
+        latest = ["tag " + tag, "push ghcr.io/notquiteog/hookshot-appimage-build:latest"]
+        # (a pull request: made when its tag is missing, never :latest)
+        self.assertEqual(self.build("pull_request", "false", 1), ["login ghcr.io", "manifest inspect"] + made[1:])
+        self.assertEqual(self.build("pull_request", "false", 0), ["login ghcr.io", "manifest inspect"])
+        # (main: a recipe a pull request already made is only named :latest)
+        self.assertEqual(self.build("push", "true", 0), ["login ghcr.io", "manifest inspect", "buildx imagetools"])
+        self.assertEqual(self.build("push", "true", 1), ["login ghcr.io", "manifest inspect"] + made[1:] + latest)
+        # (by hand: always made again, the packages' newer versions in the same tag)
+        self.assertEqual(self.build("workflow_dispatch", "true", 0), made + latest)
+        self.assertEqual(self.build("workflow_dispatch", "false", 0), made)
 
     def test_existing_image(self):
         outputs, calls = self.find()
