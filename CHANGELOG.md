@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.3.0-rc.46](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.45...v2.3.0-rc.46) (2026-11-23)
+
+
+### Features
+
+* **vk:** High and Ultra start at a 2560x1440 output where the screen's own isn't chosen (adapted from Longshot [#292](https://github.com/notquiteog/Hookshot/issues/292)) ([#151](https://github.com/notquiteog/Hookshot/issues/151)) ([601c823](https://github.com/notquiteog/Hookshot/commit/601c823f231c919e0228448cd37f160178958416))
+
+
+### Bug Fixes
+
+* **build:** Longshot's lifter, build and script fixes from 514591a3..9dd41326 (D2) ([#150](https://github.com/notquiteog/Hookshot/issues/150)) ([5f80cac](https://github.com/notquiteog/Hookshot/commit/5f80cac91809279e646e34a4638730356d403fb3))
+* **vk:** Longshot's renderer fixes from 514591a3..9dd41326 (A3) ([#147](https://github.com/notquiteog/Hookshot/issues/147)) ([d05e6ed](https://github.com/notquiteog/Hookshot/commit/d05e6ede8cde36a6bdc9213bb91868656f545a67))
+
+
+### Code Refactoring
+
+* **packs:** the shared menu reads the game's menu table; Ocarina's tools, lists and words into its pack (game packs a4) ([#148](https://github.com/notquiteog/Hookshot/issues/148)) ([95471c8](https://github.com/notquiteog/Hookshot/commit/95471c85a7a42bf4c57706f9185271e0f3bec98e))
+
+
+### Continuous Integration
+
+* Azure's Ubuntu mirror for the AppImage container, and 15 minutes for the lavapipe job ([#152](https://github.com/notquiteog/Hookshot/issues/152)) ([f74d839](https://github.com/notquiteog/Hookshot/commit/f74d8398ac892131bf429cb47ebaba571b67ddd4))
+
 ## [2.3.0-rc.45](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.44...v2.3.0-rc.45) (2026-11-23)
 
 
