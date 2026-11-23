@@ -4,8 +4,8 @@ dlopen fails on hookshot_vk.so for a missing file, a glibc older than it needs, 
 too small, before mkwvk_init's version check, and nothing is drawn. The POSIX LoadLibraryA kept only
 ERROR_FILE_NOT_FOUND, so the log said "(2)" for all of them alike. It now keeps dlerror()'s text, which names the file
 or what it lacks, and load_vulkan prints it, without dlerror()'s leading "<file>: " so the path is in the line once. The
-renderer's own load of libvulkan.so.1 (gpu/vk/vk_main.cpp mkwvk_init) prints it too. The dev-loop proposal's B1,
-https://github.com/NotRexed/Hookshot/pull/2636.
+renderer's own load of libvulkan.so.1 (gpu/vk/vk_main.cpp mkwvk_init) prints it too. The dev-loop proposal's B1
+(upstream Hookshot #2636), here from Longshot #34, https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/34.
 
 Everywhere: the source does so. On Linux it also builds host/posix/win32_posix.c as it is and loads, through
 LoadLibraryA, a .dll name with no library behind it, a library that needs a symbol nothing has, then a good one.
