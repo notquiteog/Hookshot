@@ -105,7 +105,8 @@ scripts/linux/docker.sh shell       # a shell in that environment, with the chec
 
 The AppImage lands in `build-linux/` as above. The container keeps its own `build-linux/docker-deps` and
 `build-linux/docker-vk-work`: parts built on the host link against its newer glibc and would not load on older systems.
-The Dockerfile's packages are the workflow's (`tests/test_linux_docker_packages.py` checks that they stay the same).
+The Dockerfile's packages are CI's: both install `scripts/linux/system_packages.sh`, the one package list
+(`tests/test_linux_docker_packages.py`).
 Where SELinux is enforcing (Fedora, RHEL), the script runs the container with `--security-opt label=disable`: the
 checkout is not labelled for containers, and relabelling it with `:z` would change it on the host.
 

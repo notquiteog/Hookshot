@@ -1,0 +1,78 @@
+# CI's build image for the Linux AppImage: .github/ci/appimage-build.Dockerfile (Ubuntu 22.04 with
+# scripts/linux/system_packages.sh's packages installed), pushed to this repository owner's GHCR as
+# ghcr.io/<owner>/hookshot-appimage-build:<hash>, the hash being hashFiles() of that Dockerfile, that script and this
+# workflow (the whole recipe: a changed one is a new tag), and as :latest from main. The Linux AppImage workflow's build
+# runs in the tag of its own checkout's hash when it exists, and otherwise installs the packages on ubuntu:22.04 itself,
+# so a change to the list builds before its image is made.
+# Made when one of the three changes: on main, and in a pull request from a branch of this repository (one from a fork
+# has no right to push here: its AppImage job installs the packages itself). Also by hand (Actions > AppImage build
+# image > Run workflow), which takes in Ubuntu's and the PPA's newer package versions under the same tag. Only main
+# moves :latest. Each repository that runs it (a fork too) makes its own image. No game data.
+name: AppImage build image
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/ci/appimage-build.Dockerfile
+      - scripts/linux/system_packages.sh
+      - .github/workflows/appimage-build-image.yml
+  pull_request:
+    paths:
+      - .github/ci/appimage-build.Dockerfile
+      - scripts/linux/system_packages.sh
+      - .github/workflows/appimage-build-image.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: appimage-build-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: Build image
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # (the packages' own retries can take most of this when Launchpad is slow: run it again later)
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # (the same hash as the Linux AppImage workflow's image job: tests/test_appimage_build_image.py)
+      - name: Build and push
+        env:
+          HASH: ${{ hashFiles('.github/ci/appimage-build.Dockerfile', 'scripts/linux/system_packages.sh', '.github/workflows/appimage-build-image.yml') }}
+          GH_TOKEN: ${{ github.token }}
+          DOCKER_CONFIG: ${{ runner.temp }}/docker
+          LATEST: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          test -n "$HASH"
+          name="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/hookshot-appimage-build"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          # (a pull request's next push, or main's merge of it, has the same recipe: its image is there, and main only
+          # names it :latest. A run by hand makes it again, with the packages' newer versions)
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] && docker manifest inspect "$name:$HASH" >/dev/null 2>&1; then
+            if [ "$LATEST" = true ]; then
+              docker buildx imagetools create --tag "$name:latest" "$name:$HASH"
+            fi
+            echo "$name:$HASH is there already$([ "$LATEST" = true ] && echo ', now :latest')" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          docker build --pull -f .github/ci/appimage-build.Dockerfile --build-arg "HOOKSHOT_CI_IMAGE=$HASH" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.description=Ubuntu 22.04 with the Linux AppImage's system packages (CI only)" \
+            -t "$name:$HASH" scripts/linux
+          # (what the AppImage job checks before it skips its install, and the compilers it builds with)
+          docker run --rm "$name:$HASH" sh -ec 'test "$(cat /etc/hookshot-ci-image)" = "$1"; g++-13 --version | head -n1
+            g++-12 --version | head -n1; git --version; python3 --version' sh "$HASH"
+          docker push "$name:$HASH"
+          if [ "$LATEST" = true ]; then
+            docker tag "$name:$HASH" "$name:latest"
+            docker push "$name:latest"
+          fi
+          echo "pushed $name:$HASH$([ "$LATEST" = true ] && echo ' and :latest')" | tee -a "$GITHUB_STEP_SUMMARY"
