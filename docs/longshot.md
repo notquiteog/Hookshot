@@ -131,7 +131,7 @@ out is the triage of this pull (587 commits); each batch adds its rows here.
 | [#2007](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/2007) | SadTransGirl | fix(host): the game's memory stays in RAM when the PC runs short: a soft working-set minimum (HOS_WS_FLOOR_MB) |
 | [#2012](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/2012) | siantm | fix(os): spin_begin reads HOS_SPIN_ALWAYS once, under a lock, and its cache atomically |
 
-Longshot's crash records (#75 and the fixes on them: #593, #626, #628, #1375, #1416, #1714) are not here; #102 and #558
+Longshot's crash records (#75 and the fixes on them: #593, #626, #1375, #1416, #1714) are not here (#628's checks came with C2); #102 and #558
 are taken without their crash-record parts, and #1459 without its crash window.
 
 ### Lifter, build and script fixes (D1)

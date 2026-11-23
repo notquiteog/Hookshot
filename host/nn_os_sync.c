@@ -519,8 +519,11 @@ static int cv_leave(Obj *cv, Obj *m, uint64_t gen, unsigned life) {
         if (cv->cv_owed) WakeAllConditionVariable(&cv->cv);
         return 0;
     }
-    cv->cv_in--;
-    __atomic_sub_fetch(&cv->cv_waiting, 1, __ATOMIC_SEQ_CST);   /* (counted in by cv_count_in) */
+    /* (counted in by cv_count_in. Neither count goes below 0: a condition variable made again between a waiter's count-in
+       and its cv_enter (obj_lookup's clear) cleared the count it was in, and it is this life's waiter all the same) */
+    if (cv->cv_in > 0) cv->cv_in--;
+    for (int w = __atomic_load_n(&cv->cv_waiting, __ATOMIC_SEQ_CST);
+         w > 0 && !__atomic_compare_exchange_n(&cv->cv_waiting, &w, w - 1, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);) {}
     int k = -1;
     for (int i = 0; i < cv->cv_owed; i++)
         if (cv->cv_owed_gen[i] >= gen && (k < 0 || cv->cv_owed_gen[i] < cv->cv_owed_gen[k])) k = i;
@@ -1388,7 +1391,9 @@ HLE(_ZN2nn2os17TryWaitTimerEventEPNS0_14TimerEventTypeE) {
 /* TimedWaitConditionVariable(cv, mutex, TimeSpan) -> ConditionVariableStatus (0 timeout, 1 no timeout) */
 HLE(_ZN2nn2os26TimedWaitConditionVariableEPNS0_21ConditionVariableTypeEPNS0_9MutexTypeENS_8TimeSpanE) {
     Obj *cv = obj(ARG(0), K_COND), *m = obj(ARG(1), K_MUTEX);
-    int64_t deadline = hos_now_ns() + ((int64_t)ARG(2) > 0 ? (int64_t)ARG(2) : 0);
+    /* (a huge TimeSpan waits without end, not past INT64_MAX into the past: as sema_acquire_for's deadline) */
+    const int64_t now = hos_now_ns(), ns = (int64_t)ARG(2) > 0 ? (int64_t)ARG(2) : 0;
+    int64_t deadline = ns > INT64_MAX - now ? INT64_MAX : now + ns;
     cv_count_in(cv);
     AcquireSRWLockExclusive(&cv->lk);
     uint64_t gen = cv->gen;
