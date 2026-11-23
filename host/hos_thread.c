@@ -9,8 +9,8 @@
 #include "game_profile.h"   /* (the return addresses below are the game profile's) */
 #ifndef HOOKSHOT_ENV_H   /* (env_on: the switches' one rule) */
 #include "../gpu/vk/compat/hookshot_env.h"
-#include "nx2_pack.h"   /* (the game's pack: its idle loop, in a thread dump) */
 #endif
+#include "nx2_pack.h"   /* (the game's pack: its idle loop, in a thread dump) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>

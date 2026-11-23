@@ -1240,11 +1240,15 @@ def pack_host(game_dir):
     files its pack.json "host" names (globs under packs/<key>/, .c files only, none outside the pack), or host/game_none.c,
     which takes none of the runtime's hooks (host/nx2_pack.h), for a game whose pack has none, and for a profile no pack is.
     The game is the profile header's (GAME_PROFILE_KEY): the lift's, else game/'s"""
-    import glob
     with open(os.path.join(game_dir, "game_profile.h"), encoding="utf-8") as f:
         m = re.search(r'^#define GAME_PROFILE_KEY "([a-z0-9]+)"', f.read(), re.M)
     key = m.group(1) if m else "none"
-    manifest = packs.tree().get(key) or {}
+    return pack_host_files(key, packs.tree().get(key) or {})
+
+
+def pack_host_files(key, manifest):
+    """pack_host's (key, files) for one pack's manifest"""
+    import glob
     root = os.path.realpath(packs.folder(key, ""))
     files = []
     for pattern in manifest.get("host", []):
@@ -1257,6 +1261,56 @@ def pack_host(game_dir):
     if manifest.get("host") and not files:
         raise SystemExit("packs/%s/pack.json: host names no file there (%s)" % (key, ", ".join(manifest["host"])))
     return key, files or [os.path.join(os.path.realpath(HOST), "game_none.c")]
+
+
+QUOTE_INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.M)
+
+
+def included_headers(srcs, dirs):
+    """Every header the sources include with quotes, and every one those include in turn, each found as the compiler finds
+    it: beside the file that includes it, then in dirs (the -I folders) in order. Wherever it lives: a pack's C includes
+    ../gpu/vk/oot_cheat_items.h through host/, and an object's key must change with it (#144's review)"""
+    found, seen, todo = [], set(), list(srcs)
+    while todo:
+        f = todo.pop()
+        try:
+            with open(f, encoding="utf-8", errors="replace") as h:
+                text = h.read()
+        except OSError:
+            continue
+        for inc in QUOTE_INCLUDE.findall(text):
+            for d in [os.path.dirname(f)] + list(dirs):
+                path = os.path.normpath(os.path.join(d, inc))
+                if os.path.isfile(path):
+                    if path not in seen:
+                        seen.add(path)
+                        found.append(path)
+                        todo.append(path)
+                    break
+    return sorted(found)
+
+
+def headers_bytes(paths, read=None):
+    """The headers as one dependency blob, each by its name and its bytes (read: a path's bytes, for the checks)"""
+    read = read or (lambda path: open(path, "rb").read())
+    return b"".join(os.path.basename(path).encode() + b"\0" + read(path) for path in paths)
+
+
+def show_path(path):
+    """A path from the repository's root for the log, or the path as it is where it has none (another drive on Windows)"""
+    try:
+        return os.path.relpath(path, os.path.join(HOST, "..")).replace(os.sep, "/")
+    except ValueError:
+        return path
+
+
+def all_pack_hosts():
+    """(--host-only) every pack's C as pack_host gives it, and host/game_none.c: (key, files) each"""
+    out = []
+    for key, manifest in packs.tree().items():
+        if manifest.get("host"):
+            out.append(pack_host_files(key, manifest))
+    return out + [("none", [os.path.join(os.path.realpath(HOST), "game_none.c")])]
 
 
 def game_profile_bytes(folder):
@@ -1274,6 +1328,9 @@ def main():
     # (CI: a player's build started from the tree the AppImage carries, with no game. Everything up to the compile, without the
     # lift's files; every other file the compile would read must be there, and nothing is compiled. scripts/linux/check_player_build.sh)
     p.add_argument("--dry-run", action="store_true")
+    # (CI: every host/ file and every pack's host C compiled for the target with the runtime's own flags, nothing lifted or
+    # linked: .github/workflows/windows-builder.yml's runtime job, as the renderer job builds the renderer alone)
+    p.add_argument("--host-only", action="store_true")
     p.add_argument("--kept-lift", metavar="LIST", help="(make_game.py) the lifted C was let go after the last build: its objects "
                    "by this list (KEPT_LIST); exit status KEPT_STALE when it no longer fits")
     a = p.parse_args()
@@ -1288,8 +1345,19 @@ def main():
     print("game profile: %s" % os.path.normpath(os.path.join(game_dir, "game_profile.h")), flush=True)
     os.makedirs(obj_dir, exist_ok=True)
     load_hashes(out)
-    if kit.env_on("RX_VK_ONLY") or a.dry_run:   # (the Vulkan back end needs no game: built so with no lift, as the AppImage's is)
+    if a.host_only and not a.standalone:
+        p.error("--host-only is the standalone runtime's: give --standalone")
+    if kit.env_on("RX_VK_ONLY") or a.dry_run or a.host_only:   # (the Vulkan back end needs no game: built so with no lift, as the AppImage's is)
         os.makedirs(gen, exist_ok=True)
+    if a.host_only:   # (no lift here: the two headers of the lift's that a64.h includes, made without a game)
+        import a64_rtgen       # (suyu's runtime header, as nx2/lift.py writes it beside the lifted C: game-free)
+        import suyu_rt_fixes
+        suyu_rt_fixes.install()
+        a64_rtgen.write(gen)
+        fpx = os.path.join(gen, "a64_fpx.h")   # (the lift's fast-path helpers for the lifted code: the runtime's C calls none)
+        if not os.path.exists(fpx):
+            with open(fpx, "w", encoding="utf-8", newline="\n") as f:
+                f.write("/* (nx2/build.py --host-only) no lift: no fast-path helpers; the runtime's C calls none */\n")
     rt64 = rtgen.write(os.path.join(out, "rt64"))
     cc = toolchain.need(toolchain.find("clang"))
     fl = flags(gen, rt64, OPT, True) + (["-DA64_POLL_CTX"] if a.dll else [])   # (the shim's poll takes the context: rtgen.py)
@@ -1333,7 +1401,7 @@ def main():
             host_srcs += [os.path.join(POSIX, f) for f in ("win32_posix.c", "display_sdl.c", "linux_stubs.c", "prof.c")]
     else:
         srcs += [os.path.join(NX2_RT, "eden_shim.c"), write_info(out)]
-    if kit.env_on("RX_VK_ONLY"):   # (no lift needed: the back end alone)
+    if kit.env_on("RX_VK_ONLY") or a.host_only:   # (no lift needed: the back end alone, or the runtime's C alone)
         srcs = [s for s in srcs if os.path.exists(s)]
     if a.dry_run:   # (the lift's files: there is no game here)
         srcs = [s for s in srcs if os.path.dirname(s) != gen]
@@ -1402,15 +1470,18 @@ def main():
               host_deps + (zstd_api if os.path.basename(s) in ZSTD_HOST else b"")) for s in host_srcs]
     # the game's pack's C (pack_host), with the runtime's flags and headers and its own folders' headers: into this game's
     # runtime only, so another game's runtime holds none of it (Mario Kart World's and Bananza's no Ocarina code)
+    # (the key: the runtime's headers, and every header the pack's C includes, wherever it lives: included_headers)
+    host_objs = {j[2] for j in jobs if j[1] in host_srcs}
     if host_srcs:
-        pack_key, pack_srcs = pack_host(game_dir)
-        pack_dirs = sorted({os.path.dirname(s) for s in pack_srcs})
-        pack_deps = host_deps + b"".join(open(os.path.join(d, f), "rb").read() for d in pack_dirs for f in sorted(os.listdir(d))
-                                         if f.endswith(".h"))
-        print("game pack: %s, its C %s" % (pack_key, ", ".join(os.path.relpath(s, os.path.join(HOST, "..")) for s in pack_srcs)),
-              flush=True)
-        jobs += [(cc, s, os.path.join(obj_dir, "pack_%s_%s.o" % (pack_key, os.path.basename(s)[:-2])),
-                  host_fl + ["-I" + d for d in pack_dirs], pack_deps) for s in pack_srcs]
+        for pack_key, pack_srcs in (all_pack_hosts() if a.host_only else [pack_host(game_dir)]):
+            pack_dirs = sorted({os.path.dirname(s) for s in pack_srcs})
+            include_dirs = pack_dirs + [HOST, game_dir, GAME, rt64, gen] + ([POSIX] if LINUX else [])
+            pack_deps = host_deps + headers_bytes(included_headers(pack_srcs, include_dirs))
+            print("game pack: %s, its C %s" % (pack_key, ", ".join(show_path(s) for s in pack_srcs)), flush=True)
+            pack_jobs = [(cc, s, os.path.join(obj_dir, "pack_%s_%s.o" % (pack_key, os.path.basename(s)[:-2])),
+                          host_fl + ["-I" + d for d in pack_dirs], pack_deps) for s in pack_srcs]
+            jobs += pack_jobs
+            host_objs |= {j[2] for j in pack_jobs}
     # libopus 1.5.2 (third_party/opus, from TOTKPort): nn::codec's hardware Opus decoder (host/nn_codec.c)
     # (hookshot: built for the same CPU target as the rest (CPU), so its float code can be vectorized where the target has
     # AVX2: the vendored copy has no x86 intrinsics files of its own)
@@ -1613,6 +1684,8 @@ def main():
     vk_only = kit.env_on("RX_VK_ONLY")   # (the renderer alone, the game's objects as they are)
     if vk_only:
         jobs = list(vk_jobs)
+    if a.host_only:   # (the runtime's own C and every pack's: no lifted code, third-party library or renderer)
+        jobs = [j for j in jobs if j[2] in host_objs]
     if a.dry_run:   # (the compile starts here: what it would read, said and checked, and nothing compiled)
         missing = sorted({j[1] for j in jobs if not os.path.isfile(j[1])} |
                          ({vk_prebuilt} if vk_prebuilt and not os.path.isfile(vk_prebuilt) else set()))
@@ -1678,6 +1751,10 @@ def main():
     print("compiled in %.0fs, %d failed" % (time.time() - t0, still), flush=True)
     if still:
         return 1
+    if a.host_only:
+        print("host only: %d files of the runtime and the packs compiled for %s, nothing linked"
+              % (len(jobs), "Linux" if LINUX else "Windows"), flush=True)
+        return 0
     if a.standalone and not vk_only:
         write_kept(gen, jobs)
     vk_objs = {j[2] for j in vk_jobs}

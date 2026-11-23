@@ -38,7 +38,6 @@ static int oot_speed_percent = 100;
 void hos_oot_cct_speed(Ctx *c, uint64_t controller, int per_second) {
     if (!controller || controller != __atomic_load_n(&oot_speed_controller, __ATOMIC_RELAXED)) return;
     const int percent = __atomic_load_n(&oot_speed_percent, __ATOMIC_RELAXED);
-    int hos_move_stick_held(void);   /* host/nn_hid.c */
     if (percent <= 100 || percent > 400 || !hos_move_stick_held()) return;
     float speed;
     memcpy(&speed, &c->vreg[0][0], sizeof speed);
@@ -120,7 +119,6 @@ static const unsigned char oot_item_kinds[] = {OOT_CHEAT_ITEMS(OOT_NO_SECTION, O
 static int oot_item_count(Ctx *c, const char *name);
 
 static void oot_inventory_refresh(Ctx *c, int64_t now) {
-    void rx_option_set(int id, int value);
     static int64_t next;
     static int probed;
     if (now < next) return;
@@ -380,7 +378,6 @@ static void oot_update_player_cheats(Ctx *c, uint64_t actor, uint64_t components
         const float dt = fminf((float)elapsed * 1e-9f, 0.05f);
         float desired[3] = {0};
         if (foreground == GetCurrentProcessId() && !rx_option(1, 0) && !rx_option(HOS_OPT_CHEAT_CAMERA, 0)) {
-            uint64_t hos_flight_input(void);
             const uint64_t axes = hos_flight_input();
             const float right = (int16_t)axes / 32767.0f, forward = (int16_t)(axes >> 16) / 32767.0f;
             const int vertical = (GetAsyncKeyState(VK_PRIOR) < 0) - (GetAsyncKeyState(VK_NEXT) < 0);
@@ -537,7 +534,6 @@ static void oot_build_free_view(Ctx *c, uint64_t view, uint64_t out) {
     const double dt = elapsed > 0 && elapsed < 100000000 ? (double)elapsed * 1e-9 : 0;
     const int control = foreground == GetCurrentProcessId() && !rx_option(1, 0);
     int height = 0;
-    uint64_t hos_free_camera_input(int *height);
     const uint64_t input = control ? hos_free_camera_input(&height) : 0;
     if (control) {
         yaw -= 1.6 * dt * (int16_t)(input >> 32) / 32767.0;

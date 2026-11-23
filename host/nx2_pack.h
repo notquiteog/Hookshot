@@ -33,12 +33,18 @@ extern "C" {
 #endif
 
 /* The interface's version: nx2/packs.py NX2PC_PACK_API, the same two numbers (tests/test_game_packs.py holds them so). A pack
-   built for another major is not this engine's; during 0.x any minor may break (0.2: lift/, tools/, assets/, build_steps and
-   this header, docs/game-packs.md a2 and a3, released together) */
+   built for another major is not this engine's; during 0.x any minor may break (0.2: lift/, tools/, assets/ and build_steps,
+   docs/game-packs.md a2; 0.3: this header and a pack's host/ C, a3) */
 #define NX2_PACK_API_MAJOR 0
-#define NX2_PACK_API_MINOR 2
+#define NX2_PACK_API_MINOR 3
 
-int rx_option(int id, int otherwise);   /* (host/rx_backend.c) an Insert menu row's value, or otherwise */
+/* The runtime's functions and globals a pack's C may use besides hos.h's: */
+int rx_option(int id, int otherwise);        /* (host/rx_backend.c) an Insert menu row's value, or otherwise */
+void rx_option_set(int id, int value);       /* (host/rx_backend.c) a value the game side reports to the menu */
+int hos_move_stick_held(void);               /* (host/nn_hid.c) the player holds the move stick */
+uint64_t hos_flight_input(void);             /* (host/nn_hid.c) the debug flight's buttons this frame */
+uint64_t hos_free_camera_input(int *height); /* (host/nn_hid.c) the free camera's axes, and its height */
+extern volatile uint32_t hos_frame_seconds_bits;   /* (host/nn_vi.c) the frame's seconds as a float's bits, 0 at a cap of 60 */
 
 typedef struct NX2PackHost {
     uint32_t version;   /* NX2_PACK_API_MAJOR << 16 | NX2_PACK_API_MINOR, as the pack was built */

@@ -11,8 +11,8 @@
 #include <string.h>
 #ifndef HOOKSHOT_ENV_H   /* (env_on: the switches' one rule) */
 #include "../gpu/vk/compat/hookshot_env.h"
-#include "nx2_pack.h"   /* (the game's pack: its pacer, at each present) */
 #endif
+#include "nx2_pack.h"   /* (the game's pack: its pacer, at each present) */
 
 void hos_system_event_init(uint64_t key, int autoclear);   /* nn_os_sync.c */
 void hos_system_event_signal(uint64_t key);

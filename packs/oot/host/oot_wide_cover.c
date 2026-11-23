@@ -2,7 +2,6 @@
    host/hos_main.c (docs/game-packs.md a3): the code is as it was there. */
 #include "nx2_pack.h"
 #include "oot_host.h"
-#include "../gpu/vk/oot_cheat_items.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
