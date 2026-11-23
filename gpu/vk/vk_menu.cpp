@@ -1584,9 +1584,12 @@ constexpr int kBugReportRow = kRestartRow - 1;
 const Row* pending = nullptr;   // (Restart or Quit: shows Confirm until its second press)
 // ---- (game packs a4, docs/game-packs.md 2.4) the running game's menu content: its NX2GameMenu (gpu/vk/vk_api.h) ----
 // The game's runtime hands it over (MkwVkHost.game_menu: its pack's packs/<key>/menu/ C); a table of another version, or none,
-// is no table: the game's rows hidden, no tools. Asked once, the first time anything here needs it; it lives for the process
+// is no table: the game's rows hidden, no tools. Asked once, the first time anything here needs it once the host is there (never
+// from a static initializer's call before mkwvk_init: kTop's count of the Controls page's rows asked this before the host was
+// set, and the null kept for good hid Ocarina's tools); it lives for the process
 }  // namespace
 const NX2GameMenu* menu_game() {
+    if (!host) return nullptr;   // (not yet: asked again once mkwvk_init has the host)
     static const NX2GameMenu* const table = [] {
         const NX2GameMenu* m = host && host->version >= 25 && host->game_menu ? host->game_menu() : nullptr;
         if (m && (m->version != NX2_GAME_MENU_VERSION || m->size < sizeof(NX2GameMenu))) {
@@ -1601,8 +1604,9 @@ const NX2GameMenu* menu_game() {
 namespace {
 /// Whether the game implements a general row's feature (NX2_FEATURE_*); 0: a row every game has
 bool feature_on(uint32_t f) {
+    if (!f) return true;   // (a row every game has: the table not asked, as at static initialization (kTop))
     const NX2GameMenu* m = menu_game();
-    return !f || (m && (m->features & f));
+    return m && (m->features & f);
 }
 /// The feature a general row needs (the game's table lists it, else the row is hidden: row_shown), 0 none
 uint32_t row_feature(const int* v) {

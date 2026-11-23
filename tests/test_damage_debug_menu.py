@@ -51,7 +51,8 @@ def main():
     source += '#include <cstring>\n#include <iterator>\n#include <string>\n'
     source += '#include "vk_api.h"\n'
     source += 'struct HostStub { uint32_t version; const NX2GameMenu* (*game_menu)(void); };\n'
-    source += 'static HostStub host_stub = {25, nullptr};\nstatic HostStub* host = &host_stub;\n'
+    # (no host until mkwvk_init: the rows are counted by a static initializer before it, kTop)
+    source += 'static HostStub host_stub = {25, nullptr};\nstatic HostStub* host = nullptr;\n'
     source += 'static void logf(const char*, ...) {}\n'
     source += 'extern "C" const NX2GameMenu* oot_menu(void);\n'
     source += block(header, "struct Options {") + ';\nOptions opts;\n'
@@ -96,6 +97,11 @@ static void tools_in() {   // (menu_game_init's part this fixture needs: the slo
 int main(int argc, char** argv) {
     const bool game = argc > 1;   // (with Ocarina's table, or none)
     if (game) host_stub.game_menu = oot_menu;
+    // (the rows counted before the host is there, as kTop's static initializer does: the table is not asked then, nor is a
+    // null kept for later; a4's first run in the game had Ocarina's tools hidden so)
+    assert(tab_row_count(TAB_DEBUG) > 0 && !menu_game());
+    host = &host_stub;
+    assert(game == (menu_game() != nullptr));
     tools_in();
     int order[64], dev, heading;
     const char* expected[] = {"Debug tools", "Heart protection", "Damage taken", "No-clip flight",
