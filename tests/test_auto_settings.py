@@ -80,6 +80,14 @@ def check_source():
     if not main.index("dev.mesh_capable = m.meshShader && m.taskShader;") < main.index(
             "if (mesh_mode_used == 2) dev.mesh_shader = false;"):
         raise SystemExit("vk_main.cpp: dev.mesh_capable must be read before the Mesh shaders mode is applied")
+    # (Longshot #292, adapted: High or Ultra chosen on the row moves an output still at the game's 2048x1152 to 1440p, by
+    # auto_settings.h's high_output, never while the environment holds the row, and never the other way)
+    preset = menu[menu.index("void apply_preset(int p) {"):]
+    preset = preset[:preset.index("\n}\n")]
+    for must in ("if (!env_holds(&opts.output_res)) {", "o.w == kGameOutput.w && o.h == kGameOutput.h &&",
+                 "::auto_settings::high_output(p,", "::auto_settings::kHighW"):
+        if must not in preset:
+            raise SystemExit("vk_menu.cpp apply_preset: no %s (High and Ultra's 1440p output)" % must)
     need("vk_replay.cpp", (ROOT / "gpu/vk/vk_replay.cpp").read_text(encoding="utf-8"), ["menu_auto_tune(gpu_ms, draws, 120.0 / secs);"])
     api = (ROOT / "gpu/vk/vk_api.h").read_text(encoding="utf-8")
     need("vk_api.h", api, ["#define MKWVK_WINDOW_VERSION 3", "void (*desktop_size)(void *window, int *width, int *height);"])
