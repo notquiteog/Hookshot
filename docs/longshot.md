@@ -288,3 +288,32 @@ Already here, their checks taken: #1241 (blits validated), #1242 (no clears of A
 Moved:
 - #1536 to frame generation (G): it needs Longshot's present slots (`kPresentSlotsMax`).
 - #1618 to the pipeline cache batch: it needs Longshot's `warm_computes_apart`.
+
+
+### Lifter, build and script fixes (D2)
+
+| Longshot | Author | What |
+|---|---|---|
+| [#34](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/34) | dyst | fix(linux): the log says why the renderer did not load |
+| [#371](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/371) | HumanBean | perf(build): one object store for every work folder, so a new one compiles only what no other built |
+| [#540](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/540) | Zelda Ootr | fix(builder): a compile that raises stops build.py at once, not after every queued compile |
+| [#561](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/561) | Zelda Ootr | test(build): give the CPM discovery check's toolchain stand-in find and need |
+| [#592](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/592) | futondestroyer | test(build): isolate shipped-profile lookups in game-free fixtures |
+| [#602](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/602) | HumanBean | fix(scripts): dev_packs builds a pack for a profile switch, and a renderer pack with the profile its base had |
+| [#623](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/623) | Zelda Ootr | test(build): the lift clean-up check stands in for the shared lift store |
+| [#1090](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1090) | dyst | test(build): the DLSS cache check reads the preprocessed value instead of running a program |
+| [#1267](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/1267) | HumanBean | fix(build): a clang that can't read the play profile says which clang it is and where the one that reads it is |
+
+Fitted to this tree:
+- #371 keeps this tree's `write_compdb` and `--host-only` paths in `nx2/build.py`; a host-only build shares its objects with the store before it stops. `scripts/dev_packs.py` uses the store at `~/.cache/hookshot-objects` (`%LOCALAPPDATA%\Hookshot\objects` on Windows) unless `HOOKSHOT_OBJ_STORE` names another; a player's build uses none unless it is set.
+- #602 and #1267, which D1 left out while Longshot's play profile was not here, come now: B1 brought it (#569, `RX_VK_PGO=1`). #540, which D1 counted with the Builder's fixes, is `nx2/build.py`'s.
+- #34's log line names the renderer's `.so` and drops the path dlerror() repeats; Linux has no WebGPU renderer to fall back on, so the line says nothing is drawn.
+
+Moved:
+- #151, #465, #641, #1453 and #690 to the Builders, with their rename: the setup and the Builder differ here (one library of every game).
+- #1379 and #1059 to the crash records' batch: #1379 edits the crash window (#593), and #1059 keeps the game's stderr for the crash window after a restart.
+- #1602 to the switch table (K): this tree has no `.def` or `.inl` files until `switches.def` comes.
+- #80 and #1316 to the dev tooling (F): they edit Longshot's `check_third_party.py` and coverage tool, which come with it.
+- #627 and #898 to the control bridge (CB): they edit the pipeline tour, which comes with it.
+
+Not taken: #624. This tree's AppImage keeps `$APPDIR/usr/lib/hookshot` for its own files, so Longshot's narrowed check does not hold here.
