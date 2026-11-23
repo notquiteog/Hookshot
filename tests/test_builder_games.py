@@ -238,7 +238,8 @@ def check_linux_builder(tmp):
     check('stopped = code != 0 or bool(getattr(self, "error", None))' in done and "game_folders.update_all_outcome(" in done and
           'text("ResStopped", lang)' in done and 'text("LibStoppedSub", lang)' in done,
           "the Linux Builder's Update all that stopped (an exit, a cancel) says so, and which games it finished and which not")
-    check('threading.Thread(target=lambda: lines.put(("library",' in method(src, "library_games"),
+    check('lines.put(("library", (base, games)))' in method(src, "library_games") and
+          "threading.Thread(target=load, daemon=True)" in method(src, "library_games"),
           "the Linux Builder reads the library off the window's thread")
     check('line.startswith("@@game "):' in method(src, "on_line") and "self.game_framed(line)" in method(src, "on_line"),
           "the Linux Builder follows Update all's @@game lines")
@@ -307,6 +308,7 @@ def check_linux_builder(tmp):
           fb[game_profile.DEFAULT]["version"] == "v0.0.1" and fb[lsecond]["kept"] is False,
           "without the tools' answer the Linux library reads kept and version, and offers Update, never a rebuild for it: %r" % fb)
     check_linux_update_all_done(builder, lbase, lsecond)
+    check_linux_second_review(builder, src, tmp)
     check(builder.text("LibUpdateAll") == "Update all" and builder.text("LibUpdateAll", "fr") == "Tout mettre à jour",
           "the Linux Builder's strings are the shared table's, in the game language chosen")
     check(builder.menu_entry(base) == ("hookshot.desktop", "Hookshot", profile(game_profile.DEFAULT).game),
@@ -368,6 +370,49 @@ def check_linux_update_all_done(builder, lbase, lsecond):
         check(w.heading.text == builder.text("LibStopped"), "an Update all that ended short of a folder is not a success")
 
 
+def check_linux_second_review(builder, src, tmp):
+    """The second review's Linux points: Update all keeps the AppImage's renderer (HOOKSHOT_VK_PREBUILT) for the folders
+    without DLSS; a stale hookshot.desktop gives the other game its own entry before it goes onto the default game's; the
+    library shows no other base's rows while one loads, and its loading flag is cleared when the reading dies"""
+    import queue
+    from types import SimpleNamespace
+    env = builder.make_game_env(True, {"HOOKSHOT_VK_PREBUILT": "prebuilt.so"}, keep_prebuilt=True)
+    check(env.get("HOOKSHOT_VK_PREBUILT") == "prebuilt.so" and env.get("HOOKSHOT_NGX_SDK"),
+          "Update all keeps the AppImage's renderer beside NVIDIA's SDK (nx2/build.py leaves it to the folders with DLSS)")
+    check("HOOKSHOT_VK_PREBUILT" not in builder.make_game_env(True, {"HOOKSHOT_VK_PREBUILT": "prebuilt.so"}),
+          "a build with the DLSS tick still compiles its own renderer")
+    check("env=make_game_env(dlss, keep_prebuilt=True)" in method(src, "start_update_all"),
+          "the Linux Builder's Update all keeps HOOKSHOT_VK_PREBUILT")
+    other = other_keys()[1]
+    base = os.path.join(tmp, "Stale", "Hookshot")
+    placeholder(base, profile(game_profile.DEFAULT).build_id, exe=os.path.join("bin", "hookshot"))
+    elsewhere = os.path.join(tmp, "Stale", "Elsewhere")
+    placeholder(elsewhere, profile(other).build_id, exe=os.path.join("bin", "hookshot"))
+    data = os.path.join(tmp, "stale-data")
+    apps = os.path.join(data, "applications")
+    os.makedirs(apps)
+    with open(os.path.join(apps, "hookshot.desktop"), "w", encoding="utf-8") as f:
+        f.write("[Desktop Entry]\nType=Application\nName=Hookshot\nPath=%s\n" % elsewhere)
+    with mock.patch.dict(os.environ, {"XDG_DATA_HOME": data}):
+        builder.repoint_default(base)
+    entries = {n: open(os.path.join(apps, n), encoding="utf-8").read() for n in os.listdir(apps)}
+    check("Path=%s\n" % base in entries.get("hookshot.desktop", "") and
+          "Path=%s\n" % elsewhere in entries.get("hookshot-%s.desktop" % other, ""),
+          "a stale hookshot.desktop: the other game keeps its own entry, then the default game's goes onto its folder: %r" %
+          sorted(entries))
+    lines = queue.Queue()
+    w = SimpleNamespace(out=SimpleNamespace(get=lambda: base + "-" + other), library_cache=("/another/base", ["another's rows"]),
+                        lines=lines)
+    import threading
+    with mock.patch.object(builder, "library_for", side_effect=RuntimeError("the reading died")), \
+            mock.patch.object(threading, "excepthook", lambda args: None):   # (the thread's own error, expected here)
+        got = builder.Builder.library_games(w)
+        kind, (b, games) = lines.get(timeout=30)
+    check(got == [] and w.library_loading == base, "while a base's library loads, no other base's rows: %r" % (got,))
+    check(kind == "library" and b == base and games is None, "a reading that died still says so: the loading flag cleared")
+    check("if games is None:" in method(src, "pump"), "the Linux Builder clears its loading flag for a reading that died")
+
+
 def cs_english():
     """Strings.cs's English, by key"""
     src = (ROOT / "builder" / "HookshotBuilder" / "Strings.cs").read_text(encoding="utf-8")
@@ -377,7 +422,41 @@ def cs_english():
 
 # ---------------- the Qt Builder ----------------
 
-def check_qt_builder():
+def check_qt_shortcuts(tmp):
+    """The Qt Builder's shortcuts for a game in two folders, run with stand-ins for Windows' shell: the Desktop and Start menu
+    shortcuts start (--launch) and take the icon of the game's own folder; the folder's own launcher link stays its own"""
+    sys.path.insert(0, str(ROOT / "builder" / "py"))
+    try:
+        from hookshot_builder import core
+    except Exception as e:   # (a module only Windows has: the source checks say the rest)
+        print("the Qt Builder's shortcuts not run: %s" % e)
+        return
+    finally:
+        sys.path.pop(0)
+    other = other_keys()[1]
+    base = os.path.join(tmp, "QtTwo", "Hookshot")
+    placeholder(base + "-" + other, profile(other).build_id)
+    placeholder(base, profile(other).build_id)   # (the same game in the default game's folder too)
+    made = {}
+    links = os.path.join(tmp, "QtLinks")
+
+    def make_link(link, target, args, workdir, icon, description):
+        made[link] = (args, workdir, icon, description)
+    with mock.patch.object(core, "make_link", make_link), \
+            mock.patch.object(core.paths, "launcher_command", lambda: ("builder.exe", [])), \
+            mock.patch.object(core, "desktop_link", lambda key=None: os.path.join(links, "desktop", core.shortcut_name(key) + ".lnk")), \
+            mock.patch.object(core, "start_link", lambda key=None: os.path.join(links, "start", core.shortcut_name(key) + ".lnk")):
+        core.shortcuts(base, True, True)
+    own = base + "-" + other
+    name = game_folders.shortcut_name(other) + ".lnk"
+    desk = made.get(os.path.join(links, "desktop", name))
+    check(desk is not None and desk[0].endswith(own) and "--launch" in desk[0] and desk[1] == own and desk[2].startswith(own),
+          "the Qt Builder's shortcut for a game in two folders launches its own folder, with its icon: %r" % (desk,))
+    inside = made.get(core.folder_link(base))
+    check(inside is not None and inside[1] == base, "the folder's own launcher link stays that folder's: %r" % (inside,))
+
+
+def check_qt_builder(tmp):
     py = ROOT / "builder" / "py" / "hookshot_builder"
     core = (py / "core.py").read_text(encoding="utf-8")
     window = (py / "window.py").read_text(encoding="utf-8")
@@ -427,12 +506,16 @@ def check_qt_builder():
     check("self.fill_games(reload=True)" in method(window, "back") and "self.refresh_mode()" in method(window, "language_changed")
           and "self.older_ok(" in method(window, "update_game_row"),
           "the Qt Builder reads the library again after a stop, redoes its heading in a new language, asks before an older one")
-    check("game_folder = shortcut_folder(game_folder)" in method(core, "shortcuts", "top") and
+    check("own = shortcut_folder(game_folder)" in method(core, "shortcuts", "top") and
           "core.repoint_default(" in method(window, "got_library"),
           "the Qt Builder's shortcuts are on a game's own folder, and a stale Hookshot.lnk is put onto the default game's")
     check(eval(core[core.index("PROFILES = (") + len("PROFILES = "):core.index(")\nDEFAULT_KEY")] + ")") ==
           tuple((p.key, p.game, p.build_id) for p in game_folders.buildable()) and
           'DEFAULT_KEY = "%s"' % game_profile.DEFAULT in core, "the Qt Builder's profiles are game_profile.py's that build")
+    check_qt_shortcuts(tmp)
+    check("game_link(own, shortcut_folder(was), key)" in method(core, "repoint_default", "top") and
+          "for key, _name, _bid in PROFILES:" in method(core, "move_work", "top"),
+          "the Qt Builder: a stale Hookshot.lnk's game keeps its own shortcut; moving the build files cleans every game's")
     fallback = method(core, "library_fallback", "top")
     check('"update": None if kept else False' in fallback and "tools_game_folders" not in fallback,
           "the Qt Builder's fallback library lists every game, reads kept and version, offers no rebuild for a failed answer")
@@ -448,7 +531,7 @@ def check_qt_builder():
     check("core.title_parts(core.game_name(core.folder_key(folder)))" in method(window, "show_launcher"),
           "the Qt launcher page shows the folder's game, not always Ocarina")
     shortcuts = method(core, "shortcuts", "top")
-    check("key = folder_key(game_folder)" in shortcuts and "desktop_link(key)" in shortcuts and "Ocarina" not in shortcuts,
+    check("key = folder_key(own)" in shortcuts and "desktop_link(key)" in shortcuts and "Ocarina" not in shortcuts,
           "the Qt Builder's shortcuts are named and described by the folder's game")
     check("shortcut_name(key) + \".lnk\"" in method(core, "desktop_link", "top") and 'return "Hookshot"' in method(core, "shortcut_name", "top"),
           "the Qt Builder's default shortcut keeps its name (Hookshot.lnk)")
@@ -549,6 +632,10 @@ def check_wpf_builder():
     check("FillGames(reload: true);" in between(window, "    async void ToFiles()", "    // ================= what the button does") and
           "RefreshMode();" in between(window, "    void LanguageChanged(", "    // ================= 2: the build"),
           "the WPF Builder reads the library again after a stop, and redoes its heading in a new language")
+    check("if (!File.Exists(own)) MakeLink(own, Games.ShortcutFolder(dir.ToString()), key);" in finder and
+          "foreach (var p in Games.Profiles)" in between((hb / "Storage.cs").read_text(encoding="utf-8"),
+                                                         "    public static void MoveWork(", "    static IEnumerable<string> WorkParts("),
+          "the WPF Builder: a stale Hookshot.lnk's game keeps its own shortcut; moving the build files cleans every game's")
     check("gameFolder = Games.ShortcutFolder(gameFolder);" in finder and "Finder.RepointDefault(" in window,
           "the WPF Builder's shortcuts are on a game's own folder, and a stale Hookshot.lnk is put onto the default game's")
     both = between(window, "    internal async void UpdateBuildOrAll(", "    internal void UpdateBuild(")
@@ -718,7 +805,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="builder-games-") as tmp:
         outs = check_game_folders(tmp)
         check_linux_builder(tmp)
-        check_qt_builder()
+        check_qt_builder(tmp)
         check_wpf_builder()
         dotnet = shutil.which(a.dotnet)
         if dotnet:

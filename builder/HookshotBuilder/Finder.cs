@@ -116,7 +116,8 @@ static class Finder
     }
 
     /// A Hookshot.lnk (the default game's name) that an older Builder made for the folder it built, holding another game: made
-    /// again onto the default game's folder when that game is installed (defaultFolder), else left as it is, and nothing said
+    /// again onto the default game's folder when that game is installed (defaultFolder), else left as it is, and nothing said.
+    /// The other game first gets its own named shortcut in the same place, so it keeps one
     public static void RepointDefault(string? defaultFolder)
     {
         if (defaultFolder == null) return;
@@ -130,6 +131,10 @@ static class Finder
                 var dir = new System.Text.StringBuilder(1024);
                 sl.GetWorkingDirectory(dir, dir.Capacity);
                 if (dir.Length == 0 || Games.FolderKey(dir.ToString()) == Games.DefaultKey) continue;
+                // (that game keeps a shortcut: its own named one, in the same place (Desktop, Start menu), first)
+                var key = Games.FolderKey(dir.ToString());
+                var own = Path.Combine(Path.GetDirectoryName(link)!, Games.ShortcutName(key) + ".lnk");
+                if (!File.Exists(own)) MakeLink(own, Games.ShortcutFolder(dir.ToString()), key);
                 MakeLink(link, defaultFolder, Games.DefaultKey);
             }
             catch (Exception) { }   // (a link that does not read is left as it is)

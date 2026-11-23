@@ -258,6 +258,16 @@ def move_work(picked):
             os.rmdir(old)
         except OSError:
             pass
+    for key, _name, _bid in PROFILES:   # (each other game's, <old>-<key>, beside it: what the builds left there goes too)
+        other = _rule_folder(old, key)
+        if key == DEFAULT_KEY or not os.path.isdir(other) or _same(other, _rule_folder(to, key)):
+            continue
+        for n in WORK_PARTS:
+            _delete(os.path.join(other, n))
+        try:
+            os.rmdir(other)
+        except OSError:
+            pass
 
 
 def _kept_version(d):
@@ -716,24 +726,30 @@ def shortcuts(game_folder, desktop, start, folder=True):
     """Made or removed as the ticks say: each starts this app's launcher for the folder (Play, and Update when a newer release is
     out), with the game's own icon, named and described by the game the folder holds (folder_key)"""
     global shortcut_error
-    exe, args = paths.launcher_command()
-    args = subprocess.list2cmdline(args + ["--launch", game_folder])
-    icon = os.path.join(game_folder, "bin", "hookshot.exe")
-    if not os.path.isfile(icon):
-        icon = os.path.join(game_folder, "hookshot.exe")
-    game_folder = shortcut_folder(game_folder)   # (a game in two folders: its shortcuts on its own one, never the other)
-    key = folder_key(game_folder)
-    for link, want in ((desktop_link(key), desktop), (start_link(key), start), (folder_link(game_folder), folder)):
+    own = shortcut_folder(game_folder)   # (first: a game in two folders has its shortcuts, --launch and icon, on its own one)
+    key = folder_key(own)
+    for link, want, f in ((desktop_link(key), desktop, own), (start_link(key), start, own),
+                          (folder_link(game_folder), folder, game_folder)):   # (the folder's own launcher: that folder's)
         try:
             if not want:
                 if os.path.isfile(link):
                     os.remove(link)
                 continue
-            if not os.path.isfile(icon):
-                continue
-            make_link(link, exe, args, game_folder, icon, "%s, built by Hookshot" % game_name(key))
+            game_link(link, f, key)
         except OSError as e:
             shortcut_error = "%s: %s" % (os.path.basename(link), e)
+
+
+def game_link(link, game_folder, key):
+    """One shortcut onto a game folder: this app's launcher for it (--launch), with the game's own icon, described by the game.
+    None made when the folder has no game"""
+    exe, args = paths.launcher_command()
+    icon = os.path.join(game_folder, "bin", "hookshot.exe")
+    if not os.path.isfile(icon):
+        icon = os.path.join(game_folder, "hookshot.exe")
+    if os.path.isfile(icon):
+        make_link(link, exe, subprocess.list2cmdline(args + ["--launch", game_folder]), game_folder, icon,
+                  "%s, built by Hookshot" % game_name(key))
 
 
 def link_workdir(link):
@@ -763,10 +779,9 @@ def link_workdir(link):
 def repoint_default(default_folder):
     """A Hookshot.lnk (the default game's name) that an older Builder made for the folder it built, holding another game: made
     again onto the default game's folder when that game is installed (default_folder), else left as it is, and nothing said.
-    Finder.cs RepointDefault"""
+    The other game first gets its own named shortcut in the same place, so it keeps one. Finder.cs RepointDefault"""
     if not default_folder:
         return
-    exe, args = paths.launcher_command()
     for link in (desktop_link(), start_link()):
         try:
             if not os.path.isfile(link):
@@ -774,10 +789,11 @@ def repoint_default(default_folder):
             was = link_workdir(link)
             if not was or folder_key(was) == DEFAULT_KEY:
                 continue
-            icon = os.path.join(default_folder, "bin", "hookshot.exe")
-            if os.path.isfile(icon):
-                make_link(link, exe, subprocess.list2cmdline(args + ["--launch", default_folder]), default_folder, icon,
-                          "%s, built by Hookshot" % game_name(DEFAULT_KEY))
+            key = folder_key(was)   # (that game keeps a shortcut: its own named one, in the same place, first)
+            own = os.path.join(os.path.dirname(link), shortcut_name(key) + ".lnk")
+            if not os.path.isfile(own):
+                game_link(own, shortcut_folder(was), key)
+            game_link(link, default_folder, DEFAULT_KEY)
         except (OSError, AttributeError, ValueError):
             pass
 

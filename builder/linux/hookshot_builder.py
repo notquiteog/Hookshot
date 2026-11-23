@@ -114,13 +114,17 @@ COMPILE_TIP = ("All (the default): every shader, the pipelines the game is known
                "in play, but more may be compiled the first time you visit a place.")
 
 
-def make_game_env(dlss, environ=None):
+def make_game_env(dlss, environ=None, keep_prebuilt=False):
     """The environment make_game.py runs in. HOOKSHOT_NGX_SDK is set only when DLSS is chosen (one set in the shell is not
-    passed on when unticked, as on Windows), and HOOKSHOT_VK_PREBUILT is dropped so build.py compiles hookshot_vk.so with NGX."""
+    passed on when unticked, as on Windows), and HOOKSHOT_VK_PREBUILT is dropped so build.py compiles hookshot_vk.so with NGX.
+    keep_prebuilt (Update all): kept, as make_game.py gives NVIDIA's SDK only to the folders with DLSS, and nx2/build.py
+    leaves the AppImage's renderer for those alone (prebuilt_renderer): the folders without DLSS keep that renderer, and its
+    AVX2 check"""
     env = dict(os.environ if environ is None else environ)
     if dlss:
         env["HOOKSHOT_NGX_SDK"] = ngx_sdk_dir()
-        env.pop("HOOKSHOT_VK_PREBUILT", None)
+        if not keep_prebuilt:
+            env.pop("HOOKSHOT_VK_PREBUILT", None)
     else:
         env.pop("HOOKSHOT_NGX_SDK", None)
     return env
@@ -504,6 +508,8 @@ def repoint_default(default_folder):
         with open(entry, encoding="utf-8") as f:
             was = next((line[5:].rstrip("\n") for line in f if line.startswith("Path=")), "")
         if was and game_folders.folder_key(was) != game_profile.DEFAULT:
+            if game_ready(was):   # (that game keeps an entry: its own, hookshot-<key>.desktop, first)
+                add_to_menu(was)
             add_to_menu(default_folder)
     except (OSError, ValueError, UnicodeDecodeError):
         pass
@@ -1152,8 +1158,15 @@ class Builder(tk.Tk):
             return self.library_cache[1]
         if getattr(self, "library_loading", None) != base:   # (read off the window's thread: "library", then the form again)
             self.library_loading = base
-            threading.Thread(target=lambda: lines.put(("library", (base, library_for(out)))), daemon=True).start()
-        return cache[1] if cache else []
+
+            def load():
+                games = None
+                try:
+                    games = library_for(out)
+                finally:   # (said even when the reading died: the flag cleared, no rows kept for it)
+                    lines.put(("library", (base, games)))
+            threading.Thread(target=load, daemon=True).start()
+        return []   # (while this base's library is read: none of another base's rows)
 
     def library_state(self, g):
         """A row's state: not installed, built before updates came in (its files to choose once), an update due, up to date, or
@@ -1360,7 +1373,8 @@ class Builder(tk.Tk):
         self.heading.configure(text=self.T("LibUpdating"))
         self.stage_text.set("Starting")
         self.started = time.time()
-        self.proc = subprocess.Popen(cmd, cwd=ROOT, env=make_game_env(dlss), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        self.proc = subprocess.Popen(cmd, cwd=ROOT, env=make_game_env(dlss, keep_prebuilt=True), stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT,
                                      text=True, bufsize=1, encoding="utf-8", errors="replace", start_new_session=True)
         threading.Thread(target=self.read, args=(self.proc,), daemon=True).start()
         self.tick()
@@ -1950,6 +1964,8 @@ class Builder(tk.Tk):
                 if kind == "library":   # (library_games: the library read; the form again when it shows another)
                     base, games = v
                     self.library_loading = None
+                    if games is None:   # (the reading died: nothing to show, a later form asks again)
+                        continue
                     self.library_cache = (base, games)
                     if getattr(self, "page_kind", None) == "form" and self.proc is None:
                         self.show_form()

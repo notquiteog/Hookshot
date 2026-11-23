@@ -58,6 +58,14 @@ static class Storage
         foreach (var d in WorkParts(old)) Delete(d);
         if (!Same(old, Base))
             try { Directory.Delete(old); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }   // (only when empty)
+        // (each other game's, <old>-<key> beside it: what the builds left there goes too)
+        foreach (var p in Games.Profiles)
+        {
+            var other = Games.Folder(old, p.Key);
+            if (p.Key == Games.DefaultKey || !Directory.Exists(other) || Same(other, Games.Folder(to, p.Key))) continue;
+            foreach (var d in WorkParts(other)) Delete(d);
+            try { Directory.Delete(other); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
     }
 
     /// What a build makes in its work folder (make_game.py, lift.py, build.py)
