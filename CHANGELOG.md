@@ -1,5 +1,67 @@
 # Changelog
 
+## [2.3.0-rc.43](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.42...v2.3.0-rc.43) (2026-11-23)
+
+
+### Features
+
+* **builder:** every game in one library, with Install, Update and Update all ([#133](https://github.com/notquiteog/Hookshot/issues/133)) ([e204e5e](https://github.com/notquiteog/Hookshot/commit/e204e5e4ae3115af054971791b22108b0b87cbf7))
+
+## [2.3.0-rc.42](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.41...v2.3.0-rc.42) (2026-11-23)
+
+
+### Bug Fixes
+
+* **dev_packs:** a busy marker whose job is gone is taken over, not left blocking the base ([#136](https://github.com/notquiteog/Hookshot/issues/136)) ([84c659a](https://github.com/notquiteog/Hookshot/commit/84c659a5d5826fe2da582c4a66d574deef89deb9))
+
+
+### Code Refactoring
+
+* **packs:** each game's profile is its pack's manifest, packs/&lt;key&gt;/pack.json (game packs a1) ([#137](https://github.com/notquiteog/Hookshot/issues/137)) ([9919310](https://github.com/notquiteog/Hookshot/commit/9919310d895b6ba4ffa20e90bdbdab860f1cf4a6))
+
+
+### Documentation
+
+* game packs, NX2PC in its own repository and each game in its own ([#132](https://github.com/notquiteog/Hookshot/issues/132)) ([ac0311f](https://github.com/notquiteog/Hookshot/commit/ac0311f91f7093574d2e7de9985193aa77055c4d))
+* **game-packs:** the bridge from the RecompLauncher and AppImage updaters' source ([#135](https://github.com/notquiteog/Hookshot/issues/135)) ([9c06c14](https://github.com/notquiteog/Hookshot/commit/9c06c143c5b0af0a447da4b7669a88e18a902cd1))
+
+## [2.3.0-rc.41](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.40...v2.3.0-rc.41) (2026-11-22)
+
+
+### Features
+
+* **games:** one library of every game, Update all, and no game built over another ([#130](https://github.com/notquiteog/Hookshot/issues/130)) ([0826b39](https://github.com/notquiteog/Hookshot/commit/0826b3960b362f168f1d98a2f996b84ccc031b0d))
+
+## [2.3.0-rc.40](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.39...v2.3.0-rc.40) (2026-11-22)
+
+
+### Bug Fixes
+
+* **vk:** MK World's road is drawn again: a copy into a BC3-kept texture of any size is made, by whole blocks ([#128](https://github.com/notquiteog/Hookshot/issues/128)) ([82bf212](https://github.com/notquiteog/Hookshot/commit/82bf212db53b3477b4acd9f1e11ea7136e8b6c01))
+
+## [2.3.0-rc.39](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.38...v2.3.0-rc.39) (2026-11-22)
+
+
+### Features
+
+* **dlss:** RecompLauncher and the Builder give the same DLSS on Windows, Streamline finds DLSS 5's files, and a start-up block says what runs ([#107](https://github.com/notquiteog/Hookshot/issues/107)) ([49f1d60](https://github.com/notquiteog/Hookshot/commit/49f1d60ce95fafef63bf4f834f77f02765172682))
+
+
+### Bug Fixes
+
+* **menu:** the settings in sections on every tab, and the launcher's names the menu's ([#127](https://github.com/notquiteog/Hookshot/issues/127)) ([58ae8be](https://github.com/notquiteog/Hookshot/commit/58ae8befc0549b36668f4f795105a64836e00bb4))
+* **vk:** AMD's FSR 4 libraries load only when they are AMD's, and NGX gets only folders no other account may write ([#108](https://github.com/notquiteog/Hookshot/issues/108)) ([037f840](https://github.com/notquiteog/Hookshot/commit/037f840413d424459ec6129527be4d25bacaad36))
+* **vk:** the program cache, draw state and Open NR check what the game folder holds before using it ([#117](https://github.com/notquiteog/Hookshot/issues/117)) ([d34161f](https://github.com/notquiteog/Hookshot/commit/d34161f913f75f80995c798e2dced1b071f8be2c))
+
+## [2.3.0-rc.38](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.37...v2.3.0-rc.38) (2026-11-22)
+
+
+### Bug Fixes
+
+* **nvn:** a program keeps its stages' control sections from when its shaders were set, so the replay reads them whatever the game did after ([#111](https://github.com/notquiteog/Hookshot/issues/111)) ([01e8cfe](https://github.com/notquiteog/Hookshot/commit/01e8cfe03b928a38a724c35c0a2e415fb6e374cc))
+* **tests:** a PC set up as docs/development.md says runs every check, and one without a package skips it ([#124](https://github.com/notquiteog/Hookshot/issues/124)) ([2acf3c7](https://github.com/notquiteog/Hookshot/commit/2acf3c702249db55842c86a48de490ed43e1949e))
+* **vk:** BindProgram binds only the stages it names, so a game that binds each stage from its own program draws ([#112](https://github.com/notquiteog/Hookshot/issues/112)) ([4c37d8b](https://github.com/notquiteog/Hookshot/commit/4c37d8b3e0cc20784c19a5b3ed2f32c06204c295))
+
 ## [2.3.0-rc.37](https://github.com/notquiteog/Hookshot/compare/v2.3.0-rc.36...v2.3.0-rc.37) (2026-11-22)
 
 

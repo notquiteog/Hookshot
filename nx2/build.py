@@ -145,16 +145,16 @@ def streamline_sdk_path():
 
 
 def streamline_link():
-    """(hookshot) What a Windows build with Streamline's headers links for the interposer check.
+    """(hookshot) What a Windows build links for the vendors' library checks (gpu/vk/vk_signed.cpp).
 
-    Nothing of Streamline's and nothing of NVIDIA's: sl.interposer.dll is loaded at run time. These
-    two are Windows' own, and they are what gpu/vk/vk_streamline.cpp's signed_by_nvidia calls --
-    WinVerifyTrust from wintrust and the certificate walk from crypt32. A build without Streamline's
-    headers does not compile that function and links neither.
+    Nothing of Streamline's, NVIDIA's or AMD's: sl.interposer.dll and AMD's loader are loaded at run
+    time, and only when signed by their vendor. These are Windows' own: WinVerifyTrust from wintrust
+    and the certificate walk from crypt32, for every Windows build (AMD's FSR 4 is checked in one
+    without Streamline too); advapi32 reads the NGX signature override for the log.
     """
-    if LINUX or not streamline_sdk_path():
+    if LINUX:
         return []
-    return ["-lwintrust", "-lcrypt32", "-ladvapi32"]   # (advapi32: the NGX signature override, read for the log)
+    return ["-lwintrust", "-lcrypt32", "-ladvapi32"]
 
 
 def target():
@@ -403,7 +403,7 @@ NGX_SDK = ngx_sdk(os.environ.get("HOOKSHOT_NGX_SDK", ""), LINUX)
 NGX_MSVC_RT = "vk_ngx_msvc_rt.cpp"
 # HOOKSHOT_FSR=1: the Vulkan back end with AMD FSR 4 (gpu/vk/vk_fsr4.cpp), from AMD's FSR API headers (third_party/fidelityfx,
 # MIT). AMD's signed DLLs are not part of the build: the user's, loaded at run time. Off without it (make_game.py --fsr sets
-# it; the camera jitter it needs is in every build: nx2/oot_jitter.py)
+# it; the camera jitter it needs is in every build: packs/oot/lift/oot_jitter.py)
 FSR = os.environ.get("HOOKSHOT_FSR", "") == "1"
 
 

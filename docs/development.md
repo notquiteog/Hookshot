@@ -140,7 +140,7 @@ its submission is done, as before. Elsewhere the pool is read, as before: an iGP
 the copies' GPU time would cost frames, and other drivers' pool reads were not measured. `RX_VK_OCC_COPY=1` copies on
 any GPU, `RX_VK_OCC_COPY=0` reads from the pool; a device without coherent host memory and the parallel replay
 (`RX_VK_PARALLEL`) read from the pool.
-`HOOKSHOT_OCCLUSION_OFF=1` makes the game itself skip its occlusion queries (`nx2/oot_occlusion.py`).
+`HOOKSHOT_OCCLUSION_OFF=1` makes the game itself skip its occlusion queries (`packs/oot/lift/oot_occlusion.py`).
 
 A CPU read of GPU results waits for the write-back of the submission that writes them (`invalidate`, `vk_replay.cpp`).
 `RX_VK_READBACK_LATE=<rule>[,<rule>...]` names the ranges read without that wait, which then hold the frame before's
@@ -326,6 +326,7 @@ Pipeline-cache file ownership, temporary storage and failure behavior are descri
 | `RX_VK_WB_OBSERVE=1` | Opt-in diagnostics for actual mirror/shadow differences in the write-back diff pass. Reports completed chunks and bytes covered by changed chunks every 600 submissions; does not change copy decisions. See [write-back observations](writeback-observations.md) for interpretation and tests |
 | `RX_VK_DLSS=0/1/2`, `RX_VK_DLSS_PRESET=<letter>`, `RX_VK_DLSS_LOG=1`, `RX_VK_REFLEX`, `RX_VK_REFLEX_LOG=1`, `RX_VK_REFLEX_SUBMIT_IDS=0`, `RX_VK_ANTILAG=0/1` | NVIDIA DLSS and Reflex, and AMD Anti-Lag 2, for one run (`=-` on Reflex or Anti-Lag 2: its extensions not even enabled): the readme's NVIDIA DLSS section. `RX_VK_DLSS_TRACE=<frames>` logs one frame's large draws every that many frames, `RX_VK_DLSS_DEBUG=motion` shows the motion vectors, `=alternate` the game's own upscale every other frame. `RX_VK_DLSS_HDR=0` keeps DLSS's LDR feature and clamped colour with Native HDR too, for comparisons. `RX_VK_REFLEX_SUBMIT_IDS=0` sends the queue submits without their game frame (`VkLatencySubmissionPresentIdNV`, `gpu/vk/vk_reflex.cpp`), for comparisons: with frame generation, Reflex's "to the GPU's end" timing then goes wrong by hundreds of ms. Hidden meshes (#1370, `gpu/vk/hidden_mesh.h`): the depth draws of a skinned mesh the game has stopped showing for 3 frames (Link, with the camera pushed into him) are left out; `RX_VK_DLSS_FADED=0` draws them again (for an A/B), `RX_VK_DLSS_FADED_LOG=1` logs the counts of the first frames and why a hidden mesh's draws were drawn (`vk: upscaler: faded:`) |
 | `RX_VK_FSR4=0/1/2`, `RX_VK_FSR_DIR=<folder>`, `RX_VK_FSR4_HDR=0` | AMD FSR 4 for one run (0 never, 1 FSR 4, 2 its Native AA), and another folder for AMD's DLLs (not from `hookshot_env.txt`): the readme's AMD FSR 4 section. `RX_VK_FSR4=1/2` and `RX_VK_DLSS=1/2` go over the Upscaler row, a saved FSR 3.1 too where the engine they ask for runs; `RX_VK_FSR=1` goes over them (one upscaler at a time). The DLSS trace and debug switches above (and `RX_VK_DLSS_JITTER=0`) apply to FSR 4 too, and to FSR 3.1 on the chain, on the frame chain they share. `RX_VK_FSR4_HDR=0`: with HDR on Native, FSR 4 keeps its LDR context and the colour clamped at the paper white, as before (by default it takes the game's HDR colour as linear light while the game presents PQ). `RX_VK_FSR4_TUNE=0`: AMD's passes as AMD made them; by default, on AMD GPUs, the network's layers run 64 lanes wide, the weight tables the layers and the postpass copy into per-thread arrays are read from a tail of the library's storage buffer, and the small layers with weight tables are unrolled, built one at a time in the background (`gpu/vk/fsr4_tune.h`, `vk_fsr4.cpp`); checked bit for bit against AMD's output on an RX 6700 XT with Adrenalin 26.10.1 (other drivers: the same maths, not necessarily the same bits). Where the library binds its buffer without the tail, or destroys it, AMD's own shaders are bound for that context and the log says so (`AMD's own shaders in place of the tuned ones`). `RX_VK_FSR4_UNROLL=0`: all of that but the unrolling |
+| `RX_VK_LIBRARY_CHECK=0/1/2` | Linux: the check on another company's library before it is loaded (AMD FSR 4's `.so`, NVIDIA DLSS's runtime folders: `gpu/vk/vk_signed.cpp`). 1, the default: refused when another account may write the file or its folder; loaded with a line when the drive keeps no Unix permissions (NTFS, exFAT, FAT, FUSE) or another account owns it. 0: loaded even when others may write it (said in the log). 2 (strict): refused in all three cases. Windows checks the vendor's signature instead, which this does not change |
 | `RX_VK_FSR3_HDR=0` | With HDR on Native, AMD FSR 3.1 on the chain gets the colour clamped at the paper white, as before, for comparisons (by default it takes the game's HDR colour as linear light while the game presents PQ: the log says `vk: fsr3 on the chain: HDR colour, linear`). Its own inputs (`RX_VK_FSR3_CHAIN=0`) are LDR either way |
 | `RX_VK_FSR3_CHAIN=0` | AMD FSR 3.1 upscales with inputs of its own (`vk_fsr3_inputs.cpp`: the camera's motion alone) instead of as an engine of `vk_temporal.cpp`'s chain (the skinned draws' own motion, as DLSS and FSR 4 get it), for comparisons. The log says `vk: fsr3 on the chain: N frames drawn` on the chain, `vk: fsr3 ... with assembled depth and camera motion` without |
 | Threaded rendering (the Insert menu's row, `threaded_rendering=` in `hookshot_options.ini`) | The player's one setting for the two threads (`gpu/vk/threaded_rendering.h`): Off (2) is the replay on the game's submitting thread; On (1) is the render thread, exactly as `RX_VK_ASYNC=1` below, and the recorder thread, as `RX_VK_RECORDER=thread`, together; Auto (0, the default) picks On where the process may run on 12 or more logical processors (its affinity mask, `usable_cpus`, not the PC's count) and Off with fewer, and Off where the mode is not safe: `RX_VK_CAPTURE=0`, `RX_VK_LOW_SPEC`, `RX_VK_DUMP`, `RX_VK_BENCH`, or buffer pools with no mirrors (`RX_VK_MIRROR=0`, an integrated GPU). One constant, `threaded::kAutoEnabled` in that header, is the gate over Auto's rule: it is `true`, and turning it to `false` makes Auto Off on every PC again, with nothing else to change. Still open with it on: GPU-written tables over 16 KiB that the game reads back without waiting (Hyrule Field's culling tables) can be a frame old behind the game. Not yet in Auto's rule: a pool refused its mirror, or over the mirrors' budget, while the game runs (it needs a fall-back at run time, which is not written). The row is read once, at the start (`menu_threaded_rendering`, logged as `vk: Threaded rendering: ...`): a change applies at the next start. The switches stay over it, for testing: `RX_VK_ASYNC` set chooses the replay's thread and `RX_VK_RECORDER` set the recorder, each for its own half, whatever the row says; unset, the row decides. The host learns the replay's half from the renderer (`HOS_OPT_RENDER_THREAD`, `host/nvn_native.c`'s present poll), not from `RX_VK_ASYNC` |
@@ -448,6 +449,75 @@ what you test.
 **Never use it for numbers:** no fps or frame-time measurements, build timings, hitch or stutter checks, profiles,
 and no release or player build. Build those with the defaults.
 
+#### Every game under one base
+
+Each game has its own folder under one base: the default game (Ocarina) keeps `<base>`, another game gets
+`<base>-<key>` (`nx2/game_folders.py`, [one engine, four games](one-engine.md)). These are the calls a program that
+manages every game makes; the three Builders' game library runs them (Your games, Install, Update all, and the update
+after a new Builder):
+
+| Call | What it does |
+|---|---|
+| `python -I nx2/game_folders.py --library <base> [--json]` | Every game that builds, in profile order, installed or not: where it is installed, the version it was built with, and whether this engine would update it |
+| `python -I nx2/make_game.py --update-all [<base>] [--force] [--dry-run] [--work-base <dir>]` | Every built folder under the base (default `~/Games/Hookshot`) updated in turn as the game it holds, each by a `make_game.py --update` of its own; one that fails does not stop the others. A folder already at this version is skipped unless `--force`. `--dry-run` says what it would do and changes nothing. Exit status 1 when any failed |
+| `python -I nx2/make_game.py --nup <copy> --base <base>` | The copy's game (by main's build id) into its own folder under the base, with its own work folder as `--prepare` gives it. Not with `--out` or `--update` |
+
+A game is looked for in all of the base's folders (`<base>` and every `<base>-<key>`), its own folder first. The Builders
+used to build into the folder the player chose (`--out`), so a player may have Mario Kart World in `~/Games/Hookshot`:
+that is Mario Kart World, listed, played and updated where it is. A folder is the game its kept copy
+(`.hookshot_exefs/main`) names; a folder that keeps none (built before updates came in) is the game whose folder it is
+by the rule.
+
+A copy is never built into a folder that holds another game (its kept copy names another profile), with `--out`,
+`--base` or `--prepare` alike: the build stops before the folder is touched, naming both games and the folder. An empty
+folder, one of the same game and one built before folders kept their copy are built into as before, and `--update
+<folder>` always builds the folder's own copy. In the library this shows as `own_folder_holds`: installing that game
+under this base needs its own folder freed, or another base.
+
+`--library --json` prints a list, one object per game. The fields keep their names and types (new ones may be added):
+
+| Field | Type | What it is |
+|---|---|---|
+| `key` | string | The profile key (`oot`, `dkb`, `mkw`) |
+| `name` | string | The game, from its profile |
+| `folder` | string | Where the game is installed: its own folder when it is there or not installed, else the base's folder that holds it. Play starts this folder |
+| `base` | string | The base the folders are named from (another game's folder given as the base gives its base) |
+| `state` | string | `built` (installed in `folder`) or `missing` (in none of the base's folders) |
+| `built` | bool | `state` is `built` |
+| `holds` | string or null | The key of the game whose copy `folder` keeps; null when it keeps none, no profile knows the build, or the game is not installed (another game in its own folder is `own_folder_holds`) |
+| `other_folders` | list of strings | The base's other folders that hold this game too (mostly empty); `--update-all` updates each |
+| `own_folder` | string | The game's own folder by the rule: where an install of it goes |
+| `own_folder_holds` | string or null | The key of another game whose copy sits in `own_folder`, or null |
+| `version` | string or null | `hookshot_version.txt`'s `version=` in `folder`, when built |
+| `builder` | string or null | `hookshot_version.txt`'s `builder=`: the Builder executable that built it |
+| `kept` | bool | `folder` keeps the game files an update builds from (`.hookshot_exefs/` and `romfs/`). False when not installed, and for a folder built before updates came in: that game's files are to be chosen once to build it again |
+| `update` | bool or null | True when this engine would update it, false when current, null when it can't be told (no version in the folder: a checkout build writes none). False when not built or not `kept`. The rule is the Linux updater's (`nx2/version.py` `update_due`): another version, unless that one is newer, so a game is never taken back to an older version. The Windows Builder's `Updater.cs` differs: it rebuilds a game whose version differs from its own, a newer one too |
+
+`--update-all` updates each built folder once, as the game it holds, in profile order (a game in two folders: both, its
+own first). It passes each update's own lines on as they come (its `@@done` or `@@error` among them) and frames them:
+
+    @@game start <key> <folder>          a game's folder (a game not installed: its own folder); its lines follow
+    @@game end <key> <result> [<text>]   after every start. result: updated (text: the version), current (text: the
+                                         version), missing (not installed), rebuild (text: "choose this game's files
+                                         once to update it"), or failed (text: the reason, the update's @@error); with
+                                         --dry-run, update (text: "from <version>") in place of updated, and nothing run
+
+`rebuild` is a folder built before folders kept the game files an update builds from: it can't be updated, only built
+again from the game's files once. It is not a failure and leaves the exit status as it is. Each game other than the
+default one is updated with its own work folder, `<work>-<key>` (by the game the folder holds), when the work folder is
+the builder's own, as `--prepare` and `--base` give it, so each game keeps its own object cache. A Builder whose player chose
+the build files folder (another drive) passes it as `--work-base <dir>`: the default game's is `<dir>`, another's
+`<dir>-<key>`, so no update falls back to the default folder on the system drive. `make_game.py --update <folder>` and `--base` follow the
+same rule: a folder of another game than the default one is updated with `<work>-<key>` (by the game it holds) when the
+work folder is the builder's own, and `--work-base <dir>` gives them `<dir>` and `<dir>-<key>` too. Each folder keeps its
+own NVIDIA DLSS and AMD FSR 4: the runtimes' fetch (`--fetch-ngx-sdk`, `--fetch-fsr-runtime`) given to `--update-all`
+reaches only a folder that has that upscaler, and a folder without DLSS is built without NVIDIA's SDK. `--dry-run` runs
+nothing and makes no folder.
+
+Then one summary line per game (`Mario Kart World: updated`; with the folder, `... in <folder>: updated`, when the game
+is in more than one, and a line with what happened in each). Under `--prepare` these lines go to stderr, and a copy
+refused over another game's folder tells the player to move or rename that folder.
+
 ## Draw statistics
 
 Set `RX_VK_DRAW_STATS=<directory>` and create `<directory>/draw_stats.now` during play to measure one future frame.
@@ -562,19 +632,21 @@ python -I scripts/dev_packs.py rt   ../base-main ../rt-my-fix my-fix
 - **`warm`** plays a runtime with no pack once per `--run` command (`{runtime}` in it is the runtime's folder),
   copies the caches play made or grew (pipelines, play files, programs) back into the base's game folder, and
   deletes the runtime, so every later runtime starts warm for those scenes. Only cache files are copied.
-- **One job at a time per base:** `base`, `pack`, `rt` and `warm` hold `<base>/dev_packs.busy` while they run.
+- **One job at a time per base:** `base`, `pack`, `rt` and `warm` hold `<base>/dev_packs.busy` while they run. A marker
+  whose job is gone (stopped, killed, the PC restarted: its PID runs no process on the machine that wrote it) is taken over
+  by the next job, so a stopped pack no longer blocks the base until someone deletes it.
 
 For numbers, compare the runtime with one made by `rt` from no pack: same base, same caches, one difference.
 
 ## The pipeline state list
 
-Every release ships a list of pipelines, merged from the sources in `assets/pipeline_states/`:
+Every release ships a list of pipelines, merged from the sources in `packs/oot/assets/pipeline_states/`:
 
 - `tour.bin.xz`, which only the pipeline tour (`scripts/pipeline_tour.py`) writes, replaced whole each time;
 - `contrib/<name>.bin.xz`, one per contributed list, which people add.
 
 Each has a note beside it (`<name>.md`) that says who recorded it, on what GPU, driver, build and settings, and the
-route. [`assets/pipeline_states/README.md`](../assets/pipeline_states/README.md) has how to record and add a list. Each
+route. [`packs/oot/assets/pipeline_states/README.md`](../assets/pipeline_states/README.md) has how to record and add a list. Each
 record is a pipeline the game asked for: its shaders' hashes, the program variant's hash, and the target formats,
 vertex formats and draw state it was made with (`nx2/pipeline_states.py` has the layout). It holds no game code: a
 player's build turns the hashes back into shaders from their own `hookshot_shaders.bin`.
@@ -593,7 +665,9 @@ start as well; `learned` leaves the shipped list's out, to compare; `all` keeps 
 keeps none. The game keeps every compute program a shipped list names and never drops one: the bound is
 `pipeline_states.py check`, which stops on a merged list that names more than `COMPUTE_MOST`, for someone to decide.
 
-`nx2/make_game.py` merges the sources at every build into the game folder's `hookshot_pipeline_states_shipped.bin`. It
+`nx2/make_game.py` merges the sources at every build into the game folder's `hookshot_pipeline_states_shipped.bin`, for a
+game whose pack's `build_steps` name `pipeline_states` (Ocarina's: the list is its pipelines, and another game's folder
+no longer gets it; one built before keeps none). It
 takes the tour's list first, then the contributed ones by name, and keeps each pipeline once. The same sources always
 give the same bytes, and the first start's shader preparation builds those pipelines before the title. Without them a
 new install builds them in play, and draws left out while they compile wash the first field load white for seconds
@@ -602,10 +676,10 @@ history stays small. The current ones hold 11527 pipelines in about 175 KB.
 
 Every release carries them:
 
-- the AppImage with `assets/`: `scripts/linux/appimage.sh` stops without them, and `scripts/linux/check_player_build.sh`
+- the AppImage with `packs/`: `scripts/linux/appimage.sh` stops without them, and `scripts/linux/check_player_build.sh`
   checks them with the image's Python;
-- the Windows builder's `tools/assets/pipeline_states`: `scripts/release_parts.py package` stops when there are none or
-  one does not read.
+- the Windows builder's `tools/packs/oot/assets/pipeline_states`: `scripts/release_parts.py package` stops when there are
+  none or one does not read.
 
 xz rather than zstd: the AppImage's Python is 3.12, whose standard library has `lzma` but not `compression.zstd`.
 
@@ -684,13 +758,41 @@ through (inputs timed in frames, screenshots, waits for the game's state, the In
 |---|---|
 | `docs/design.md` | why mkw-recomp's pipeline, the architecture, MKW's lessons as rules, stages, testing |
 | `nx2/` | the lift pipeline and its tests (mkw-recomp's, made game-neutral; `kit.py` has the paths), and `make_game.py`, which the builders run. Every script the build runs calls `long_paths.install()` as it loads, so its file calls take paths past Windows' 260 characters (a Builder, work folder or game folder deep in the file system, #1115); a new one does too, and joins `ENTRY_SCRIPTS` in `tests/test_build_long_paths.py` |
+| `packs/` | the game packs in the tree: each game's `pack.json`, and Ocarina's patch modules, tools and pipeline lists (below) |
 | `host/` | the standalone Horizon runtime (TOTKPort's `hos/` as adapted by mkw-recomp), with the native NVN2 layer `nvn_native.c`; `host/posix` has the Win32 calls on Linux |
 | `gpu/vk/` | the Vulkan back end (`hookshot_vk.dll`, `hookshot_vk.so`), with Eden's shader recompiler and sirit |
 | `gpu/render/`, `gpu/third_party/` | the WebGPU renderer the Windows exe falls back to when it was built with wgpu-native, its op stream (`rx_nvn.h`), suyu's decoders |
 | `builder/` | Hookshot Builder: the Windows app (.NET 8 WPF), its setup and MSI, and the Linux builder and launcher scripts |
-| `scripts/` | test runs, the profile and log readers, the save copier (`oot_saves.py`), release tooling, `scripts/linux` (dependencies, AppImage) |
+| `scripts/` | test runs, the profile and log readers, release tooling, `scripts/linux` (dependencies, AppImage) |
 | `tests/` | the game-free checks, all run by `tests/run_all.py` |
 | `third_party/` | a64-kit (Hookshot's few changes marked `(hookshot)`), libopus, zbic (Atmosphere's zstd with ZBIC, for unpacking only), SDL2's licence, Dear ImGui and its Vulkan backend, zstd's decoder, the Libertinus fonts |
 
 License: GPL-3.0-or-later, as mkw-recomp: a64-kit's translator is suyu's (GPL-2.0-or-later) and Eden's code is
 GPL-3.0.
+
+### Packs in the tree
+
+Each game's identity and profile data is its game pack's manifest, `packs/<key>/pack.json` (`oot`, `dkb`, `mkw`): the
+program id, the build and where main is, the graphics module's offsets, the return addresses, the program keys, the
+player counts and the rest of what `nx2/game_profile.py`'s `Profile` holds, with addresses as hex strings and a
+`comments` object that says where each value was measured. `nx2/packs.py` loads and checks them (format 1: a missing,
+unknown or mistyped field is refused with the file and the field named; `python -I nx2/packs.py` lists them), and
+`nx2/game_profile.py` builds `GAMES` from them, so a profile change is an edit to the pack.json, followed by
+`python -I nx2/game_profile.py --emit-header` when it is the default game's. `nx2/packs.py` also holds the profile order
+and the default game (Ocarina), which `builder/HookshotBuilder/Games.cs` and `builder/setup/setup.c` copy;
+`tests/test_game_packs.py` holds those copies, and every profile's values and headers, to the packs.
+
+A pack's code and data sit beside its manifest. Ocarina's:
+
+| Folder | What | Used by |
+|---|---|---|
+| `packs/oot/lift/` | the lift patch modules (`oot_wide`, `oot_fov`, `oot_jitter`, `oot_occlusion`) and the code patch module (`oot_patches`) its `lift` names | `game_profile.load_module`, which looks in the profile's pack |
+| `packs/oot/tools/` | the button prompts (`prompt_assets.py` and its faces) and the save copier (`oot_saves.py`) | the `prompts` build step; a person |
+| `packs/oot/assets/pipeline_states/` | the pipeline state list's sources | the `pipeline_states` build step |
+
+`build_steps` in pack.json say which of `make_game.py`'s optional steps a game takes part in: a game whose pack names
+none (Bananza, MKW) gets no prompts and no shipped pipeline list. The lift's cache key hashes every pack.json's lift
+fields (`packs.lift_view`: not its comments, features, host or build steps) and each pack's `lift/` file under the
+`nx2/` name it had before the packs, so moving a module into a pack does not translate anyone's game again; a pack's
+`lift.env_prefixes` (`OOT_`) join the engine's `A64_` and `RX_` in the key. Moving each game into its own repository
+goes on from here: the format, the steps after this one and what a pack may carry are in [game packs](game-packs.md).

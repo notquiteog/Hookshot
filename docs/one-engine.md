@@ -18,7 +18,8 @@ agents who work on any of the four.
 - **One build of the engine.** The lifter and build (`nx2/`), the Horizon runtime and its HLE (`host/`), the Vulkan
   back end (`gpu/vk/`), the builder, the control bridge and the tests are shared. The renderer `hookshot_vk` is already
   built once and shipped for every game. Only the runtime is compiled per game.
-- **A game is a profile.** `nx2/game_profile.py` gives a game's identity (program id, version, main's build id), its
+- **A game is a profile.** Its game pack's `pack.json` (`packs/<key>/`, built into `nx2/game_profile.py`'s profiles;
+  [game packs](game-packs.md)) gives a game's identity (program id, version, main's build id), its
   patch modules, the offsets and return addresses the runtime recognises, its shader program keys and its defaults. Its
   game patches live in their own files. **The dump decides the game:** the profile is chosen by main's build id, and
   `HOOKSHOT_GAME=<key>` only overrides it. A build no profile knows gets an empty profile, so no game's patches are
@@ -85,9 +86,18 @@ With Ocarina's dump, a build with the seam must lift the same code and run the s
      memory pool initialised again, plus Ocarina's moving floors and water above 60 fps.
 3. **The forks move onto the seam in `main`**, keeping only their profile and game patches, and remove the runtime
    literals in rule 3.
-4. **The launcher**: `games[]` in `recomplauncher.json`, the builder's `--game` with a folder per game, and the
-   repository the entry and the update checks name. They still name `NotRexed/Hookshot`, which is gone, in
-   `recomplauncher.json`, `nx2/version.py`, `builder/` and `scripts/`.
+4. **The launcher and one program for every game.** Done: `games[]` in `recomplauncher.json` (each released game a
+   tile with its own input and saves, `nx2/game_folders.py --write-launcher`), a folder per game
+   (`<base>`, `<base>-<key>`), and the repository: the entry, `nx2/version.py` and the update checks all name
+   `notquiteog/Hookshot`. Then, in three pull requests, one program that installs, updates and manages every game:
+   - **The shared core** (this step's first): `nx2/game_folders.py --library <base> --json` lists every game,
+     installed or not and wherever under the base it is, with its version and whether an update is due;
+     `nx2/make_game.py --update-all` updates every built game where it is, one failure not stopping the others
+     (`--dry-run` only says what it would do); `--base` builds a copy into its own game's folder; and
+     a copy is refused over a folder that holds another game ([development guide](development.md#every-game-under-one-base)).
+   - **A game library in the three Builders** (the WPF Builder, the Qt Builder and the Linux Tk Builder), built on
+     those calls: every game with its state, install, update all, play.
+   - **The rename to NX2PC**, with a migration that leaves Ocarina's folders, saves and settings where they are.
 5. **A game joins the release** once it is folded into `main`: its profile, its patches, its row in `games[]`. That
    happens when it boots to gameplay on the engine in `main`. Until then it stays in its fork. In the release each game
    is a RecompLauncher tile (`games[]`) with its own copy (a named input in `inputs[]`, role game, which only its
