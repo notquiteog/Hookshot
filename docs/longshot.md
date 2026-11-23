@@ -290,6 +290,16 @@ Moved:
 - #1618 to the pipeline cache batch: it needs Longshot's `warm_computes_apart`.
 
 
+
+### The output default (#292)
+
+| Longshot | Author | What |
+|---|---|---|
+| [#292](https://git.magicbean.dev/MagicBeanDev/Longshot/pulls/292) | Amateurwizrd | fix(runtime): a new install draws the game's 2560x1440, not its reduced 2048x1152 |
+
+Adapted, not picked: here the Quality preset's Auto already chose the screen's own size where the tier has the memory for it, so 2560x1440 is the start only at High and Ultra, where the screen's own size is not chosen (`gpu/vk/auto_settings.h` `high_output`), and when High or Ultra is chosen on the preset row with the output still at 2048x1152. Every lower tier, and an options file that has an output, keep theirs.
+
+
 ### Lifter, build and script fixes (D2)
 
 | Longshot | Author | What |
