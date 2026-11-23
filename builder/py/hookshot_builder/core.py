@@ -550,6 +550,7 @@ PROFILES = (
     ("oot", "The Legend of Zelda: Ocarina of Time", "e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348"),
     ("dkb", "Donkey Kong Bananza", "e25c90c1c136638885659fd55bf8a03b3403489d"),
     ("mkw", "Mario Kart World", "9e244438c3d8ef1c703a6a85ef99c4f000000000"),
+    ("pkp", "Pokémon Pokopia", "76a489f3bd3642fa5e18bd83d32c98bacc5f7d0e"),
 )
 DEFAULT_KEY = "oot"
 

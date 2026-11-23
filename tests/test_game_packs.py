@@ -5,9 +5,9 @@ nothing the lift writes.
 What this guards, and why each check is here rather than left to review:
 
 1. **The profiles are what they were.** FROZEN below is every profile's fields, in order, as nx2/game_profile.py held
-   them before the packs (main at ac0311f9), and HEADERS the SHA-256 of each profile's emit_header: the pack-built
-   profiles must equal them field for field, type for type, and emit the same bytes, so game/game_profile.h, every
-   lift's header and every runtime are unchanged. A deliberate profile change edits a pack.json and this copy together.
+   them before the packs (main at ac0311f9) and each pack added since as it was added (pkp), and HEADERS the SHA-256
+   of each profile's emit_header: the pack-built profiles must equal them field for field, type for type, and emit the
+   same bytes, so game/game_profile.h, every lift's header and every runtime are unchanged. A deliberate profile change edits a pack.json and this copy together.
 2. **A manifest is format 1's or refused, with the file and the field named:** each tree pack loads; a good synthetic
    one does; and each kind of bad one (a field missing, an unknown one, a wrong kind, a bool for a number, a bad hex
    string or build id, two builds, a key that is not its folder's, "none", another pack API, a comment on no field, a
@@ -139,6 +139,29 @@ FROZEN = [
         ("notes", "Identity measured on the dump; the parallel replay on 4 threads (measured in a race)."),
         ("romfs_needed", ()),
     ]),
+    # (packs added since, as they were added: a later change to one edits its pack.json and this copy together)
+    ("pkp", [
+        ("key", "pkp"),
+        ("game", "Pokémon Pokopia"),
+        ("program_id", "0400A3A01EE4C000"),
+        ("version", 655360),
+        ("build_id", "76a489f3bd3642fa5e18bd83d32c98bacc5f7d0e"),
+        ("main_base", 0x80020000),
+        ("patch_modules", ()),
+        ("code_patch_module", None),
+        ("gfx", EMPTY["gfx"]),
+        ("upscale", EMPTY["upscale"]),
+        ("hooks", EMPTY["hooks"]),
+        ("npad_players", 1),
+        ("account_users", 1),
+        ("video_catchup", True),
+        ("vk_parallel", None),
+        ("released", False),
+        ("version_name", "2.0.1"),
+        ("graphics_scale", None),
+        ("notes", "Identity measured on the dump; nothing else measured yet."),
+        ("romfs_needed", ()),
+    ]),
     ("none", [
         ("key", "none"),
         ("game", "an unknown game"),
@@ -168,14 +191,15 @@ HEADERS = {
     "oot": "7d5f24bbf0da5365e56adfb5daa9fd14f0e7aa06a38f624119dada2af0c19b1d",
     "dkb": "3d449b807f5b1f74eae6bdcd957447a6615e508177ce20ee34f94afcef1565ec",
     "mkw": "0676584cf5799035d5e4b75135eaa5503212c43f39b63b1e923f6498ff2c0d70",
+    "pkp": "bd0c45f90d4fa59002cb6cc116395453a7754152a0cbd90a523a108f9bd18d13",
     "none": "90b13bc6f13b09bdddc7155e1d3394d38f6826796928e557d199bc312059e05a",
 }
-SAVES = {"oot": "hookshot", "dkb": "hookshot-dkb", "mkw": "hookshot-mkw", "none": "hookshot-none"}
+SAVES = {"oot": "hookshot", "dkb": "hookshot-dkb", "mkw": "hookshot-mkw", "pkp": "hookshot-pkp", "none": "hookshot-none"}
 
 
 def check_frozen():
     have = [(k, list(vars(p).items())) for k, p in game_profile.GAMES.items()]
-    check([k for k, _ in have] == [k for k, _ in FROZEN], "the profiles and their order are not oot, dkb, mkw, none: %r"
+    check([k for k, _ in have] == [k for k, _ in FROZEN], "the profiles and their order are not oot, dkb, mkw, pkp, none: %r"
           % [k for k, _ in have])
     for (key, fields), (_, want) in zip(have, FROZEN):
         check([n for n, _ in fields] == [n for n, _ in want], "%s: the profile's fields or their order changed" % key)
@@ -342,16 +366,16 @@ def write(root, key, **changes):
 
 def check_tree():
     tree = packs.tree()
-    check(list(tree) == ["oot", "dkb", "mkw"], "the tree's packs are not oot, dkb, mkw in that order: %r" % list(tree))
+    check(list(tree) == ["oot", "dkb", "mkw", "pkp"], "the tree's packs are not oot, dkb, mkw, pkp in that order: %r" % list(tree))
     check(packs.DEFAULT == "oot" and game_profile.DEFAULT == packs.DEFAULT, "the default game is not Ocarina's pack")
     check([os.path.relpath(p, ROOT).replace(os.sep, "/") for p in packs.manifest_paths()] ==
-          ["packs/dkb/pack.json", "packs/mkw/pack.json", "packs/oot/pack.json"], "manifest_paths")
+          ["packs/dkb/pack.json", "packs/mkw/pack.json", "packs/oot/pack.json", "packs/pkp/pack.json"], "manifest_paths")
     for key, m in tree.items():
         check(m["format"] == packs.FORMAT and packs.api_ok(m["api"]) and m["license"] == "GPL-3.0-or-later",
               "%s: not format 1, this engine's API or GPL-3.0-or-later" % key)
         for path in m.get("comments", {}):
             check(packs._resolve(m, path), "%s: comments.%s names no field" % (key, path))
-    check("saves_dir" not in tree["dkb"] and "saves_dir" not in tree["mkw"] and tree["oot"]["saves_dir"] == "hookshot",
+    check("saves_dir" not in tree["dkb"] and "saves_dir" not in tree["mkw"] and "saves_dir" not in tree["pkp"] and tree["oot"]["saves_dir"] == "hookshot",
           "only Ocarina's pack keeps a saves folder of its own")
     with tempfile.TemporaryDirectory(prefix="packs-") as tmp:
         root = Path(tmp)
@@ -387,7 +411,7 @@ def check_travels():
     import make_game
     sources = {os.path.abspath(f) for f in make_game.lift_sources()}
     manifests = {os.path.abspath(f) for f in packs.manifest_paths()}
-    check(len(manifests) == 3 and manifests <= sources, "the lift's key does not hash every pack.json")
+    check(len(manifests) == 4 and manifests <= sources, "the lift's key does not hash every pack.json")
     check(str(ROOT / "nx2" / "packs.py") in sources, "the lift's key does not hash nx2/packs.py")
 
 
