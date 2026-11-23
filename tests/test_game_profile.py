@@ -97,8 +97,13 @@ def check_choice():
     ids = [p.build_id for p in game_profile.GAMES.values() if p.build_id]
     check(len(ids) == len(set(ids)) and all(re.fullmatch(r"[0-9a-f]{40}", b) for b in ids),
           "a profile's build id is not main's whole 40-digit build id, or two profiles share one")
-    check([p.key for p, _ in game_profile.known_builds()] == ["oot", "dkb", "mkw"],
-          "make_game.py's known builds are not Ocarina's, Donkey Kong Bananza's and Mario Kart World 1.0.0's")
+    check([p.key for p, _ in game_profile.known_builds()] == ["oot", "dkb", "mkw", "pkp"],
+          "make_game.py's known builds are not Ocarina's, Donkey Kong Bananza's, Mario Kart World 1.0.0's and Pokopia 2.0.1's")
+    pkp = game_profile.GAMES["pkp"]
+    # (its build chooses it; not in the release until it plays from main, so no launcher tile: docs/pokopia.md)
+    check(game_profile.for_build(pkp.build_id) is pkp and game_profile.for_build("76a489f3") is pkp
+          and pkp.released is False and game_profile.saves_dir(pkp) == "hookshot-pkp",
+          "Pokopia 2.0.1's build id does not choose its profile, or it is offered by the release")
     mkw = game_profile.GAMES["mkw"]
     check(game_profile.for_build(mkw.build_id) is mkw and game_profile.for_build("9e244438c3d8ef1c") is mkw
           and mkw.main_base == 0x80020000, "Mario Kart World 1.0.0's build id does not choose its profile")
