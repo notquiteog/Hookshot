@@ -109,6 +109,9 @@ sealed class Runner
             CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            // (the tools write UTF-8 (PYTHONIOENCODING): a folder's letters outside the console's code page read as written)
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
         si.Environment["PYTHONIOENCODING"] = "utf-8";
         BuildWorkers.Apply(si, workers);

@@ -275,6 +275,29 @@ def copy_key(check_text):
     return next((p.key for p in buildable() if p.build_id.startswith(m.group(1))), None)
 
 
+def update_all_outcome(results, folders, stopped):
+    """How an Update all ended, for the Builders' summary: (done, unfinished). results are its outcomes so far, (key, folder,
+    result, text) for each @@game end line; folders the installed folders it was to go through; stopped that it ended badly
+    (a failure, a non-zero exit, a cancel). done only when it was not stopped, every folder has an outcome and none failed;
+    unfinished the folders it did not reach (the one it was in when it stopped among them). Games.cs Outcome keeps the same"""
+    reached = {os.path.normcase(r[1]) for r in results}
+    unfinished = [f for f in folders if os.path.normcase(f) not in reached]
+    done = not stopped and bool(results) and not unfinished and not any(r[2] == "failed" for r in results)
+    return done, unfinished
+
+
+def shortcut_folder(game_folder):
+    """The folder a game's shortcuts start: its own folder by the rule when that holds the game (built, its kept copy that
+    game's), so a game installed in two folders has its shortcut on its own one, never the other; else the folder given.
+    Games.cs ShortcutFolder keeps the same"""
+    key = folder_key(game_folder)
+    own = folder(base_of(game_folder), key)
+    if os.path.normcase(os.path.abspath(own)) != os.path.normcase(os.path.abspath(game_folder)) and \
+            folder_identity(own, key) == key and folder_game(own) is not None and folder_game(own).key == key:
+        return own
+    return game_folder
+
+
 def installed_folders(games):
     """The built folders a library (library()) names: each built game's folder and its other_folders, in its order"""
     return [f for g in games if g["built"] for f in [g["folder"]] + list(g["other_folders"])]

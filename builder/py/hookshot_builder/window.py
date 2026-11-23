@@ -1098,8 +1098,8 @@ class Window(QWidget):
         self.launch_folder = folder
         self.out_path.setText(folder)
         self.step_pill.hide()
-        gf = core.tools_game_folders()   # (the game the folder holds, not always Ocarina: its kept copy, else its folder by the rule)
-        series, title = gf.title_parts(core.game_name(core.folder_key(folder))) if gf else ("", "Hookshot")
+        # (the game the folder holds, not always Ocarina: its kept copy, else its folder by the rule; without the tools too)
+        series, title = core.title_parts(core.game_name(core.folder_key(folder)))
         self.launch_series.setText(series)
         self.launch_series.setVisible(bool(series))
         self.launch_title.setText(title)
@@ -1258,6 +1258,9 @@ class Window(QWidget):
             return
         self.library = games
         self.show_library()
+        # (a Hookshot.lnk an older Builder made onto another game's folder: onto the default game's, when it is installed)
+        if not os.environ.get("HOOKSHOT_UI_PREVIEW"):
+            core.repoint_default(next((g["folder"] for g in games if g["key"] == core.DEFAULT_KEY and g["built"]), None))
 
     def library_state(self, g):
         """A row's state: not installed, built before updates came in (its files to choose once), an update due, up to date, or
@@ -1319,7 +1322,7 @@ class Window(QWidget):
                 install.setToolTip(taken or "")
                 install.clicked.connect(lambda _=False, g=g, b=install: self.install_menu(g, b))
                 grid.addWidget(install, r, 1)
-            elif g["update"] is True:
+            elif g["update"] is not False:   # (due, or not known: the tools did not answer, a build with no version)
                 update = Button(self.T("LibUpdateOne"), "quiet")
                 update.setEnabled(not self.runner)
                 update.clicked.connect(lambda _=False, g=g: self.update_game_row(g))
@@ -1369,7 +1372,9 @@ class Window(QWidget):
             self.show_problem("The build tools are not in Hookshot's folder.", tools=True)
             return
         self.save_settings()
-        args = ["--game-" + g["key"], copy] + (["--out", g["folder"]] if g["built"] else ["--base", g["base"]])
+        # (its own build files: --base takes --work-base from run; a folder built again where it is, that game's work folder)
+        args = ["--game-" + g["key"], copy] + (["--out", g["folder"], "--work", core.game_work(g["key"])] if g["built"]
+                                               else ["--base", g["base"]])
         args += ["--language", self.lang[0]]
         self.prepare_now = self.prepare_tick.isChecked()
         if not self.prepare_now:
@@ -1380,11 +1385,18 @@ class Window(QWidget):
     def update_game_row(self, g):
         """A row's Update: that game's folder, as the form's Update does (updater.update_folder: a newer Builder first when one is
         out, and then, the new Builder installed, every installed game)"""
-        if self.runner:
+        tools = core.Tools.find()
+        target = self.update_target or (tools.version if tools else None)
+        if self.runner or not self.older_ok(g["version"], target):
             return
         self.save_settings()
-        tools = core.Tools.find()
-        updater.update_folder(self, g["folder"], self.update_target or (tools.version if tools else None), False)
+        updater.update_folder(self, g["folder"], target, False)
+
+    def older_ok(self, have, target):
+        """(going to an older version than the game's: asked first, as the WPF Builder's OlderOk)"""
+        return not core.older(target, have) or QMessageBox.question(
+            self, "Hookshot", "%s is older than %s, the version you have now. Install %s?" % (target, have, target),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes
 
     def update_all_click(self):
         """Update all: what it would do first (make_game.py --update-all <base> --dry-run, nothing run), then, asked, every game under
@@ -1400,7 +1412,10 @@ class Window(QWidget):
         threading.Thread(target=run, daemon=True).start()
 
     def update_all_plan(self, tools, b, output):
-        self.update_all_button.setEnabled(True)
+        # (a build or an update may have started while the plan was read: no second one; the button as the library says)
+        self.update_all_button.setEnabled(not self.runner and any(g["update"] is True for g in self.library))
+        if self.runner or self.updating:
+            return
         _code, lines, error = output
         plan = game_results(lines)
         if not plan:
@@ -1411,7 +1426,8 @@ class Window(QWidget):
             QMessageBox.information(self, self.T("LibUpdateAll"), said + "\n\n" + self.T("LibNothing"))
             return
         if QMessageBox.question(self, self.T("LibUpdateAll"), said + "\n\n" + self.T("LibAsk"),
-                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes \
+                or self.runner or self.updating:   # (and none started while the question was open)
             return
         self.save_settings()
         self.begin_update(self.out_path.text(), tools.version)
@@ -1615,6 +1631,7 @@ class Window(QWidget):
         self.open_button.setText(self.T("OpenFolder"))
         self.play_button.setText(self.T("Play"))
         self.show_log.setText(self.T("HideDetails" if self.show_log.isChecked() else "ShowDetails"))
+        self.refresh_mode()   # (the page's heading, in the language chosen)
         self.show_library()
 
     # ================= 2: the build =================
@@ -1734,12 +1751,19 @@ class Window(QWidget):
         self.elapsed0, self.compile0 = time.monotonic(), None
         self.clock.start()
         self.tick()
-        # (the build files where the player chose. Not for Update all: make_game.py gives each game its own work folder there)
-        if core.work_chosen() and "--work" not in args and "--update-all" not in args:
+        # (the build files where the player chose: for a build whose game make_game.py knows (an update, Update all, a copy into
+        # its own folder), --work-base, each game's own work folder from it (<dir>, <dir>-<key>); for a build into the folder in
+        # the form, --work as before)
+        every = "--update-all" in args
+        per_game = every or "--update" in args or "--base" in args
+        if per_game and "--work-base" not in args and "--work" not in args:
+            args += ["--work-base", core.work()]
+        elif not per_game and core.work_chosen() and "--work" not in args:
             args += ["--work", core.work()]
         if dlss and "--fetch-ngx-sdk" not in args:
             args += ["--fetch-ngx-sdk", "--accept-nvidia-license"]
-        elif not dlss and "--no-dlss" not in args:   # (the tick off: the runtimes it placed taken out; make_game.py keeps them else)
+        elif not dlss and not every and "--no-dlss" not in args:   # (the tick off: the runtimes it placed taken out; Update all
+            # passes no upscaler choice to every game: make_game.py keeps each folder's own)
             args += ["--no-dlss"]
         self.runner = core.Runner(tools, args, workers, core.ngx_sdk() if dlss else None,
                                   on_line=lambda l: self.post(self.line, l), on_finished=lambda f: self.post(self.ended, f))
@@ -1906,6 +1930,11 @@ class Window(QWidget):
             self.add_log("shortcut not made: " + core.shortcut_error)
         self.fill_games(reload=True)   # (the game just built is in the library when the form comes back)
         self.show_page(self.ready_page)
+        self.free_after_build()
+
+    def free_after_build(self):
+        """(the build files after a build or Update all: what only makes the next update quicker stays, the rest goes; then what
+        the builder keeps on this PC, said)"""
         import threading
 
         def run():
@@ -2026,6 +2055,7 @@ class Window(QWidget):
         it never was, for the update's folder, and its button says what that needs"""
         self.set_step(0)
         self.show_page(self.files_page)
+        self.fill_games(reload=True)   # (a build, an update or Update all that stopped or was cancelled may have changed games)
         if not self.updating:
             return
         self.updating = False
@@ -2085,16 +2115,17 @@ class Window(QWidget):
     # ---- Update all: make_game.py --update-all <base>, every installed game in turn, framed by its @@game lines ----
 
     def start_update_all(self, tools, base, folders):
-        """Every game under the base updated with these tools, on the update's page (begin_update first). The DLSS choice is
-        update_build's, for any of the folders. No --work: make_game.py gives each game its own work folder"""
+        """Every game under the base updated with these tools, on the update's page (begin_update first), each folder with its
+        own upscalers, the player's build files folder every game's (--work-base)"""
         self.download = None
         self.update_all, self.update_all_folders, self.update_all_at, self.update_all_folder = [], list(folders), 0, ""
         if "download" in self.rows:
             self.rows["download"].done()
             self.rows["download"].small_text("Build tools checked")
         self.build_title.setText(self.T("LibUpdating"))
-        dlss = any(os.path.isfile(os.path.join(f, "ngx", "nvngx_dlss.dll")) for f in folders) and (
-            bool(core.load_settings().get("DlssLicense")) or os.path.isfile(os.path.join(core.ngx_sdk(), "LICENSE.txt")))
+        # (no one DLSS choice for every game: make_game.py keeps each folder's own (folder_upscalers); NVIDIA's SDK is fetched,
+        # for the folders that have DLSS, when its license was accepted)
+        dlss = bool(core.load_settings().get("DlssLicense")) or os.path.isfile(os.path.join(core.ngx_sdk(), "LICENSE.txt"))
         # (the build files folder the player chose, every game's from it: --work-base, never the default one on the system drive)
         self.run(tools, ["--update-all", base, "--work-base", core.work()] + ([] if self.prepare_now else [SHADERS_LATER]),
                  keep_rows=True, dlss=dlss)
@@ -2129,19 +2160,29 @@ class Window(QWidget):
                 r.done()
 
     def end_update_all(self, failure):
-        """Update all ended: one line per game, a failed one with the others' outcomes, on the problem page when any failed"""
+        """Update all ended (MainWindow.xaml.cs EndUpdateAll): one line per game, the games it finished and the ones it did not
+        reach (game_folders.update_all_outcome). A failure, a non-zero exit or a cancel (failure set: the Runner gives None only
+        for exit 0) is a stop, on the problem page, which says that the games updated before it are updated, not that nothing
+        changed"""
         results, self.update_all = self.update_all, None
-        if failure == "cancelled":
-            self.back()
-            return
-        said = "\n".join(self.result_text(r, results) for r in results if r[2] != "missing")
+        gf = core.tools_game_folders()
+        done, unfinished = gf.update_all_outcome(results, self.update_all_folders, failure is not None)
+        lines = [self.result_text(r, results) for r in results if r[2] != "missing"]
+        for f in unfinished:
+            key = core.folder_key(f)
+            several = sum(1 for x in self.update_all_folders if core.folder_key(x) == key) > 1
+            lines.append(self.T("ResStopped").format(core.game_name(key)) + (" · " + f if several else ""))
+        said = "\n".join(lines)
         if not os.environ.get("HOOKSHOT_UI_PREVIEW"):
             for r in results:
                 if r[2] == "updated":
                     core.refresh_shortcuts(r[1])
-        if not results or any(r[2] == "failed" for r in results):
-            self.show_problem(said or failure or "The build tools stopped without saying why.", tools=False)
-            self.problem_title.setText(self.T("LibSomeFailed"))
+        if not done:
+            failed = any(r[2] == "failed" for r in results)
+            why = "\n\n" + failure if failure and failure != "cancelled" and not failed else ""
+            self.show_problem((said or failure or "The build tools stopped without saying why.") + why, tools=False)
+            self.problem_title.setText(self.T("LibSomeFailed") if failed else self.T("LibStopped"))
+            self.problem_sub.setText(self.T("LibStoppedSub"))   # (not "Your current game is unchanged": some may be updated)
             self.fill_games(reload=True)
             return
         self.set_step(2)
@@ -2155,13 +2196,17 @@ class Window(QWidget):
         self.start_tick.setChecked(os.path.isfile(core.start_link(key)))
         self.fill_games(reload=True)
         self.show_page(self.ready_page)
+        self.free_after_build()   # (the build files' rule after a build: what only the next update needs goes)
 
     def update_build_or_all(self, tools, folder, every):
         """The new tools are here (updater.update_folder). After a self-update (every: the new Builder just installed) every
         installed game under the folder's base is updated (--update-all) when there is more than one and this folder's version is
-        not the new one; a game installed alone is built as before (update_build). MainWindow.xaml.cs UpdateBuildOrAll"""
+        older than the new Builder; a game installed alone is built as before (update_build). MainWindow.xaml.cs
+        UpdateBuildOrAll"""
         gf = core.tools_game_folders()
-        if every and gf and tools.version and core.read_version(folder) not in (None, tools.version):
+        # (only a folder older than the new Builder: one at another version that is not older, a nightly or a downgrade, is
+        # built alone, as before; Update all, never taking a game back, would leave it as it is)
+        if every and gf and tools.version and core.older(core.read_version(folder), tools.version):
             b = gf.base_of(folder)
             import threading
 

@@ -184,7 +184,9 @@ static class Games
         return games;
     }
 
-    /// The library without the tools to ask (no Python): the games Built finds, the others not installed, no states
+    /// The library when the tools could not answer (no Python, or an answer that did not read): the games Built finds, the others
+    /// not installed; each folder's kept game files and version read here, and no update flag (null: "Installed", with Update).
+    /// Never "built before updates came in" because the answer failed: only for a folder that keeps no game files
     public static List<LibraryGame> Fallback(string? folder)
     {
         var built = Built(folder);
@@ -194,10 +196,50 @@ static class Games
         foreach (var p in Profiles)
         {
             var g = built.FirstOrDefault(x => x.Key == p.Key);
-            games.Add(new LibraryGame(p.Key, g?.Name ?? p.Name, g?.Folder ?? Folder(b, p.Key), b, g != null, Array.Empty<string>(),
-                                      Folder(b, p.Key), null, null, false, null));
+            var f = g?.Folder ?? Folder(b, p.Key);
+            var kept = g != null && Directory.Exists(Path.Combine(f, ".hookshot_exefs")) && Directory.Exists(Path.Combine(f, "romfs"));
+            games.Add(new LibraryGame(p.Key, p.Name, f, b, g != null, Array.Empty<string>(), Folder(b, p.Key), null,
+                                      g != null ? VersionIn(f) : null, kept, g != null && kept ? null : false));
         }
         return games;
+    }
+
+    /// hookshot_version.txt's version= in a folder, or null
+    public static string? VersionIn(string folder)
+    {
+        try
+        {
+            foreach (var line in File.ReadAllLines(Path.Combine(folder, "hookshot_version.txt")))
+                if (line.StartsWith("version=", StringComparison.Ordinal)) return line[8..].Trim() is { Length: > 0 } v ? v : null;
+        }
+        catch (Exception) { }
+        return null;
+    }
+
+    /// How an Update all ended (game_folders.py update_all_outcome): Done only when it was not stopped (a failure, a non-zero
+    /// exit, a cancel), every folder it was to go through has an outcome and none failed; Unfinished the folders it did not reach
+    public static (bool Done, List<string> Unfinished) Outcome(IReadOnlyCollection<GameLine> results, IEnumerable<string> folders,
+                                                              bool stopped)
+    {
+        var reached = new HashSet<string>(results.Select(r => r.Folder), StringComparer.OrdinalIgnoreCase);
+        var unfinished = folders.Where(f => !reached.Contains(f)).ToList();
+        return (!stopped && results.Count > 0 && unfinished.Count == 0 && !results.Any(r => r.Result == "failed"), unfinished);
+    }
+
+    /// The folder a game's shortcuts start (game_folders.py shortcut_folder): its own folder by the rule when that holds the
+    /// game, so a game installed in two folders has its shortcut on its own one, never the other; else the folder given
+    public static string ShortcutFolder(string folder)
+    {
+        var key = FolderKey(folder);
+        var own = Folder(BaseOf(folder), key);
+        try
+        {
+            var same = string.Equals(Path.GetFullPath(own).TrimEnd('\\', '/'), Path.GetFullPath(folder).TrimEnd('\\', '/'),
+                                     StringComparison.OrdinalIgnoreCase);
+            if (!same && File.Exists(Path.Combine(own, "image.bin")) && GameExe(own) != null && FolderGameKey(own) == key) return own;
+        }
+        catch (Exception) { }
+        return folder;
     }
 
     /// The built folders a library names: each built game's folder and its other folders

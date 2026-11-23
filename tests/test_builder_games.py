@@ -21,7 +21,13 @@ Checked here:
     Hookshot.lnk for the default one, the launcher page's LaunchSeries/LaunchTitle, Games.cs's profiles and default key
     game_profile.py's, and every language of Strings.cs translating the library's strings; and with .NET, Games.cs compiled
     with tests/builder_games_test.cs answers as game_folders.py does: the games and folders, folder_key, shortcut_name,
-    title_parts, update_line, copy_key, the parsed --library --json and Update all's results.
+    title_parts, update_line, copy_key, the parsed --library --json and Update all's results, how a run ended (Outcome), the
+    library without the tools' answer (Fallback) and a game's shortcut folder;
+  - the review's rules in every Builder: the self-update's Update all only for a folder older than the new Builder (a
+    downgrade the player agreed to is that folder's alone); an Update all that stopped (a failure, an exit, a cancel) said as
+    one, with the games it finished and those it did not; each game's own build files (--work-base) for every build of a known
+    game; no upscaler choice passed to every game; the library's fallback never offering a rebuild; no second build from
+    Update all; the library off the Linux window's thread, English rather than keys without its table.
 
     python -I -B tests/test_builder_games.py [--dotnet dotnet]
 """
@@ -195,14 +201,23 @@ def check_linux_builder(tmp):
     check("self.install_menu(g, b)" in lst and "self.update_all_click" in lst and "self.update_game_row(f)" in lst,
           "the Linux Builder's rows have Install, Update and Update all")
     check('if not g["built"] or not g["kept"]:' in lst, "a folder with no game files kept offers Install, not Update")
-    check('["--base", g["base"]]' in method(src, "install") and '"--game-%s" % g["key"]' in method(src, "install"),
-          "the Linux Builder installs a game's copy checked to be it, into its own folder (--base)")
-    click = method(src, "update_all_click")
-    check('"--update-all", base, "--dry-run"]' in click and "self.start_update_all(base," in click,
-          "the Linux Builder's Update all says what it would do first (--dry-run), then runs it")
+    install = method(src, "install")
+    check('["--base", g["base"], "--work-base", cache_dir()]' in install and '"--game-%s" % g["key"]' in install and
+          '"--work", game_folders.folder(cache_dir(), g["key"])' in install,
+          "the Linux Builder installs a game's copy checked to be it, into its own folder (--base), with its own build files")
+    click, plan = method(src, "update_all_click"), method(src, "update_all_plan")
+    check('"--update-all", base,' in click and '"--dry-run"]' in click and "threading.Thread(target=run" in click and
+          'self.lines.put(("update-all-plan"' in click and "self.start_update_all(base," in plan,
+          "the Linux Builder's Update all says what it would do first (--dry-run, off the window's thread), then runs it")
+    check("if self.proc:" in plan and 'not messagebox.askyesno(self.T("LibUpdateAll"), said + "\\n\\n" + self.T("LibAsk")) or self.proc'
+          in plan and 'getattr(self, "planning", False)' in click,
+          "the Linux Builder starts no second build from Update all (a build started while the plan was read or asked)")
     start = method(src, "start_update_all")
-    check('"--update-all", base, "--work-base", cache_dir()]' in start and '"--work"' not in start,
-          "the Linux Builder's Update all runs --update-all with its build files folder (--work-base)")
+    check('"--update-all", base, "--work-base", cache_dir()]' in start and '"--work"' not in start and "dlss_args" not in start
+          and "license_accepted(self.cfg)" in start,
+          "the Linux Builder's Update all: its build files folder (--work-base), no one upscaler choice for every game")
+    check('"--update", folder, "--work-base", cache_dir()]' in method(src, "update_one"),
+          "the Linux Builder's update of one folder: that game's own build files (--work-base)")
     check("self.T(\"LibTitle\")" in form and "self.T(\"LibSub\")" in form and "Build your game" not in form,
           "the Linux Builder's heading is every game's, from the string table")
     check('update_all = ttk.Button(head, text=self.T("LibUpdateAll"), cursor="hand2"' in lst and 'self.T("LibNothing")' in lst and
@@ -210,13 +225,21 @@ def check_linux_builder(tmp):
     check(all(".grid(row=2 * i, column=%d" % c in lst for c in (1, 2, 3)) and "elide_middle(full, room" in lst,
           "the Linux Builder's rows share three button columns and elide a folder's middle to the room they leave")
     update = method(src, "start_make_update")
-    check("if self.fetched and self.tools and have and have != self.tools:" in update and
-          "return self.start_update_all(" in update and "if len(folders) > 1:" in update,
-          "after a self-update the Linux Builder updates every installed game, one game alone as before")
+    check("if self.fetched and older_than(have, self.tools)" in update and "library_for(folder)" in update and
+          "threading.Thread(" in update and "return self.start_update_all(" in method(src, "update_plan") and
+          "if len(folders) > 1:" in method(src, "update_plan"),
+          "after a self-update the Linux Builder updates every installed game when the folder is older, one game alone as before")
     check('where = self.build_where(out) if getattr(self, "copy_game", None)' in method(src, "build") and
-          'else ["--base", out]' in method(src, "build_where"),
+          '["--base", out, "--work-base", cache_dir()]' in method(src, "build_where"),
           "the Linux Builder's Build sends a checked copy of another game to its own folder (--base)")
-    check("self.copy_game = game_folders.copy_key(v)" in method(src, "pump"), "the Linux Builder knows the checked copy's game")
+    check("self.copy_game = game_folders.copy_key(v)" in method(src, "pump") and "self.copy_game = None" in method(src, "check_version"),
+          "the Linux Builder knows the checked copy's game, and forgets it when a new check starts")
+    done = method(src, "update_all_done")
+    check('stopped = code != 0 or bool(getattr(self, "error", None))' in done and "game_folders.update_all_outcome(" in done and
+          'text("ResStopped", lang)' in done and 'text("LibStoppedSub", lang)' in done,
+          "the Linux Builder's Update all that stopped (an exit, a cancel) says so, and which games it finished and which not")
+    check('threading.Thread(target=lambda: lines.put(("library",' in method(src, "library_games"),
+          "the Linux Builder reads the library off the window's thread")
     check('line.startswith("@@game "):' in method(src, "on_line") and "self.game_framed(line)" in method(src, "on_line"),
           "the Linux Builder follows Update all's @@game lines")
     check("return self.update_all_done(code)" in method(src, "on_exit"), "the Linux Builder ends Update all with its summary")
@@ -270,6 +293,20 @@ def check_linux_builder(tmp):
     cut = builder.elide_middle(long, 21, width)
     check(cut == long[:10] + "…" + long[-10:],
           "a long path keeps as much of both ends as fits, its middle left out: %r" % cut)
+    check(builder.older_than("v2.3.0-rc.38", "v2.3.0-rc.40") and not builder.older_than("v2.3.0", "v2.2.0") and
+          not builder.older_than("v2.3.0", "v2.3.0") and not builder.older_than(None, "v2.3.0") and
+          not builder.older_than("1a2b3c4", "v2.3.0"),
+          "a self-update takes Update all only for a folder known to be older (a downgrade, a nightly: the folder alone)")
+    en = cs_english()
+    check(all(en[k] == v for k, v in builder.ENGLISH.items()), "the Linux Builder's English without the table is Strings.cs's")
+    with mock.patch.object(builder, "STRINGS", None):
+        check(builder.text("LibUpdateAll") == "Update all", "without the table the Linux Builder says English, not keys")
+    with mock.patch.object(builder.subprocess, "run", side_effect=OSError("no python")):
+        fb = {g["key"]: g for g in builder.library_for(lbase)}
+    check(fb[game_profile.DEFAULT]["built"] and fb[game_profile.DEFAULT]["kept"] and fb[game_profile.DEFAULT]["update"] is None and
+          fb[game_profile.DEFAULT]["version"] == "v0.0.1" and fb[lsecond]["kept"] is False,
+          "without the tools' answer the Linux library reads kept and version, and offers Update, never a rebuild for it: %r" % fb)
+    check_linux_update_all_done(builder, lbase, lsecond)
     check(builder.text("LibUpdateAll") == "Update all" and builder.text("LibUpdateAll", "fr") == "Tout mettre à jour",
           "the Linux Builder's strings are the shared table's, in the game language chosen")
     check(builder.menu_entry(base) == ("hookshot.desktop", "Hookshot", profile(game_profile.DEFAULT).game),
@@ -286,6 +323,56 @@ def check_linux_builder(tmp):
     check("Name=%s\n" % game_folders.shortcut_name(first) in entry and "Comment=%s, built from your copy" % profile(first).game in entry
           and "Ocarina" not in entry, "another game's menu entry is named and described by it:\n" + entry)
     check("Name=Hookshot\n" in open(os.path.join(apps, "hookshot.desktop"), encoding="utf-8").read(), "the default game's entry is Hookshot")
+
+
+def check_linux_update_all_done(builder, lbase, lsecond):
+    """The Linux Builder's end of Update all, run on a stand-in window: a run that stopped (a non-zero exit, a cancel) or reached
+    not every folder says so and lists the games it did not reach; only a full run is "Your games are updated" """
+    from types import SimpleNamespace
+
+    class Value:
+        def __init__(self):
+            self.text = None
+
+        def set(self, t):
+            self.text = t
+
+        def configure(self, **k):
+            self.__dict__.update(k)
+
+        def cget(self, k):
+            return 0
+
+    def window(error=None):
+        w = SimpleNamespace(update_all=[], update_all_folders=[lbase, lbase + "-" + lsecond], language=SimpleNamespace(get=lambda: ""),
+                            stage_text=Value(), bar=Value(), heading=Value(), stage_label=Value(), buttons=None, px=lambda n: n,
+                            set_step=lambda n: None, error=error, library_cache=(lbase, []), show_form=lambda: None)
+        w.T = lambda key: builder.text(key)
+        return w
+    ttk = SimpleNamespace(Button=lambda *a, **k: SimpleNamespace(pack=lambda **k: None))
+    first = (game_profile.DEFAULT, lbase, "updated", "v9.9.9")
+    with mock.patch.object(builder, "ttk", ttk), mock.patch.object(builder, "add_to_menu", lambda f: None):
+        w = window("Build cancelled. You can start again from the same folder.")
+        w.update_all = [first]
+        builder.Builder.update_all_done(w, -15)
+        check(w.heading.text == builder.text("LibStopped") and builder.text("ResStopped").format(profile(lsecond).game) in w.stage_text.text
+              and builder.text("LibStoppedSub") in w.stage_text.text,
+              "a cancelled Update all says it stopped and which game it did not reach: %r / %r" % (w.heading.text, w.stage_text.text))
+        w = window()
+        w.update_all = [first, (lsecond, lbase + "-" + lsecond, "current", "v9.9.9")]
+        builder.Builder.update_all_done(w, 0)
+        check(w.heading.text == builder.text("LibAllUpdated"), "a full Update all: %r" % w.heading.text)
+        w = window()
+        w.update_all = [first]
+        builder.Builder.update_all_done(w, 0)
+        check(w.heading.text == builder.text("LibStopped"), "an Update all that ended short of a folder is not a success")
+
+
+def cs_english():
+    """Strings.cs's English, by key"""
+    src = (ROOT / "builder" / "HookshotBuilder" / "Strings.cs").read_text(encoding="utf-8")
+    body = re.search(r"static readonly string\[\] En =\s*\{(.*?)\n    \};", src, re.S).group(1)
+    return dict(zip(cs_keys(), [json.loads('"' + t + '"') for t in re.findall(r'"((?:[^"\\]|\\.)*)"', body)]))
 
 
 # ---------------- the Qt Builder ----------------
@@ -305,14 +392,15 @@ def check_qt_builder():
           "the Qt Builder's Play starts the row's own folder")
     check("self.install_menu(g, b)" in lib and "self.update_game_row(g)" in lib and 'if not g["built"] or not g["kept"]:' in lib,
           "the Qt Builder's rows have Install (also for a folder without its game files) and Update")
-    check('(["--out", g["folder"]] if g["built"] else ["--base", g["base"]])' in method(window, "install_game") and
+    check('(["--out", g["folder"], "--work", core.game_work(g["key"])] if g["built"]' in method(window, "install_game") and
+          'else ["--base", g["base"]])' in method(window, "install_game") and
           '"--game-" + g["key"]' in method(window, "install_game"),
           "the Qt Builder installs a game's copy checked to be it, into its own folder (--base)")
     check('["--update-all", b, "--dry-run"]' in method(window, "update_all_click") and
           "self.start_update_all(tools, b," in method(window, "update_all_plan"),
           "the Qt Builder's Update all says what it would do first (--dry-run), then runs it")
     check('["--update-all", base, "--work-base", core.work()]' in method(window, "start_update_all") and
-          '"--update-all" not in args' in method(window, "run"),
+          'every = "--update-all" in args' in method(window, "run"),
           "the Qt Builder's Update all runs --update-all with the player's build files folder (--work-base), no --work")
     check('Button(self.T("LibUpdateAll"), "quiet")' in window and 'self.T("LibNothing")' in lib and
           "Build your game" not in window and 'sub(self.T("LibSub"))' in window,
@@ -320,6 +408,34 @@ def check_qt_builder():
     check("ElidedLabel(g[\"folder\"])" in lib and "Qt.TextElideMode.ElideMiddle" in window and
           all("r, %d)" % c in lib for c in (1, 2, 3)),
           "the Qt Builder's rows share one grid's button columns and elide a folder's middle")
+    run = method(window, "run")
+    check('if per_game and "--work-base" not in args and "--work" not in args:' in run and
+          'args += ["--work-base", core.work()]' in run and "elif not dlss and not every" in run,
+          "the Qt Builder: every game's own build files (--work-base) for an update, Update all and a copy into its own folder; "
+          "no one upscaler choice for every game in Update all")
+    check('dlss = bool(core.load_settings().get("DlssLicense"))' in method(window, "start_update_all"),
+          "the Qt Builder's Update all fetches NVIDIA's SDK by the license alone, make_game.py choosing each folder's DLSS")
+    check("core.older(core.read_version(folder), tools.version)" in method(window, "update_build_or_all"),
+          "after a self-update the Qt Builder takes Update all only for a folder older than the new Builder")
+    end = method(window, "end_update_all")
+    check("gf.update_all_outcome(results, self.update_all_folders, failure is not None)" in end and
+          'self.problem_sub.setText(self.T("LibStoppedSub"))' in end and 'self.T("ResStopped")' in end and
+          "self.free_after_build()" in end, "the Qt Builder's Update all that stopped says so, and frees build files after it")
+    plan = method(window, "update_all_plan")
+    check("if self.runner or self.updating:" in plan and "or self.runner or self.updating:" in plan and
+          "setEnabled(True)" not in plan, "the Qt Builder starts no second build from Update all")
+    check("self.fill_games(reload=True)" in method(window, "back") and "self.refresh_mode()" in method(window, "language_changed")
+          and "self.older_ok(" in method(window, "update_game_row"),
+          "the Qt Builder reads the library again after a stop, redoes its heading in a new language, asks before an older one")
+    check("game_folder = shortcut_folder(game_folder)" in method(core, "shortcuts", "top") and
+          "core.repoint_default(" in method(window, "got_library"),
+          "the Qt Builder's shortcuts are on a game's own folder, and a stale Hookshot.lnk is put onto the default game's")
+    check(eval(core[core.index("PROFILES = (") + len("PROFILES = "):core.index(")\nDEFAULT_KEY")] + ")") ==
+          tuple((p.key, p.game, p.build_id) for p in game_folders.buildable()) and
+          'DEFAULT_KEY = "%s"' % game_profile.DEFAULT in core, "the Qt Builder's profiles are game_profile.py's that build")
+    fallback = method(core, "library_fallback", "top")
+    check('"update": None if kept else False' in fallback and "tools_game_folders" not in fallback,
+          "the Qt Builder's fallback library lists every game, reads kept and version, offers no rebuild for a failed answer")
     check("ui.update_build_or_all(tools, folder, fetched)" in updater and
           "self.start_update_all(tools, b, folders)" in method(window, "update_all_or_one") and
           "if len(folders) > 1:" in method(window, "update_all_or_one"),
@@ -329,12 +445,12 @@ def check_qt_builder():
     check('line.startswith("@@game "):' in method(window, "line") and "self.game_framed(line)" in method(window, "line") and
           "gf.update_line(line)" in method(window, "game_framed"), "the Qt Builder follows Update all's @@game lines")
     check("self.end_update_all(failure)" in method(window, "ended"), "the Qt Builder ends Update all with its summary")
-    check("gf.title_parts(core.game_name(core.folder_key(folder)))" in method(window, "show_launcher"),
+    check("core.title_parts(core.game_name(core.folder_key(folder)))" in method(window, "show_launcher"),
           "the Qt launcher page shows the folder's game, not always Ocarina")
     shortcuts = method(core, "shortcuts", "top")
     check("key = folder_key(game_folder)" in shortcuts and "desktop_link(key)" in shortcuts and "Ocarina" not in shortcuts,
           "the Qt Builder's shortcuts are named and described by the folder's game")
-    check("shortcut_name(key) + \".lnk\"" in method(core, "desktop_link", "top") and 'else "Hookshot"' in method(core, "shortcut_name", "top"),
+    check("shortcut_name(key) + \".lnk\"" in method(core, "desktop_link", "top") and 'return "Hookshot"' in method(core, "shortcut_name", "top"),
           "the Qt Builder's default shortcut keeps its name (Hookshot.lnk)")
     spec = importlib.util.spec_from_file_location("hookshot_builder_strings", py / "strings.py")
     table = importlib.util.module_from_spec(spec)
@@ -349,7 +465,8 @@ def check_qt_builder():
 LIBRARY_KEYS = ["LibTitle", "LibMissing", "LibCurrent", "LibUpdate", "LibInstalled", "LibAlsoIn", "LibTaken", "LibInstall",
                 "LibUpdateOne", "LibUpdateAll", "LibPickFile", "LibPickFolder", "LibNoFolders", "LibAsk", "LibNothing",
                 "LibUpdating", "LibUpdatingOne", "LibAllUpdated", "LibSomeFailed", "ResUpdated", "ResCurrent", "ResWould",
-                "ResWouldPlain", "ResMissing", "ResFailed", "LibRebuild", "ResRebuild", "LibSub"]
+                "ResWouldPlain", "ResMissing", "ResFailed", "LibRebuild", "ResRebuild", "LibSub", "LibStopped", "LibStoppedSub",
+                "ResStopped"]
 
 
 def cs_keys():
@@ -394,7 +511,7 @@ def check_wpf_builder():
     check('new[] { "--update-all", b, "--dry-run" }' in click and "StartUpdateAll(tools, b," in click,
           "the WPF Builder's Update all says what it would do first (--dry-run), then runs it")
     check('new List<string> { "--update-all", baseFolder, "--work-base", Storage.Work }' in between(window, "    void StartUpdateAll(", "    void GameFramed(") and
-          '!args.Contains("--update-all")' in window,
+          'var all = args.Contains("--update-all");' in window,
           "the WPF Builder's Update all runs --update-all with the player's build files folder (--work-base), no --work")
     check("UpdateAllButton.ToolTip = library.Any(g => g.Update == true) ? null : T(S.LibNothing);" in show and
           'x:Name="UpdateAllButton" Style="{StaticResource Quiet}"' in (hb / "MainWindow.xaml").read_text(encoding="utf-8"),
@@ -404,6 +521,36 @@ def check_wpf_builder():
     check(all('SharedSizeGroup = "%s"' % g in show for g in ("LibInstall", "LibOpen", "LibPlay")) and "MiddleElided(g.Folder)" in show,
           "the WPF Builder's rows share three button columns and elide a folder's middle")
     check("w.UpdateBuildOrAll(tools, folder, all: fetched);" in updater, "the WPF Builder's self-update goes through UpdateBuildOrAll")
+    check("ReadVersion(folder) is { } have && Updater.Newer(v, have)" in window,
+          "after a self-update the WPF Builder takes Update all only for a folder older than the new Builder")
+    end = between(window, "    void EndUpdateAll(string? failure)", "    internal async void UpdateBuildOrAll(")
+    check("Games.Outcome(results, updateAllFolders, stopped: failure != null)" in end and "ProblemSub.Text = T(S.LibStoppedSub);" in end
+          and "T(S.ResStopped)" in end and "_ = FreeAfterBuild();" in end and "ToFiles();" not in end,
+          "the WPF Builder's Update all that stopped (a failure, an exit, a cancel) says so, which games finished and which not")
+    run = between(window, "    void Run(Tools tools, List<string> args", "    static readonly Regex FilesLine")
+    check('if (perGame && !args.Contains("--work-base") && !args.Contains("--work")) args.AddRange(new[] { "--work-base", Storage.Work });'
+          in run and 'if (!dlss && !all && !args.Contains("--no-dlss"))' in run and 'if (fsr && !all && !args.Contains("--fsr"))' in run,
+          "the WPF Builder: every game's own build files (--work-base) for an update, Update all and a copy into its own folder; no "
+          "one upscaler choice for every game in Update all")
+    start_all = between(window, "    void StartUpdateAll(", "    void GameFramed(")
+    check('"--fsr"' not in start_all and "saved?.DlssLicense == true" in start_all,
+          "the WPF Builder's Update all passes no FSR 4 to every game, and NVIDIA's SDK by the license alone")
+    check('"--out", g.Folder, "--work", Games.Folder(Storage.Work, g.Key)' in between(window, "    void InstallGame(", "    void UpdateGameRow("),
+          "the WPF Builder's Install of a game again where it is: that game's own build files")
+    click_all = between(window, "    async void UpdateAllClick(", "    string ResultText(")
+    check("if (runner != null || updating) return;" in click_all and "UpdateAllButton.IsEnabled = true;" not in click_all and
+          "MessageBoxResult.Yes || runner != null || updating)" in click_all,
+          "the WPF Builder starts no second build from Update all (one started while the plan was read or asked)")
+    check("StandardOutputEncoding = System.Text.Encoding.UTF8" in runner and "StandardErrorEncoding = System.Text.Encoding.UTF8" in runner,
+          "the WPF Builder reads the tools' lines as UTF-8")
+    storage = (hb / "Storage.cs").read_text(encoding="utf-8")
+    check("foreach (var work in WorkFolders())" in storage and "WorkFolders().Skip(1).Sum(" in storage,
+          "the WPF Builder counts and frees every game's build files folder")
+    check("FillGames(reload: true);" in between(window, "    async void ToFiles()", "    // ================= what the button does") and
+          "RefreshMode();" in between(window, "    void LanguageChanged(", "    // ================= 2: the build"),
+          "the WPF Builder reads the library again after a stop, and redoes its heading in a new language")
+    check("gameFolder = Games.ShortcutFolder(gameFolder);" in finder and "Finder.RepointDefault(" in window,
+          "the WPF Builder's shortcuts are on a game's own folder, and a stale Hookshot.lnk is put onto the default game's")
     both = between(window, "    internal async void UpdateBuildOrAll(", "    internal void UpdateBuild(")
     check("StartUpdateAll(tools, b, folders);" in both and "folders.Count > 1" in both and "UpdateBuild(tools, folder);" in both,
           "after a self-update the WPF Builder updates every installed game, one game alone as before")
@@ -486,6 +633,37 @@ def check_wpf_fixture(dotnet, outs, tmp):
             folder = got[2]
         elif got:
             want.append("result\t%s\t%s\t%s\t%s" % (got[1], folder, got[2], none(got[3])))
+    # (how an Update all ended: Games.Outcome against update_all_outcome)
+    run_lines = ["@@game start %s %s" % (game_profile.DEFAULT, "F1"), "@@game end %s updated v1" % game_profile.DEFAULT,
+                 "@@game start %s %s" % (second, "F2"), "@@game end %s current v1" % second]
+    failed_lines = run_lines[:1] + ["@@game end %s failed the compile stopped" % game_profile.DEFAULT]
+    outcomes = []
+    for i, (run, stopped, folders) in enumerate(((run_lines, "0", "F1|F2"), (run_lines, "1", "F1|F2"), (run_lines, "0", "F1|F2|F3"),
+                                                 (failed_lines, "0", "F1"), ([], "0", "F1"))):
+        path = os.path.join(tmp, "outcome-%d.txt" % i)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(run) + "\n")
+        outcomes += [path, stopped, folders]
+        results, folder = [], ""
+        for line in run:
+            got = game_folders.update_line(line)
+            if got[0] == "start":
+                folder = got[2]
+            else:
+                results.append((got[1], folder, got[2], got[3]))
+        done, unfinished = game_folders.update_all_outcome(results, [x for x in folders.split("|") if x], stopped == "1")
+        want.append("outcome\t%s\t%s" % (done, "|".join(unfinished)))
+    # (the library without the tools' answer: Games.Fallback against library with no engine to compare)
+    want += ["fallback\t%s\t%s\t%s\t%s\t%s\t%s" % (g["key"], g["folder"], g["built"], g["kept"], none(g["version"]), none(g["update"]))
+             for g in game_folders.library(lbase, game_exe=windows_exe, engine="unknown")]
+    # (a game in two folders: its shortcut on its own folder)
+    sf = os.path.join(tmp, "SF", "Hookshot")
+    placeholder(sf + "-" + second, profile(second).build_id)
+    placeholder(sf, profile(second).build_id)
+    placeholder(os.path.join(tmp, "SF", "Zelda"), profile(game_profile.DEFAULT).build_id)
+    shortcut_folders = [sf, sf + "-" + second, os.path.join(tmp, "SF", "Zelda")]
+    want += ["shortcut-folder\t%s\t%s" % (f, game_folders.shortcut_folder(f)) for f in shortcut_folders]
+    check(game_folders.shortcut_folder(sf) == sf + "-" + second, "a game in two folders has its shortcut on its own folder")
     with tempfile.TemporaryDirectory(prefix="builder-games-") as fixture:
         root = Path(fixture)
         shutil.copyfile(ROOT / "tests" / "builder_games_test.cs", root / "Program.cs")
@@ -494,7 +672,8 @@ def check_wpf_fixture(dotnet, outs, tmp):
         project = root / "Fixture.csproj"
         args = (list(outs) + ["--folder"] + [x for pair in pairs for x in pair] + ["--base"] + bases + ["--key"] + keys +
                 ["--shortcut"] + shortcuts + ["--title"] + titles + ["--line"] + lines + ["--copy"] + copies +
-                ["--library", lib_file, "--results", results_file])
+                ["--library", lib_file, "--results", results_file, "--outcome"] + outcomes + ["--fallback", lbase] +
+                ["--shortcut-folder"] + shortcut_folders)
         r = run_fixture(dotnet, project, args, "net8.0")
         if r.returncode and no_net8_pack(r.stdout + r.stderr) and os.environ.get("GITHUB_ACTIONS") != "true":
             # (a PC whose .NET SDK is a later one alone, as tests/test_updater_asset_digest.py: built for that SDK's

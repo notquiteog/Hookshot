@@ -17,6 +17,7 @@ enum S
     LibTitle, LibMissing, LibCurrent, LibUpdate, LibInstalled, LibAlsoIn, LibTaken, LibInstall, LibUpdateOne, LibUpdateAll, LibPickFile,
     LibPickFolder, LibNoFolders, LibAsk, LibNothing, LibUpdating, LibUpdatingOne, LibAllUpdated, LibSomeFailed,
     ResUpdated, ResCurrent, ResWould, ResWouldPlain, ResMissing, ResFailed, LibRebuild, ResRebuild, LibSub,
+    LibStopped, LibStoppedSub, ResStopped,
     // (the update, English only for now: Strings.Text falls back to it)
     Download, Updating, UpdateFailed,
 }
@@ -40,6 +41,9 @@ static class Strings
         "{0}: up to date ({1})", "{0}: will be updated from {1}", "{0}: will be updated", "{0}: not installed", "{0}: failed: {1}",
         "Built before updates came in: choose this game's files once to update it", "{0}: choose this game's files once to update it",
         "Install a game from your own copy, or update the ones you have.",
+        "Update all stopped",
+        "The games updated before it stopped are updated; the others are as they were and still play.",
+        "{0}: not updated: it stopped before this game",
         "Downloading the new version", "Updating your game", "The update could not be downloaded",
     };
     static readonly string[] Fr =
@@ -60,6 +64,9 @@ static class Strings
         "{0} : sera mis à jour", "{0} : non installé", "{0} : échec : {1}",
         "Créé avant les mises à jour : choisissez une fois les fichiers de ce jeu pour le mettre à jour", "{0} : choisissez une fois les fichiers de ce jeu pour le mettre à jour",
         "Installez un jeu depuis votre propre copie, ou mettez à jour ceux que vous avez.",
+        "La mise à jour de tous les jeux s'est arrêtée",
+        "Les jeux mis à jour avant l'arrêt le sont ; les autres sont restés tels quels et se lancent toujours.",
+        "{0} : non mis à jour : arrêt avant ce jeu",
     };
     static readonly string[] De =
     {
@@ -79,6 +86,9 @@ static class Strings
         "{0}: wird aktualisiert von {1}", "{0}: wird aktualisiert", "{0}: nicht installiert", "{0}: fehlgeschlagen: {1}",
         "Vor den Updates erstellt: wähle einmal die Dateien dieses Spiels, um es zu aktualisieren", "{0}: wähle einmal die Dateien dieses Spiels, um es zu aktualisieren",
         "Installiere ein Spiel aus deiner eigenen Kopie oder aktualisiere die, die du hast.",
+        "Die Aktualisierung aller Spiele wurde angehalten",
+        "Die Spiele, die vorher aktualisiert wurden, sind aktuell; die anderen sind unverändert und lassen sich weiter spielen.",
+        "{0}: nicht aktualisiert: vor diesem Spiel angehalten",
     };
     static readonly string[] It =
     {
@@ -98,6 +108,9 @@ static class Strings
         "{0}: verrà aggiornato da {1}", "{0}: verrà aggiornato", "{0}: non installato", "{0}: non riuscito: {1}",
         "Creato prima degli aggiornamenti: scegli una volta i file di questo gioco per aggiornarlo", "{0}: scegli una volta i file di questo gioco per aggiornarlo",
         "Installa un gioco dalla tua copia o aggiorna quelli che hai.",
+        "L'aggiornamento di tutti i giochi si è interrotto",
+        "I giochi aggiornati prima dell'interruzione sono aggiornati; gli altri sono rimasti com'erano e funzionano ancora.",
+        "{0}: non aggiornato: interrotto prima di questo gioco",
     };
     static readonly string[] Es =
     {
@@ -117,6 +130,9 @@ static class Strings
         "{0}: se actualizará desde {1}", "{0}: se actualizará", "{0}: no instalado", "{0}: falló: {1}",
         "Creado antes de las actualizaciones: elige una vez los archivos de este juego para actualizarlo", "{0}: elige una vez los archivos de este juego para actualizarlo",
         "Instala un juego desde tu propia copia o actualiza los que tienes.",
+        "La actualización de todos los juegos se detuvo",
+        "Los juegos actualizados antes de detenerse están actualizados; los demás siguen como estaban y se pueden jugar.",
+        "{0}: no actualizado: se detuvo antes de este juego",
     };
     static readonly string[] Pt =
     {
@@ -136,6 +152,9 @@ static class Strings
         "{0}: será atualizado", "{0}: não instalado", "{0}: falhou: {1}",
         "Criado antes das atualizações: escolha uma vez os arquivos deste jogo para atualizá-lo", "{0}: escolha uma vez os arquivos deste jogo para atualizá-lo",
         "Instale um jogo a partir da sua própria cópia ou atualize os que você tem.",
+        "A atualização de todos os jogos parou",
+        "Os jogos atualizados antes da parada estão atualizados; os outros continuam como estavam e ainda funcionam.",
+        "{0}: não atualizado: parou antes deste jogo",
     };
     static readonly string[] Nl =
     {
@@ -155,6 +174,9 @@ static class Strings
         "{0}: wordt bijgewerkt", "{0}: niet geïnstalleerd", "{0}: mislukt: {1}",
         "Gemaakt vóór de updates: kies één keer de bestanden van dit spel om het bij te werken", "{0}: kies één keer de bestanden van dit spel om het bij te werken",
         "Installeer een spel vanaf je eigen exemplaar, of werk de spellen bij die je hebt.",
+        "Alles bijwerken is gestopt",
+        "De spellen die eerder zijn bijgewerkt, zijn bijgewerkt; de andere zijn zoals ze waren en blijven speelbaar.",
+        "{0}: niet bijgewerkt: gestopt vóór dit spel",
     };
     static readonly string[] Pl =
     {
@@ -174,6 +196,9 @@ static class Strings
         "{0}: zostanie zaktualizowana", "{0}: nie zainstalowano", "{0}: niepowodzenie: {1}",
         "Utworzona przed aktualizacjami: wybierz raz pliki tej gry, aby ją zaktualizować", "{0}: wybierz raz pliki tej gry, aby ją zaktualizować",
         "Zainstaluj grę z własnej kopii albo zaktualizuj te, które masz.",
+        "Aktualizacja wszystkich gier została przerwana",
+        "Gry zaktualizowane przed przerwaniem są zaktualizowane; pozostałe są takie jak były i nadal działają.",
+        "{0}: nie zaktualizowano: przerwano przed tą grą",
     };
     static readonly string[] Ru =
     {
@@ -192,6 +217,9 @@ static class Strings
         "{0}: будет обновлена", "{0}: не установлена", "{0}: ошибка: {1}",
         "Собрана до появления обновлений: выберите файлы этой игры один раз, чтобы обновить её", "{0}: выберите файлы этой игры один раз, чтобы обновить её",
         "Установите игру из своей копии или обновите уже установленные.",
+        "Обновление всех игр остановлено",
+        "Игры, обновлённые до остановки, обновлены; остальные остались прежними и по-прежнему запускаются.",
+        "{0}: не обновлена: остановлено до этой игры",
     };
     static readonly string[] Ja =
     {
@@ -209,6 +237,9 @@ static class Strings
         "{0}: 最新 ({1})", "{0}: {1} からアップデートされます", "{0}: アップデートされます", "{0}: 未インストール", "{0}: 失敗: {1}",
         "アップデート機能より前にビルドされています: アップデートするには、このゲームのファイルを一度選んでください", "{0}: アップデートするには、このゲームのファイルを一度選んでください",
         "お持ちのコピーからゲームをインストールするか、インストール済みのゲームをアップデートします。",
+        "すべてのアップデートが停止しました",
+        "停止前にアップデートされたゲームはアップデート済みです。その他のゲームは元のままで、引き続きプレイできます。",
+        "{0}: 未アップデート: このゲームの前に停止しました",
     };
     static readonly string[] Ko =
     {
@@ -226,6 +257,9 @@ static class Strings
         "{0}: 설치되지 않음", "{0}: 실패: {1}",
         "업데이트 기능 이전에 빌드됨: 업데이트하려면 이 게임의 파일을 한 번 선택하세요", "{0}: 업데이트하려면 이 게임의 파일을 한 번 선택하세요",
         "가지고 있는 사본으로 게임을 설치하거나, 설치된 게임을 업데이트하세요.",
+        "모두 업데이트가 중단되었습니다",
+        "중단 전에 업데이트된 게임은 업데이트되었습니다. 나머지 게임은 그대로이며 계속 플레이할 수 있습니다.",
+        "{0}: 업데이트되지 않음: 이 게임 전에 중단됨",
     };
     static readonly string[] ZhHans =
     {
@@ -241,6 +275,9 @@ static class Strings
         "正在更新 {0} ({1}/{2})", "你的游戏已更新", "部分游戏未能更新", "{0}:已更新到 {1}", "{0}:已是最新 ({1})", "{0}:将从 {1} 更新", "{0}:将会更新", "{0}:未安装", "{0}:失败:{1}",
         "在支持更新之前生成:请选择一次此游戏的文件以更新它", "{0}:请选择一次此游戏的文件以更新它",
         "从你自己的副本安装游戏,或更新已有的游戏。",
+        "全部更新已停止",
+        "停止前已更新的游戏已完成更新;其他游戏保持原样,仍可游玩。",
+        "{0}:未更新:在此游戏之前已停止",
     };
     static readonly string[] ZhHant =
     {
@@ -256,6 +293,9 @@ static class Strings
         "正在更新 {0} ({1}/{2})", "你的遊戲已更新", "部分遊戲未能更新", "{0}:已更新到 {1}", "{0}:已是最新 ({1})", "{0}:將從 {1} 更新", "{0}:將會更新", "{0}:未安裝", "{0}:失敗:{1}",
         "在支援更新之前建置:請選擇一次此遊戲的檔案以更新它", "{0}:請選擇一次此遊戲的檔案以更新它",
         "從你自己的副本安裝遊戲,或更新已有的遊戲。",
+        "全部更新已停止",
+        "停止前已更新的遊戲已完成更新;其他遊戲保持原樣,仍可遊玩。",
+        "{0}:未更新:在此遊戲之前已停止",
     };
 
     public static readonly Language[] All =

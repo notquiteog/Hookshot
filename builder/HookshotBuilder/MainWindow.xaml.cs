@@ -136,6 +136,7 @@ public partial class MainWindow : Window
     {
         SetStep(0);
         ShowPage(FilesPage);
+        FillGames(reload: true);   // (a build, an update or Update all that stopped or was cancelled may have changed games)
         if (!updating) return;
         updating = false;
         if (!filesReady)
@@ -689,6 +690,9 @@ public partial class MainWindow : Window
         if (!string.Equals(b, libraryBase, StringComparison.OrdinalIgnoreCase)) return;   // (the folder changed meanwhile)
         library = got;
         ShowLibrary();
+        // (a Hookshot.lnk an older Builder made onto another game's folder: onto the default game's, when it is installed)
+        if (Environment.GetEnvironmentVariable("HOOKSHOT_UI_PREVIEW") == null)
+            Finder.RepointDefault(got.FirstOrDefault(g => g.Key == Games.DefaultKey && g.Built)?.Folder);
     }
 
     /// A row's state: not installed, built before updates came in (its files to choose once), an update due, up to date, or
@@ -743,7 +747,7 @@ public partial class MainWindow : Window
                 row.Children.Add(b);
             }
             if (!g.Built || !g.Kept) Place(InstallButton(g, taken), 1);   // (a folder with no game files kept: built again from them)
-            else if (g.Update == true)
+            else if (g.Update != false)   // (due, or not known: the tools did not answer, a build with no version)
             {
                 var update = new Button { Style = (Style)FindResource("Quiet"), Height = 36, Content = T(S.LibUpdateOne), Margin = new Thickness(0, 0, 10, 0),
                                           IsEnabled = runner == null };
@@ -866,7 +870,8 @@ public partial class MainWindow : Window
         }
         SaveSettings();
         var args = new List<string> { "--game-" + g.Key, copy };
-        args.AddRange(g.Built ? new[] { "--out", g.Folder } : new[] { "--base", g.Base });
+        // (its own build files: --base takes --work-base from Run; a folder built again where it is, that game's work folder)
+        args.AddRange(g.Built ? new[] { "--out", g.Folder, "--work", Games.Folder(Storage.Work, g.Key) } : new[] { "--base", g.Base });
         args.AddRange(new[] { "--language", lang.Code });
         if (FsrTick.IsChecked == true) args.Add("--fsr");
         prepareNow = PrepareTick.IsChecked == true;
@@ -892,7 +897,9 @@ public partial class MainWindow : Window
         if (tools == null || b == null || runner != null) return;
         UpdateAllButton.IsEnabled = false;
         var (_, lines, error) = await Task.Run(() => Runner.Output(tools, "make_game.py", new[] { "--update-all", b, "--dry-run" }));
-        UpdateAllButton.IsEnabled = true;
+        // (a build or an update may have started while the plan was read: no second one; the button as the library says)
+        UpdateAllButton.IsEnabled = runner == null && library.Any(g => g.Update == true);
+        if (runner != null || updating) return;
         var plan = Games.Results(lines);
         if (plan.Count == 0)
         {
@@ -906,7 +913,7 @@ public partial class MainWindow : Window
             return;
         }
         if (MessageBox.Show(this, said + "\n\n" + T(S.LibAsk), T(S.LibUpdateAll), MessageBoxButton.YesNo, MessageBoxImage.Question) !=
-            MessageBoxResult.Yes)
+            MessageBoxResult.Yes || runner != null || updating)   // (and none started while the question was open)
             return;
         SaveSettings();
         BeginUpdate(OutPath.Text, tools.Version);
@@ -1143,6 +1150,7 @@ public partial class MainWindow : Window
         OpenButton.Content = T(S.OpenFolder);
         PlayText.Text = T(S.Play);
         ShowLog.Content = T(ShowLog.IsChecked == true ? S.HideDetails : S.ShowDetails);
+        RefreshMode();   // (the page's heading, in the language chosen)
         ShowLibrary();
     }
 
@@ -1364,12 +1372,18 @@ public partial class MainWindow : Window
         compileClock.Reset();
         clock.Start();
         Tick();
-        // (the build files where the player chose. Not for Update all: make_game.py gives each game its own work folder there)
-        if (Storage.WorkChosen && !args.Contains("--work") && !args.Contains("--update-all")) args.AddRange(new[] { "--work", Storage.Work });
+        // (the build files where the player chose: for a build whose game make_game.py knows (an update, Update all, a copy into
+        // its own folder), --work-base, each game's own work folder from it (<dir>, <dir>-<key>); for a build into the folder
+        // in the form, --work as before)
+        var all = args.Contains("--update-all");
+        var perGame = all || args.Contains("--update") || args.Contains("--base");
+        if (perGame && !args.Contains("--work-base") && !args.Contains("--work")) args.AddRange(new[] { "--work-base", Storage.Work });
+        else if (!perGame && Storage.WorkChosen && !args.Contains("--work")) args.AddRange(new[] { "--work", Storage.Work });
         if (dlss && !args.Contains("--fetch-ngx-sdk")) args.AddRange(new[] { "--fetch-ngx-sdk", "--accept-nvidia-license" });
-        // (the tick off here takes out the runtimes it placed; RecompLauncher's prepare (--cli) passes neither, and keeps them)
-        if (!dlss && !args.Contains("--no-dlss")) args.Add("--no-dlss");
-        if (fsr && !args.Contains("--fsr")) args.Add("--fsr");
+        // (the tick off here takes out the runtimes it placed; RecompLauncher's prepare (--cli) passes neither, and keeps them.
+        // Update all passes no upscaler choice to every game: make_game.py keeps each folder's own)
+        if (!dlss && !all && !args.Contains("--no-dlss")) args.Add("--no-dlss");
+        if (fsr && !all && !args.Contains("--fsr")) args.Add("--fsr");
         if (fsr && !args.Contains("--fetch-fsr-runtime")) args.AddRange(new[] { "--fetch-fsr-runtime", "--accept-amd-license" });
         runner = new Runner(tools, args, workers, dlss ? Storage.NgxSdk : null, memoryGb, fsr ? Storage.FfxSdk : null);
         runner.Line += l => Dispatcher.BeginInvoke(() => Line(l));
@@ -1783,8 +1797,10 @@ public partial class MainWindow : Window
     int updateAllAt;
     string updateAllFolder = "";
 
-    /// Every game under the base updated with these tools, on the update's page (BeginUpdate first). The DLSS and FSR 4 choices
-    /// are UpdateBuild's, for any of the folders. No --work: make_game.py gives each game its own work folder
+    /// Every game under the base updated with these tools, on the update's page (BeginUpdate first). No one upscaler choice for
+    /// every game: make_game.py keeps each folder's own DLSS and FSR 4 (folder_upscalers); NVIDIA's SDK and AMD's runtime are
+    /// fetched, for the folders that have them, when their licenses were accepted. The build files folder the player chose,
+    /// every game's from it (--work-base), never the default one on the system drive
     void StartUpdateAll(Tools tools, string baseFolder, List<string> folders)
     {
         download = null;
@@ -1796,16 +1812,9 @@ public partial class MainWindow : Window
         BuildTitle.Text = T(S.LibUpdating);
         VersionChipText.Text = tools.Version ?? VersionChipText.Text;
         var saved = BuilderSettings.Load(SettingsPath);
-        var dlss = saved?.Dlss == true ||
-                   folders.Any(f => File.Exists(System.IO.Path.Combine(f, "ngx", "nvngx_dlss.dll")) &&
-                                    (saved?.DlssLicense == true || File.Exists(System.IO.Path.Combine(Storage.NgxSdk, "LICENSE.txt"))));
-        var fsr = (saved?.Fsr == true && saved.FsrLicense) ||
-                  folders.Any(f => File.Exists(System.IO.Path.Combine(f, ".hookshot_fsr")) &&
-                                   File.Exists(System.IO.Path.Combine(f, "amd_fidelityfx_upscaler_vk.dll")) &&
-                                   File.Exists(System.IO.Path.Combine(f, "LICENSE-AMD-FSR-SDK.md")));
-        // (the build files folder the player chose, every game's from it: --work-base, never the default one on the system drive)
+        var dlss = saved?.DlssLicense == true || File.Exists(System.IO.Path.Combine(Storage.NgxSdk, "LICENSE.txt"));
+        var fsr = saved?.FsrLicense == true;
         var args = new List<string> { "--update-all", baseFolder, "--work-base", Storage.Work };
-        if (saved?.Fsr == true) args.Add("--fsr");
         Run(tools, ShaderStep.Args(args, prepareNow), keepRows: true, dlss: dlss, fsr: fsr);
     }
 
@@ -1837,23 +1846,27 @@ public partial class MainWindow : Window
         else if (g.Result == "updated") foreach (var r in rows.Values) r.Done();
     }
 
-    /// Update all ended: one line per game, a failed one with the others' outcomes, on the problem page when any failed
+    /// Update all ended: one line per game, the games it finished and the ones it did not reach (Games.Outcome). A failure, a
+    /// non-zero exit or a cancel (failure set: Runner gives null only for exit 0) is a stop, on the problem page, which says
+    /// that the games updated before it are updated, not that nothing changed
     void EndUpdateAll(string? failure)
     {
         var results = updateAll!;
         updateAll = null;
-        if (failure == "cancelled")
-        {
-            ToFiles();
-            return;
-        }
-        var said = string.Join("\n", results.Where(r => r.Result != "missing").Select(r => ResultText(r, results)));
+        var (done, unfinished) = Games.Outcome(results, updateAllFolders, stopped: failure != null);
+        var lines = results.Where(r => r.Result != "missing").Select(r => ResultText(r, results)).ToList();
+        lines.AddRange(unfinished.Select(f => string.Format(T(S.ResStopped), Games.NameOf(Games.FolderKey(f))) +
+                                              (updateAllFolders.Count(x => Games.FolderKey(x) == Games.FolderKey(f)) > 1 ? " · " + f : "")));
+        var said = string.Join("\n", lines);
         if (Environment.GetEnvironmentVariable("HOOKSHOT_UI_PREVIEW") == null)
             foreach (var r in results.Where(r => r.Result == "updated")) Finder.RefreshShortcuts(r.Folder);
-        if (results.Count == 0 || results.Any(r => r.Result == "failed"))
+        if (!done)
         {
-            ShowProblem(said.Length > 0 ? said : failure ?? "The build tools stopped without saying why.", tools: false);
-            ProblemTitle.Text = T(S.LibSomeFailed);
+            var failed = results.Any(r => r.Result == "failed");
+            var why = failure is { } f && f != "cancelled" && !failed ? "\n\n" + f : "";
+            ShowProblem((said.Length > 0 ? said : failure ?? "The build tools stopped without saying why.") + why, tools: false);
+            ProblemTitle.Text = failed ? T(S.LibSomeFailed) : T(S.LibStopped);
+            ProblemSub.Text = T(S.LibStoppedSub);   // (not "Your current game is unchanged": some may be updated)
             FillGames(reload: true);
             return;
         }
@@ -1867,14 +1880,17 @@ public partial class MainWindow : Window
         StartTick.IsChecked = File.Exists(Finder.StartLinkFor(key));
         FillGames(reload: true);
         ShowPage(ReadyPage);
+        _ = FreeAfterBuild();   // (the build files' rule after a build: what only the next update needs goes)
     }
 
     /// The new tools are here (Updater.UpdateFolder). After a self-update (all: the new Builder just installed) every installed
-    /// game under the folder's base is updated (--update-all) when there is more than one and this folder's version is not the
-    /// new one; a game installed alone, or a folder built again only for an upscaler, is built as before (UpdateBuild)
+    /// game under the folder's base is updated (--update-all) when there is more than one and this folder is older than the new
+    /// Builder (Updater.Newer). Else the folder alone is built (UpdateBuild): a game installed alone, a folder built again only
+    /// for an upscaler, and a folder at another version that is not older: the older one a player agreed to on a switch of
+    /// track (OlderOk, --allow-downgrade-from), which Update all, never taking a game back, would leave as it is
     internal async void UpdateBuildOrAll(Tools tools, string folder, bool all)
     {
-        if (all && tools.Version is { } v && ReadVersion(folder) is { } have && have != v)
+        if (all && tools.Version is { } v && ReadVersion(folder) is { } have && Updater.Newer(v, have))
         {
             var b = Games.BaseOf(folder);
             var lib = await Task.Run(() => Runner.Library(tools, b));

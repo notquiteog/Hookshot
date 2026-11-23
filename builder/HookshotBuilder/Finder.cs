@@ -91,13 +91,11 @@ static class Finder
     }
 
     /// The game folder's shortcuts, named and described by the game it holds (Games.FolderKey: its kept copy, else its folder
-    /// by the rule), so each game built has its own
+    /// by the rule), so each game built has its own. A game installed in two folders has them on its own folder
+    /// (Games.ShortcutFolder), never the other
     public static void Shortcuts(string gameFolder, bool desktop, bool start)
     {
-        // (hookshot.exe: the game's launcher in a folder built since it came (Play, and Update when a newer release is out), else the
-        // game. The icon is the game's own: bin\hookshot.exe when it is there)
-        var exe = Path.Combine(gameFolder, "hookshot.exe");
-        var icon = File.Exists(Path.Combine(gameFolder, "bin", "hookshot.exe")) ? Path.Combine(gameFolder, "bin", "hookshot.exe") : exe;
+        gameFolder = Games.ShortcutFolder(gameFolder);
         var key = Games.FolderKey(gameFolder);
         foreach (var (link, want) in new[] { (DesktopLinkFor(key), desktop), (StartLinkFor(key), start) })
         {
@@ -108,22 +106,52 @@ static class Finder
                     if (File.Exists(link)) File.Delete(link);
                     continue;
                 }
-                if (!File.Exists(exe)) continue;
-                // (the shell's own shortcut object (IShellLinkW + IPersistFile): the scripting host's, late-bound through dynamic,
-                // made none for players and said nothing)
-                var sl = (IShellLinkW)new ShellLink();
-                sl.SetPath(exe);
-                sl.SetWorkingDirectory(gameFolder);
-                sl.SetIconLocation(icon, 0);
-                sl.SetDescription(Games.NameOf(key) + ", built by Hookshot");
-                Directory.CreateDirectory(Path.GetDirectoryName(link)!);
-                ((System.Runtime.InteropServices.ComTypes.IPersistFile)sl).Save(link, true);
+                MakeLink(link, gameFolder, key);
             }
             catch (Exception e)
             {
                 ShortcutError = $"{Path.GetFileName(link)}: {e.Message}";
             }
         }
+    }
+
+    /// A Hookshot.lnk (the default game's name) that an older Builder made for the folder it built, holding another game: made
+    /// again onto the default game's folder when that game is installed (defaultFolder), else left as it is, and nothing said
+    public static void RepointDefault(string? defaultFolder)
+    {
+        if (defaultFolder == null) return;
+        foreach (var link in new[] { DesktopLink, StartLink })
+        {
+            try
+            {
+                if (!File.Exists(link)) continue;
+                var sl = (IShellLinkW)new ShellLink();
+                ((System.Runtime.InteropServices.ComTypes.IPersistFile)sl).Load(link, 0);
+                var dir = new System.Text.StringBuilder(1024);
+                sl.GetWorkingDirectory(dir, dir.Capacity);
+                if (dir.Length == 0 || Games.FolderKey(dir.ToString()) == Games.DefaultKey) continue;
+                MakeLink(link, defaultFolder, Games.DefaultKey);
+            }
+            catch (Exception) { }   // (a link that does not read is left as it is)
+        }
+    }
+
+    /// One shortcut onto a game folder: the shell's own shortcut object (IShellLinkW + IPersistFile; the scripting host's,
+    /// late-bound through dynamic, made none for players and said nothing)
+    static void MakeLink(string link, string gameFolder, string key)
+    {
+        // (hookshot.exe: the game's launcher in a folder built since it came (Play, and Update when a newer release is out), else the
+        // game. The icon is the game's own: bin\hookshot.exe when it is there)
+        var exe = Path.Combine(gameFolder, "hookshot.exe");
+        var icon = File.Exists(Path.Combine(gameFolder, "bin", "hookshot.exe")) ? Path.Combine(gameFolder, "bin", "hookshot.exe") : exe;
+        if (!File.Exists(exe)) return;
+        var sl = (IShellLinkW)new ShellLink();
+        sl.SetPath(exe);
+        sl.SetWorkingDirectory(gameFolder);
+        sl.SetIconLocation(icon, 0);
+        sl.SetDescription(Games.NameOf(key) + ", built by Hookshot");
+        Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+        ((System.Runtime.InteropServices.ComTypes.IPersistFile)sl).Save(link, true);
     }
 
     /// The last shortcut that could not be made, for the log

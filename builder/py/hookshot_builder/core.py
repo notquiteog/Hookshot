@@ -276,10 +276,25 @@ def kept_translation(sa):
         return False
 
 
+def game_work(key):
+    """A game's own build files folder: work() for the default game, <work>-<key> for another (make_game.py's rule)"""
+    return _rule_folder(work(), key)
+
+
+def work_folders():
+    """The build files folders: the default game's (work()), and each other game's beside it (<work>-<key>, as make_game.py
+    names it for --base, --update and Update all), those that are there. Storage.cs WorkFolders"""
+    yield work()
+    for key, _name, _bid in PROFILES:
+        if key != DEFAULT_KEY and os.path.isdir(work() + "-" + key):
+            yield work() + "-" + key
+
+
 def freeable(after_build=False):
-    for d in (("sa", "exefs", "probe") if after_build else ("objcache", "sa", "exefs", "probe")):
-        if not (after_build and d == "sa" and kept_translation(os.path.join(work(), d))):
-            yield os.path.join(work(), d)
+    for w in work_folders():
+        for d in (("sa", "exefs", "probe") if after_build else ("objcache", "sa", "exefs", "probe")):
+            if not (after_build and d == "sa" and kept_translation(os.path.join(w, d))):
+                yield os.path.join(w, d)
     for d in ("downloads", "update"):
         yield os.path.join(paths.base(), d)
     v = paths.versions()
@@ -314,7 +329,8 @@ def measure():
     seen = set()
     free = sum(_size(d, seen) for d in freeable())
     seen = set()
-    total = _size(paths.base(), seen) + (_size(work(), seen) if work_chosen() else 0)
+    total = _size(paths.base(), seen) + (_size(work(), seen) if work_chosen() else 0) + \
+        sum(_size(w, seen) for w in list(work_folders())[1:])
     return max(total, free), free
 
 
@@ -323,7 +339,8 @@ def free(after_build=False):
     for d in list(freeable(after_build)):
         _delete(d)
     if not after_build:
-        _delete(os.path.join(work(), "system_headers.txt"))
+        for w in work_folders():
+            _delete(os.path.join(w, "system_headers.txt"))
         return measure()[1]
     seen = set()
     return sum(_size(d, seen) for d in freeable(True))
@@ -516,30 +533,106 @@ def tools_game_folders():
     return game_folders
 
 
+# (the profiles that build, as Games.cs Profiles: key, game, main's build id, in nx2/game_profile.py's order, and the default
+# game's key. For what is to be said without the tools' answer: the library's fallback, the launcher page's game, the other
+# games' build files folders. tests/test_builder_games.py holds them to nx2/game_profile.py)
+PROFILES = (
+    ("oot", "The Legend of Zelda: Ocarina of Time", "e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348"),
+    ("dkb", "Donkey Kong Bananza", "e25c90c1c136638885659fd55bf8a03b3403489d"),
+    ("mkw", "Mario Kart World", "9e244438c3d8ef1c703a6a85ef99c4f000000000"),
+)
+DEFAULT_KEY = "oot"
+
+
+def _rule_folder(base, key):
+    b = base.rstrip("\\/") or base
+    return b if key == DEFAULT_KEY else b + "-" + key
+
+
+def _base_of(folder):
+    f = folder.rstrip("\\/") or folder
+    for key, _name, _bid in PROFILES:
+        s = "-" + key
+        if key != DEFAULT_KEY and len(f) > len(s) and f.endswith(s) and f[-len(s) - 1] not in "\\/":
+            return f[:-len(s)]
+    return f
+
+
+def _held_key(folder):
+    """The profile key of the copy a folder keeps (.hookshot_exefs/main's build id: Games.cs FolderGameKey), or None"""
+    try:
+        with open(os.path.join(folder, ".hookshot_exefs", "main"), "rb") as f:
+            head = f.read(0x60)
+    except OSError:
+        return None
+    if len(head) < 0x60 or head[:4] != b"NSO0":
+        return None
+    bid = head[0x40:0x60].hex()
+    return next((k for k, _n, b in PROFILES if b.startswith(bid) or bid.startswith(b)), None)
+
+
+def _version_in(folder):
+    for line in paths.read_small(os.path.join(folder, "hookshot_version.txt")).splitlines():
+        if line.startswith("version="):
+            return line[8:].strip() or None
+    return None
+
+
 def library_fallback(base):
-    """The library without the tools' answer: the games built_games finds, the others not installed, no states (Games.cs
-    Fallback)"""
-    game_folders = tools_game_folders()
-    if game_folders is None or not base:
+    """The library when the tools could not answer (Games.cs Fallback): every game, the ones built in their folders by the rule
+    found, each folder's kept game files and version read here, and no update flag (None: "Installed", with Update). Never
+    "built before updates came in" because the answer failed: only for a folder that keeps no game files"""
+    if not base:
         return []
-    b = game_folders.base_of(base)
-    built = {g["key"]: g for g in built_games(b)}
-    return [{"key": p.key, "name": built[p.key]["name"] if p.key in built else p.game,
-             "folder": built[p.key]["folder"] if p.key in built else game_folders.folder(b, p.key), "base": b,
-             "built": p.key in built, "other_folders": [], "own_folder": game_folders.folder(b, p.key), "own_folder_holds": None,
-             "version": None, "kept": False, "update": None} for p in game_folders.buildable()]
+    b = _base_of(base)
+    games = []
+    for key, name, _bid in PROFILES:
+        f = _rule_folder(b, key)
+        built = os.path.isfile(os.path.join(f, "image.bin")) and os.path.isfile(game_exe(f))
+        kept = built and os.path.isdir(os.path.join(f, ".hookshot_exefs")) and os.path.isdir(os.path.join(f, "romfs"))
+        games.append({"key": key, "name": name, "folder": f, "base": b, "built": built, "other_folders": [], "own_folder": f,
+                      "own_folder_holds": None, "version": _version_in(f) if built else None, "kept": kept,
+                      "update": None if kept else False})
+    return games
 
 
 def folder_key(folder):
-    """The game a folder is (game_folders.folder_key); None (the default game's shortcuts) without the tools"""
+    """The game a folder is (game_folders.folder_key): its kept copy's, else its folder by the rule"""
     game_folders = tools_game_folders()
-    return game_folders.folder_key(folder) if game_folders else None
+    if game_folders:
+        return game_folders.folder_key(folder)
+    held = _held_key(folder)
+    if held:
+        return held
+    f = folder.rstrip("\\/") or folder
+    return next((k for k, _n, _b in PROFILES if _rule_folder(_base_of(f), k) == f), DEFAULT_KEY)
 
 
 def game_name(key):
-    """A profile's game, or the key itself"""
+    """A profile's game, or "Hookshot" for none"""
+    return next((n for k, n, _b in PROFILES if k == key), "Hookshot")
+
+
+def title_parts(name):
+    """The launcher page's two lines for a game (game_folders.title_parts): its series in capitals, and its title"""
+    head, sep, rest = name.partition(": ")
+    return (head.upper(), rest) if sep and head and rest else ("", name)
+
+
+def shortcut_folder(folder):
+    """The folder a game's shortcuts start (game_folders.shortcut_folder): its own folder when that holds the game"""
     game_folders = tools_game_folders()
-    return game_folders.game_profile.GAMES[key].game if game_folders and key in game_folders.game_profile.GAMES else key or "Hookshot"
+    return game_folders.shortcut_folder(folder) if game_folders else folder
+
+
+def older(have, new):
+    """have is a known version older than new (the tools' nx2/version.py release_key, the updaters' order); False when either
+    names no version or the tools are not there"""
+    if tools_game_folders() is None:
+        return False
+    import version
+    a, b = version.release_key(have), version.release_key(new)
+    return bool(a and b and a < b)
 
 
 def play_folder(base, key):
@@ -564,8 +657,9 @@ def open_folder(folder):
 def shortcut_name(key):
     """A game's shortcut name (game_folders.shortcut_name, Games.cs ShortcutName): Hookshot for the default game, the name its
     shortcut always had (and for None), "<game> (Hookshot)" for another"""
-    game_folders = tools_game_folders()
-    return game_folders.shortcut_name(key) if game_folders and key in game_folders.game_profile.GAMES else "Hookshot"
+    if key in (None, DEFAULT_KEY) or key not in [k for k, _n, _b in PROFILES]:
+        return "Hookshot"
+    return "".join(c for c in game_name(key) if c not in '\\/:*?"<>|').strip() + " (Hookshot)"
 
 
 def desktop_link(key=None):
@@ -627,6 +721,7 @@ def shortcuts(game_folder, desktop, start, folder=True):
     icon = os.path.join(game_folder, "bin", "hookshot.exe")
     if not os.path.isfile(icon):
         icon = os.path.join(game_folder, "hookshot.exe")
+    game_folder = shortcut_folder(game_folder)   # (a game in two folders: its shortcuts on its own one, never the other)
     key = folder_key(game_folder)
     for link, want in ((desktop_link(key), desktop), (start_link(key), start), (folder_link(game_folder), folder)):
         try:
@@ -639,6 +734,52 @@ def shortcuts(game_folder, desktop, start, folder=True):
             make_link(link, exe, args, game_folder, icon, "%s, built by Hookshot" % game_name(key))
         except OSError as e:
             shortcut_error = "%s: %s" % (os.path.basename(link), e)
+
+
+def link_workdir(link):
+    """The working folder a .lnk starts in (IShellLinkW GetWorkingDirectory, after IPersistFile Load), or None"""
+    ole32 = ctypes.windll.ole32
+    ole32.CoInitialize(None)
+    clsid = (ctypes.c_byte * 16).from_buffer_copy(_guid("00021401-0000-0000-C000-000000000046"))
+    iid_link = (ctypes.c_byte * 16).from_buffer_copy(_guid("000214F9-0000-0000-C000-000000000046"))
+    iid_file = (ctypes.c_byte * 16).from_buffer_copy(_guid("0000010B-0000-0000-C000-000000000046"))
+    sl = ctypes.c_void_p()
+    if ole32.CoCreateInstance(clsid, None, 1, iid_link, ctypes.byref(sl)) != 0:
+        return None
+    try:
+        pf = ctypes.c_void_p()
+        _com_call(sl, 0, ctypes.HRESULT, ctypes.cast(iid_file, ctypes.c_void_p), ctypes.byref(pf))   # QueryInterface
+        try:
+            _com_call(pf, 5, ctypes.HRESULT, ctypes.c_wchar_p(link), wintypes.DWORD(0))   # IPersistFile::Load
+        finally:
+            _com_call(pf, 2, ctypes.c_ulong)
+        buf = ctypes.create_unicode_buffer(1024)
+        _com_call(sl, 8, ctypes.HRESULT, buf, ctypes.c_int(1024))   # GetWorkingDirectory
+        return buf.value or None
+    finally:
+        _com_call(sl, 2, ctypes.c_ulong)
+
+
+def repoint_default(default_folder):
+    """A Hookshot.lnk (the default game's name) that an older Builder made for the folder it built, holding another game: made
+    again onto the default game's folder when that game is installed (default_folder), else left as it is, and nothing said.
+    Finder.cs RepointDefault"""
+    if not default_folder:
+        return
+    exe, args = paths.launcher_command()
+    for link in (desktop_link(), start_link()):
+        try:
+            if not os.path.isfile(link):
+                continue
+            was = link_workdir(link)
+            if not was or folder_key(was) == DEFAULT_KEY:
+                continue
+            icon = os.path.join(default_folder, "bin", "hookshot.exe")
+            if os.path.isfile(icon):
+                make_link(link, exe, subprocess.list2cmdline(args + ["--launch", default_folder]), default_folder, icon,
+                          "%s, built by Hookshot" % game_name(DEFAULT_KEY))
+        except (OSError, AttributeError, ValueError):
+            pass
 
 
 def refresh_shortcuts(game_folder):
